@@ -1,10 +1,10 @@
-# [Big Mother]
+# Big Mother
 
 ## Who uses it
-[Long day child care educators, owners and parents]
+Long day child care educators, owners and parents
 
 ## What they can do
-- [Compliance records for educators and owners]
+- Compliance records for educators and owners
 
 ## Data
 [table]: id, created_at
