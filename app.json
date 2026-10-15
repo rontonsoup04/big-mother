@@ -1,0 +1,1 @@
+{"expo":{"name":"BIGMOTHER","slug":"bigmother-mobile","version":"1.0.0","orientation":"portrait","userInterfaceStyle":"light","ios":{"supportsTablet":true,"infoPlist":{"NSMicrophoneUsageDescription":"BIGMOTHER uses the microphone to let educators record voice notes."}},"android":{"permissions":["RECORD_AUDIO"]},"web":{"bundler":"metro"}}}
