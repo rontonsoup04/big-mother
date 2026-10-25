@@ -2,7 +2,7 @@
 
 About 20 minutes. You need: Copilot Studio (UNSW login), the Supabase database set up (see the main README), and the owner login for Beehive.
 
-The agent reads live Beehive data through six database functions, and can save parent-message **drafts** that staff approve in the app. It cannot send anything to parents itself.
+The agent reads live Beehive data through eight database functions, and can save parent-message **drafts** that staff approve in the app. It cannot send anything to parents itself.
 
 ## 1. Get the centre's agent key
 
@@ -23,21 +23,31 @@ The agent reads live Beehive data through six database functions, and can save p
    - https://www.acecqa.gov.au/nqf/national-quality-standard
 6. **Create**.
 
-## 3. Give it the Beehive tool
+## 3. Give it the Beehive tools (MCP)
 
-1. Open [beehive-agent-openapi.json](beehive-agent-openapi.json) in a text editor. Replace every `PASTE_AGENT_KEY_HERE` with the key from step 1 (six places). Save a copy somewhere outside the repo.
-2. In the agent: **Tools** → **Add a tool** → **New tool** → **REST API**.
-3. Upload your edited file. Name it **Beehive**, description *Beehive centre records and parent message drafts*.
-4. **Authentication:** API key. **Parameter label:** apikey · **Parameter name:** apikey · **Location:** Header.
-5. Select all six tools → **Add**. When asked for a connection, paste the Supabase **publishable key**: `sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8` (it's public by design; never use the secret/service_role key).
-6. Open each tool and check **Allow the agent to use this tool** is on. For *DraftParentMessage* set **Ask the user before running** to off (it only saves a draft).
+Beehive includes a small MCP (Model Context Protocol) server, deployed with the website at `/api/mcp`. The website must be deployed on Vercel from a branch that includes `beehive-demo/api/mcp.js`.
+
+1. In the agent: **Tools** → **Add a tool** → **+ Add** → **Model Context Protocol**.
+2. Fill in:
+   - **Server name:** Beehive
+   - **Server description:** Beehive centre records, compliance tasks, official guidance and parent message drafts
+   - **Server URL:** `https://<your-vercel-site>/api/mcp`
+3. **Authentication:** API key → **Type:** Header → **Header name:** `x-beehive-key` → **Create**.
+4. When it asks for a connection, choose **Create new connection** and paste your **agent key** (from step 1) as the API key → **Create** → **Add to agent**.
+5. Check the 8 tools appear and are turned on: get_audit_readiness, spot_check_search, list_expiring_certificates, list_compliance_tasks, get_official_guidance, list_children, draft_parent_message, add_regulation_update.
+
+If the API key option gives you trouble, choose **Authentication: None** and put the key in the URL instead: `https://<your-vercel-site>/api/mcp?key=<agent key>`. Fine for the demo; anyone with that URL can read the demo centre's data.
+
+**Alternative (accounts with REST API tools):** **+ Add** → **REST API**, upload [beehive-agent-openapi.json](beehive-agent-openapi.json) with every `PASTE_AGENT_KEY_HERE` replaced by your key, authentication API key in header `apikey`, connection value = the Supabase publishable key.
 
 Test in the right-hand panel:
 - "How ready are we for an audit?" → readiness score and the red items.
 - "Show me the WWCC register" → ten educators.
+- "What compliance is overdue?" → the sleep policy review and the evacuation rehearsal.
+- "What does the law say about sleep and rest?" → summary, steps and the ACECQA documents, with links.
 - "Draft a message to Maya's mum: she had a great day painting." → "Saved as a draft" — it appears on the Beehive overview under **AI drafts awaiting approval**.
 
-If a call fails with 401, the apikey connection is wrong. If it says "Invalid Beehive agent key", the key in the file is wrong.
+If a tool says "Missing Beehive agent key", the connection has no key (check the header name is `x-beehive-key`). "Invalid Beehive agent key" means the key is wrong, or `seed_demo.sql` hasn't been run in this Supabase project. Opening `https://<your-vercel-site>/api/mcp` in a browser should show "Beehive MCP server. Use POST"; a 404 means the site hasn't been redeployed with the MCP server yet.
 
 ## 4. Show the agent inside Beehive
 
@@ -56,20 +66,24 @@ Now **Ask Beehive** (bottom right) opens your Copilot agent, and **Draft with AI
 
 ```
 Beehive web app ── Ask Beehive / Draft with AI ──► Copilot Studio agent (Direct Line token endpoint)
-                                                       │  REST tool, apikey + agent key
+                                                       │  MCP: https://<site>/api/mcp + agent key
+                                                       ▼
+                                   Beehive MCP server (Vercel function, beehive-demo/api/mcp.js)
                                                        ▼
                                    Supabase: agent_readiness · agent_search · agent_certificates
                                              agent_children · agent_draft_parent_message
-                                             agent_add_regulation_update
+                                             agent_add_regulation_update · agent_guidance · agent_compliance_tasks
 ```
 
 | Tool | What it does | Writes? |
 |---|---|---|
-| GetAuditReadiness | Score, every checklist item, pending reviews | No |
-| SpotCheckSearch | Certificates, incidents, checklist items and approved medical profiles (allergies, conditions) matching a query | No |
-| ListExpiringCertificates | Expired / due within 60 days | No |
-| ListChildren | Names and rooms only | No |
-| DraftParentMessage | Saves a message as a draft for staff approval | Draft only |
-| AddRegulationUpdate | Records a regulation change for the owner to accept | Yes (as "new") |
+| get_audit_readiness | Score, every checklist item, pending reviews | No |
+| spot_check_search | Certificates, incidents, checklist items and approved medical profiles (allergies, conditions) matching a query | No |
+| list_expiring_certificates | Expired / due within 60 days | No |
+| list_children | Names and rooms only | No |
+| draft_parent_message | Saves a message as a draft for staff approval | Draft only |
+| add_regulation_update | Records a regulation change for the owner to accept | Yes (as "new") |
+| list_compliance_tasks | Recurring compliance tasks with due dates and status | No |
+| get_official_guidance | Official documents, summary and steps for a checklist item (the compliance library) | No |
 
 Every draft and regulation update the agent creates is written to the audit log. Messages reach a parent only after a staff member approves them in Beehive.

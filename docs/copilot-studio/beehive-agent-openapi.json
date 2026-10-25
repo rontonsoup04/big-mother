@@ -31,7 +31,7 @@
   "paths": {
     "/rpc/agent_readiness": {
       "post": {
-        "operationId": "GetAuditReadiness",
+        "operationId": "get_audit_readiness",
         "summary": "Get audit readiness",
         "description": "Returns the centre's readiness score, every checklist item (status green/yellow/red, source regulation, what it requires, what needs attention), pending reviews and new regulation updates. Items are sorted most urgent first. Use for: 'how ready are we', 'what should I fix first', 'explain this gap'.",
         "parameters": [
@@ -67,7 +67,7 @@
     },
     "/rpc/agent_search": {
       "post": {
-        "operationId": "SpotCheckSearch",
+        "operationId": "spot_check_search",
         "summary": "Search records for a spot check",
         "description": "Finds staff certificates, incident records, checklist items and medical profiles matching a query such as 'WWCC', 'incident records', 'first aid' or a person's name. Use when an authorised officer asks to see records.",
         "parameters": [
@@ -111,7 +111,7 @@
     },
     "/rpc/agent_certificates": {
       "post": {
-        "operationId": "ListExpiringCertificates",
+        "operationId": "list_expiring_certificates",
         "summary": "List expired or expiring staff certificates",
         "description": "Lists staff certificates that are expired or due within 60 days, with staff name, room, expiry date, days left and reminder status.",
         "parameters": [
@@ -150,7 +150,7 @@
     },
     "/rpc/agent_children": {
       "post": {
-        "operationId": "ListChildren",
+        "operationId": "list_children",
         "summary": "List children",
         "description": "Lists the names and rooms of enrolled children (no medical information). Use to check a child's exact name before drafting a message.",
         "parameters": [
@@ -189,7 +189,7 @@
     },
     "/rpc/agent_draft_parent_message": {
       "post": {
-        "operationId": "DraftParentMessage",
+        "operationId": "draft_parent_message",
         "summary": "Save a draft message to a child's family",
         "description": "Saves a message to a child's parents as a DRAFT. It is not sent: a staff member reviews and approves it in Beehive first. Only include facts the user gave you.",
         "parameters": [
@@ -251,7 +251,7 @@
     },
     "/rpc/agent_add_regulation_update": {
       "post": {
-        "operationId": "AddRegulationUpdate",
+        "operationId": "add_regulation_update",
         "summary": "Record a regulation or guidance change",
         "description": "Records a new regulation or ACECQA guidance change for the owner to review and accept in Beehive. Use match terms that appear in affected checklist item titles, e.g. 'sleep', 'sun', 'evacuation'.",
         "parameters": [
@@ -300,6 +300,86 @@
             "description": "Result",
             "schema": {
               "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "/rpc/agent_guidance": {
+      "post": {
+        "operationId": "get_official_guidance",
+        "summary": "Get official compliance guidance",
+        "description": "Returns the official government documents (ACECQA, NSW Legislation, NSW Department of Education, NSW Early Learning Commission, Office of the Children's Guardian) behind a checklist item, with a plain-English summary, steps to comply, what to show an officer and how long to keep records. Use when explaining a gap or answering 'what does the law say about...'. Leave p_topic empty to list every item and the key references.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "p_key",
+                "p_topic"
+              ],
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                },
+                "p_topic": {
+                  "type": "string",
+                  "description": "Checklist item or topic, e.g. sleep, WWCC, incidents, evacuation, Reg 97. Empty for everything."
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Guidance with official documents",
+            "schema": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "/rpc/agent_compliance_tasks": {
+      "post": {
+        "operationId": "list_compliance_tasks",
+        "summary": "List recurring compliance tasks",
+        "description": "Lists every recurring compliance task (drills, safety checks, policy reviews, QIP review, fire equipment service, excursion risk assessments) with its regulation, frequency, state (overdue, due_soon, on_track, done), due date, last completion and the compliance library guide that explains it. Use for 'what compliance is overdue' or 'what's due this month'.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "p_key"
+              ],
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compliance tasks",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
             }
           }
         }

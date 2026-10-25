@@ -40,6 +40,9 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
    2. `supabase/migrations/20261025000000_realtime_messages.sql`
    3. `supabase/migrations/20261025100000_beehive.sql`
    4. `supabase/migrations/20261025200000_frontend_alignment.sql` (matches the database to the web app's screens, adds the AI agent API)
+   5. `supabase/migrations/20261026090000_compliance_library.sql` (official government documents, summaries and steps for every checklist item)
+   6. `supabase/migrations/20261026100000_compliance_register.sql` (the compliance register: recurring tasks with due dates)
+   7. `supabase/migrations/20261026110000_compliance_agent.sql` (the Beehive Compliance Agent's tools and reminder drafts)
 2. **Demo data.** Run `supabase/seed_demo.sql`. It creates the three logins, Beehive Early Learning, 10 educators with certificates, 12 children with medical profiles, incidents, a regulation update and a draft checklist. No compliance documents or evidence files are included; you add those during the demo. The last row it returns is the AI agent key. Re-run it any time to reset the demo.
 3. **Auth.** **Authentication → URL Configuration** → Site URL = your Vercel address (and `http://localhost:3000` for local). **Providers → Email** → turn off **Confirm email** if you want new sign-ups to work immediately.
 
@@ -53,7 +56,41 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
 | Family messages | `messages`, `parent_messages`, `v_family_thread` |
 | Medical updates | `medical_updates`, `children`, `child_parents`, `v_child_medical_profile` |
 | Incidents | `incidents`, `v_incident_deadlines` |
+| Compliance register | `compliance_requirements`, `compliance_records`, `v_compliance_register` |
+| Compliance library | `compliance_guides`, `compliance_documents` (shared reference data, read-only) |
 | Everything | `centres`, `users`, `audit_log` (append-only), storage bucket `beehive` for uploaded files |
+
+## Compliance
+
+**Compliance** (owner menu) shows every compliance requirement in one place, in two tabs:
+
+- **All compliance:** the recurring tasks (evacuation rehearsals, weekly premises checks, fire equipment service, policy reviews, the Quality Improvement Plan, staff register, excursion risk assessments), each with its regulation, how often it's due, when it was last done and by whom, and whether it's overdue, due soon or on track. **Mark done** records it and sets the next due date. Logging an evacuation drill on the checklist also completes the rehearsal task. Below that are all the audit checklist items with their status.
+- **Official guidance:** the compliance library (below).
+
+The demo data includes realistic history: the sleep policy review and evacuation rehearsal are overdue, three tasks are due within 14 days, and the rest are on track.
+
+### Compliance library
+
+The **Official guidance** tab lists the official documents behind every checklist item and recurring task: the National Regulations, plus guidance from ACECQA, the NSW Department of Education, the NSW Early Learning Commission and the Office of the Children's Guardian. Each item has a plain-English summary, numbered steps to comply, what to show an officer, how long to keep records, and links to the official documents. The same guidance appears in each checklist item's dialog, in search results and in Ask Beehive.
+
+The content lives in one file, `tools/compliance_library.py`, with the date the sources were checked. To update it, edit that file and run `python3 tools/compliance_library.py`. That rewrites the migration and the offline copy (`beehive-demo/library-data.js`). Then run the migration again in Supabase; it's safe to re-run. Summaries are guidance, not legal advice.
+
+## Beehive Compliance Agent
+
+Designed in [AGENT.md](AGENT.md) (Design Card, instructions and tests). On the **Compliance** page, Sara types an instruction (or leaves the default "Run the weekly credential check"), enters the team passcode and clicks **Run agent**. The agent checks every educator's WWCC, first aid, CPR and anaphylaxis, drafts personalised renewal reminders with an upload link and a follow-up date, and flags what Sara must decide (expired or missing credentials, renewals waiting for her review). Sara edits and approves each reminder; the educator then sees it on their certificates page. Nothing is sent without her approval.
+
+It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and Gemini. Its system prompt is `beehive-demo/api/_agent-instructions.js`, generated from AGENT.md with `python3 tools/sync_agent_instructions.py`. Its only tools are: review credentials, save reminder drafts, flag for the owner. The database checks every draft (no reminders for current credentials, submitted renewals or duplicates), and the server stops after 5 tool calls.
+
+**Set up (once):**
+1. Get a Gemini API key at aistudio.google.com (**Get API key → Create API key**) and note the name of a current Flash model.
+2. In Vercel → **Settings → Environment Variables**, add:
+   - `GOOGLE_GENERATIVE_AI_API_KEY` = your Gemini key
+   - `AGENT_MODEL` = the Flash model name from AI Studio (e.g. `gemini-2.5-flash`)
+   - `AGENT_PASSCODE` = a passcode your team shares (not a real password)
+   - `BEEHIVE_AGENT_KEY` = the agent key from the last row of `seed_demo.sql`
+3. Run `supabase/migrations/20261026110000_compliance_agent.sql` in Supabase, then redeploy on Vercel.
+
+Free AI tiers aren't private: only use the invented demo data.
 
 ## AI agent
 
@@ -62,7 +99,7 @@ The **Beehive Audit Assistant** runs in Microsoft Copilot Studio and reads live 
 - **Ask Beehive** (owner, bottom right): readiness, what to fix first, WWCC register, expiring certificates, draft a message.
 - **Draft with AI** in a family reply, and **AI drafts awaiting approval** on the overview.
 
-Set-up steps: [docs/copilot-studio/SETUP.md](docs/copilot-studio/SETUP.md). Until the agent's token endpoint is added to `config.js`, the app uses a built-in assistant over the same data, so the demo works either way.
+Copilot Studio connects to Beehive through an MCP server that deploys with the site at `/api/mcp` (`beehive-demo/api/mcp.js`). Set-up steps: [docs/copilot-studio/SETUP.md](docs/copilot-studio/SETUP.md). Until the agent's token endpoint is added to `config.js`, the app uses a built-in assistant over the same data, so the demo works either way.
 
 The agent never sends anything to a parent. Only receipts and reminders send automatically; every other message is a draft until a staff member approves it.
 
@@ -86,11 +123,18 @@ beehive-demo/          The web app
   index.html, app.js, app.css   Screens (offline demo logic included)
   live.js              Supabase sign-in, loading and saving (live mode)
   assistant.js         Ask Beehive, Draft with AI, Connect AI agent
+  library.js           Compliance library page, item guidance, search
+  library-data.js      Offline copy of the library (generated)
   beehive-live.css     Live-mode extras and the phone layout
   config.js            Supabase URL + publishable key + Copilot token endpoint
+  api/agent.js         Beehive Compliance Agent (Vercel function, Gemini via the AI SDK)
+  api/_agent-instructions.js  Its system prompt, generated from AGENT.md
+  api/mcp.js           MCP server for the Copilot Studio agent (Vercel function)
+  package.json         Server dependencies (ai, @ai-sdk/google, zod)
 supabase/migrations/   Database schema, views, functions and security rules
 supabase/seed_demo.sql Demo data for the web app
 docs/copilot-studio/   Agent setup guide and REST tool definition
+tools/compliance_library.py  Source of the compliance library (generates the migration + offline copy)
 App.js, src/           Earlier Expo (React Native) version, kept for reference
 ```
 

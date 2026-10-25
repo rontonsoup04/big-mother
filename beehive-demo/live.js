@@ -24,6 +24,7 @@ const Live = (() => {
   let channel = null;
   let reloadTimer = null;
   let searchTimer = null;
+  let libraryRequested = false;
   let lastResults = [];
 
   // ---------- helpers ----------
@@ -153,6 +154,7 @@ const Live = (() => {
   }
   function goOffline() { offline(); }
   function resetOffline() {
+    if (typeof Library !== "undefined") Library.resetOffline();
     set("beehive-audit-flow-v2", null);
     location.reload();
   }
@@ -174,6 +176,7 @@ const Live = (() => {
     await load();
     if (me.role === "educator") current = "staff-upload";
     else if (me.role !== "parent") current = approved ? "overview" : "audit";
+    if (location.hash === "#upload" && me.role !== "parent") current = "staff-upload";
     hideLogin();
     render();
     startRealtime();
@@ -182,6 +185,8 @@ const Live = (() => {
 
   async function load() {
     if (ME.role === "parent") return loadParent();
+    if (!libraryRequested && typeof Library !== "undefined") { libraryRequested = true; Library.loadFrom(sb); }
+    const tasksP = typeof Library !== "undefined" ? Library.loadTasks(sb) : null;
     const leader = isLeader();
     const [rows, kids, staffRows, certRows, subs, meds, thread, regs, drafts] = await Promise.all([
       q(sb.from("v_checklist_status").select("*")),
@@ -299,6 +304,7 @@ const Live = (() => {
       trigger: TRIGGER_LABEL[d.trigger] || "Message",
       body: d.body,
     }));
+    if (tasksP) await tasksP;
   }
 
   async function loadParent() {
@@ -391,6 +397,11 @@ const Live = (() => {
     await busy(() => q(sb.from("evidence").insert({ centre_id: ME.centre.id, checklist_item_id: id, title: "Evacuation drill logged", recorded_on: todayISO(), uploaded_by: ME.id })),
       "Drill logged. The readiness score updated and a timestamp was recorded.");
     closeModal();
+    await reload();
+  }
+  async function completeTask(recordId) {
+    await busy(() => q(sb.rpc("complete_compliance_task", { p_record: recordId, p_notes: "" })),
+      (r) => r && r.next_due ? "Done. Next due " + fmtDate(r.next_due) + "." : "Done. This one-off task is complete.");
     await reload();
   }
   async function acceptUpdate() {
@@ -526,7 +537,8 @@ const Live = (() => {
           ? lastResults.slice(0, 8).map((r, i) =>
               '<button class="searchResult" onclick="Live.openResult(' + i + ')"><b>' + esc(r.title) + "</b><small>" + esc(label[r.kind] || r.kind) + " · " + esc(status(r.status)) +
               " · " + esc(r.detail || "") + (r.last_updated ? " · updated " + esc(fmtDate(r.last_updated)) : "") + "</small></button>").join("")
-          : '<div class="emptyState">Try “WWCC”, “incident records”, “first aid” or “policy”.</div>');
+          : '<div class="emptyState">Try “WWCC”, “incident records”, “first aid” or “policy”.</div>') +
+        (typeof Library !== "undefined" ? Library.searchHtml(text) : "");
       box.classList.remove("hidden");
     }, 250);
   }
@@ -547,7 +559,7 @@ const Live = (() => {
 
   return {
     boot, signIn, signOut, fillDemo, goOffline, resetOffline, showLogin, reload,
-    approveChecklist, editBaseline, uploadEvidence, logDrill, acceptUpdate, markUpdateReviewed, runExpiryCheck,
+    completeTask, approveChecklist, editBaseline, uploadEvidence, logDrill, acceptUpdate, markUpdateReviewed, runExpiryCheck,
     submitCertificate, approveCertificate, submitFamilyUpdate, sendFamilyMessage, sendOwnerReply, acknowledgeFamilyUpdate,
     approveDraft, discardDraft, createDraft, searchEvidence, openResult,
     client: () => sb, config: cfg, q, explain, todayISO,
