@@ -1,20 +1,144 @@
-import React,{useMemo,useState}from'react';
-import{SafeAreaView,View,Text,StyleSheet,ScrollView,TouchableOpacity,TextInput,Modal,Alert,Platform}from'react-native';
-import{StatusBar}from'expo-status-bar';import{Ionicons}from'@expo/vector-icons';
-let Audio;if(Platform.OS!=='web'){try{Audio=require('expo-av').Audio}catch(e){}}
-const C={navy:'#152536',ink:'#243447',muted:'#6C7A89',bg:'#F4F7F8',card:'#FFFFFF',mint:'#DFF4EC',green:'#2E8B72',amber:'#F4B860',red:'#D65C5C',blue:'#4D7CFE',line:'#E4EAED',purple:'#7768AE'};
-const compliance=[{id:1,title:'First Aid qualifications',source:'National Regulations',due:'18 Oct',level:'High',summary:'Confirm at least one first-aid, anaphylaxis and asthma-qualified educator is immediately available at all times.'},{id:2,title:'Emergency & evacuation rehearsal',source:'Regulation 97',due:'24 Oct',level:'Medium',summary:'Document and rehearse emergency and evacuation procedures at least every three months.'},{id:3,title:'Child protection training review',source:'Centre policy',due:'2 Nov',level:'Medium',summary:'Review staff training records and flag educators whose child-protection refresher is approaching expiry.'}];
-const initialStaff=[{name:'Maya Chen',role:'Room Leader',cert:'First Aid + CPR',expiry:'2026-10-22',status:'Expiring'},{name:'Noah Williams',role:'Educator',cert:'Working With Children',expiry:'2027-03-12',status:'Valid'},{name:'Amelia Singh',role:'Educator',cert:'Child Protection',expiry:'2026-11-08',status:'Expiring'}];
-const timetable=[['08:00','Arrival & free play'],['09:00','Morning circle'],['09:30','Outdoor exploration'],['11:15','Lunch'],['12:00','Rest / quiet activities'],['14:00','Creative learning'],['15:30','Afternoon snack'],['16:00','Family pickup & updates']];
-const words={English:{hello:'Good evening',overview:'Centre overview',compliance:'Compliance',staff:'Staff',learn:'Learning',family:'Family',more:'More'},Español:{hello:'Buenas tardes',overview:'Resumen del centro',compliance:'Cumplimiento',staff:'Personal',learn:'Aprendizaje',family:'Familia',more:'Más'},हिन्दी:{hello:'नमस्ते',overview:'केंद्र अवलोकन',compliance:'अनुपालन',staff:'स्टाफ',learn:'सीखना',family:'परिवार',more:'अधिक'}};
-function Chip({text,tone='green'}){let bg=tone==='red'?'#FBE8E8':tone==='amber'?'#FFF2D9':C.mint,fg=tone==='red'?C.red:tone==='amber'?'#A36A00':C.green;return <View style={[s.chip,{backgroundColor:bg}]}><Text style={[s.chipT,{color:fg}]}>{text}</Text></View>}
-function Card({children,style}){return <View style={[s.card,style]}>{children}</View>}
-function Header({lang,setLang}){const[open,setOpen]=useState(false);return <><View style={s.header}><View><Text style={s.brand}>BIGMOTHER</Text><Text style={s.tag}>Childcare intelligence, made human.</Text></View><TouchableOpacity style={s.lang} onPress={()=>setOpen(true)}><Ionicons name="language" size={19} color={C.navy}/><Text style={s.langT}>{lang}</Text></TouchableOpacity></View><Modal visible={open} transparent animationType="fade"><TouchableOpacity style={s.overlay} onPress={()=>setOpen(false)}><View style={s.modal}><Text style={s.modalTitle}>Choose language</Text>{Object.keys(words).map(x=><TouchableOpacity key={x} style={s.option} onPress={()=>{setLang(x);setOpen(false)}}><Text style={s.optionT}>{x}</Text>{lang===x&&<Ionicons name="checkmark-circle" size={22} color={C.green}/>}</TouchableOpacity>)}</View></TouchableOpacity></Modal></>}
-function Home({setTab,t}){return <ScrollView contentContainerStyle={s.pad}><Text style={s.eyebrow}>{t.hello}, Karen</Text><Text style={s.h1}>{t.overview}</Text><Card style={s.hero}><View style={{flex:1}}><Text style={s.heroK}>COMPLIANCE HEALTH</Text><Text style={s.score}>86%</Text><Text style={s.heroP}>3 items need attention this month.</Text></View><View style={s.ring}><Ionicons name="shield-checkmark" size={34} color={C.green}/></View></Card><Text style={s.section}>Needs attention</Text>{compliance.slice(0,2).map((x,i)=><TouchableOpacity key={x.id} onPress={()=>setTab('Compliance')}><Card style={s.rowCard}><View style={s.iconBox}><Ionicons name={i?'calendar':'warning'} size={20} color={i?C.purple:C.red}/></View><View style={{flex:1}}><Text style={s.cardTitle}>{x.title}</Text><Text style={s.meta}>{x.source} · Due {x.due}</Text></View><Ionicons name="chevron-forward" size={20} color={C.muted}/></Card></TouchableOpacity>)}<Text style={s.section}>Today</Text><Card>{timetable.slice(0,4).map(([time,name],i)=><View key={name} style={[s.timeRow,i<3&&s.border]}><Text style={s.time}>{time}</Text><Text style={s.timeName}>{name}</Text></View>)}</Card><View style={{height:90}}/></ScrollView>}
-function Compliance(){const[selected,setSelected]=useState(null);return <ScrollView contentContainerStyle={s.pad}><Text style={s.eyebrow}>AI COMPLIANCE HUB</Text><Text style={s.h1}>Know what needs attention.</Text><Card style={s.ai}><View style={s.aiHead}><Ionicons name="sparkles" size={22} color={C.green}/><Text style={s.aiTitle}>AI overview</Text></View><Text style={s.body}>Your centre is broadly on track. Prioritise first-aid qualification coverage this week, then confirm the next evacuation rehearsal and training review.</Text></Card><Text style={s.section}>Requirements</Text>{compliance.map(x=><TouchableOpacity key={x.id} onPress={()=>setSelected(x)}><Card style={s.req}><View style={s.reqTop}><Text style={s.cardTitle}>{x.title}</Text><Chip text={x.level} tone={x.level==='High'?'red':'amber'}/></View><Text style={s.meta}>{x.source} · Due {x.due}</Text><Text style={s.body}>{x.summary}</Text><Text style={s.link}>View AI summary →</Text></Card></TouchableOpacity>)}<Modal visible={!!selected} transparent animationType="slide"><View style={s.sheetWrap}><View style={s.sheet}><View style={s.handle}/><Text style={s.eyebrow}>AI SUMMARY</Text><Text style={s.h2}>{selected?.title}</Text><Text style={s.body}>{selected?.summary}</Text><Text style={s.section}>Suggested action</Text><Text style={s.body}>Assign an owner, verify evidence, record completion and schedule the next review before the due date.</Text><TouchableOpacity style={s.primary} onPress={()=>{Alert.alert('Task created','This demo has marked the compliance action for follow-up.');setSelected(null)}}><Text style={s.primaryT}>Create follow-up task</Text></TouchableOpacity><TouchableOpacity style={s.secondary} onPress={()=>setSelected(null)}><Text style={s.secondaryT}>Close</Text></TouchableOpacity></View></View></Modal><View style={{height:90}}/></ScrollView>}
-function Staff(){const[staff,setStaff]=useState(initialStaff);function remind(i){Alert.alert('Reminder queued',`A qualification reminder has been prepared for ${staff[i].name}.`)}return <ScrollView contentContainerStyle={s.pad}><Text style={s.eyebrow}>QUALIFICATION TRACKER</Text><Text style={s.h1}>Staff status</Text><View style={s.stats}><Card style={s.stat}><Text style={s.statN}>3</Text><Text style={s.meta}>Tracked</Text></Card><Card style={s.stat}><Text style={[s.statN,{color:C.amber}]}>2</Text><Text style={s.meta}>Expiring soon</Text></Card></View>{staff.map((x,i)=><Card key={x.name} style={s.req}><View style={s.avatar}><Text style={s.avatarT}>{x.name.split(' ').map(a=>a[0]).join('')}</Text></View><Text style={s.cardTitle}>{x.name}</Text><Text style={s.meta}>{x.role}</Text><View style={s.cert}><View style={{flex:1}}><Text style={s.certT}>{x.cert}</Text><Text style={s.meta}>Expires {x.expiry}</Text></View><Chip text={x.status} tone={x.status==='Valid'?'green':'amber'}/></View><TouchableOpacity style={s.smallBtn} onPress={()=>remind(i)}><Ionicons name="notifications-outline" size={17} color={C.navy}/><Text style={s.smallBtnT}>Send reminder</Text></TouchableOpacity></Card>)}<View style={{height:90}}/></ScrollView>}
-function Learning(){const[recording,setRecording]=useState(null);const[notes,setNotes]=useState([{child:'Leo',text:'Built a tall block tower and explained which base made it stable.',type:'Observation'}]);const[text,setText]=useState('');async function toggle(){if(!Audio){Alert.alert('Voice notes','Audio recording is available on iOS/Android in Expo Go.');return}try{if(recording){await recording.stopAndUnloadAsync();setRecording(null);setNotes(n=>[{child:'Whole room',text:'Voice note recorded and saved for educator review.',type:'Voice note'},...n])}else{const p=await Audio.requestPermissionsAsync();if(!p.granted)return Alert.alert('Microphone permission needed');await Audio.setAudioModeAsync({allowsRecordingIOS:true,playsInSilentModeIOS:true});const r=await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);setRecording(r.recording)}}catch(e){Alert.alert('Recording error',String(e.message||e))}}function add(){if(!text.trim())return;setNotes(n=>[{child:'Ava',text:text.trim(),type:'Observation'},...n]);setText('')}return <ScrollView contentContainerStyle={s.pad}><Text style={s.eyebrow}>EDUCATOR TOOLS</Text><Text style={s.h1}>Capture learning quickly.</Text><TouchableOpacity style={[s.voice,recording&&{backgroundColor:'#FBE8E8'}]} onPress={toggle}><View style={s.mic}><Ionicons name={recording?'stop':'mic'} size={25} color={recording?C.red:C.green}/></View><View style={{flex:1}}><Text style={s.cardTitle}>{recording?'Recording… tap to stop':'Record a voice note'}</Text><Text style={s.meta}>Capture moments without leaving the room flow.</Text></View></TouchableOpacity><Card><Text style={s.cardTitle}>Quick observation</Text><TextInput value={text} onChangeText={setText} placeholder="What did you observe?" multiline style={s.input}/><TouchableOpacity style={s.primary} onPress={add}><Text style={s.primaryT}>Save observation</Text></TouchableOpacity></Card><Text style={s.section}>Recent learning</Text>{notes.map((n,i)=><Card key={i} style={s.rowCard}><View style={s.iconBox}><Ionicons name={n.type==='Voice note'?'mic':'book'} size={19} color={C.green}/></View><View style={{flex:1}}><Text style={s.cardTitle}>{n.child} · {n.type}</Text><Text style={s.body}>{n.text}</Text><Text style={s.link}>Share with family</Text></View></Card>)}<Text style={s.section}>Student timetable</Text><Card>{timetable.map(([time,name],i)=><View key={name} style={[s.timeRow,i<timetable.length-1&&s.border]}><Text style={s.time}>{time}</Text><Text style={s.timeName}>{name}</Text></View>)}</Card><View style={{height:90}}/></ScrollView>}
-function Family(){const[msg,setMsg]=useState('');const[messages,setMessages]=useState([{from:'Educator Maya',text:'Leo loved today’s outdoor water experiment. We added the observation to his learning story.'},{from:'Sarah · Parent',text:'Thank you! He was talking about it all afternoon 😊'}]);function send(){if(!msg.trim())return;setMessages(m=>[...m,{from:'You',text:msg.trim()}]);setMsg('')}return <View style={{flex:1}}><ScrollView contentContainerStyle={s.pad}><Text style={s.eyebrow}>SECURE FAMILY HUB</Text><Text style={s.h1}>Learning, shared together.</Text><Card style={s.media}><Ionicons name="images-outline" size={28} color={C.green}/><Text style={s.cardTitle}>Leo’s learning story</Text><Text style={s.body}>Outdoor discovery · Science & sensory learning</Text><View style={s.fakePhoto}><Ionicons name="leaf" size={42} color={C.green}/><Text style={s.meta}>Media preview</Text></View><Text style={s.body}>Leo explored how water moves between containers and compared which materials float.</Text></Card><Text style={s.section}>Conversation</Text>{messages.map((m,i)=><View key={i} style={[s.bubble,m.from==='You'&&s.mine]}><Text style={s.bubbleFrom}>{m.from}</Text><Text style={s.body}>{m.text}</Text></View>)}<View style={{height:140}}/></ScrollView><View style={s.composer}><TextInput value={msg} onChangeText={setMsg} placeholder="Message family…" style={s.composeInput}/><TouchableOpacity style={s.send} onPress={send}><Ionicons name="send" size={19} color="white"/></TouchableOpacity></View></View>}
-function More(){return <ScrollView contentContainerStyle={s.pad}><Text style={s.eyebrow}>CENTRE SETTINGS</Text><Text style={s.h1}>More</Text><Card>{[['notifications-outline','Reminders & notifications'],['calendar-outline','Full centre timetable'],['people-outline','Children & rooms'],['document-text-outline','Curriculum plans'],['accessibility-outline','Accessibility'],['lock-closed-outline','Privacy & permissions']].map(([ic,x],i)=><TouchableOpacity key={x} style={[s.menu,i<5&&s.border]} onPress={()=>Alert.alert(x,'This section is ready to connect to your production backend in the next build.')}><Ionicons name={ic} size={21} color={C.green}/><Text style={s.menuT}>{x}</Text><Ionicons name="chevron-forward" size={19} color={C.muted}/></TouchableOpacity>)}</Card><Card style={s.ai}><Text style={s.aiTitle}>Prototype note</Text><Text style={s.body}>This build stores demo content locally. Production deployment should add authenticated roles, encrypted cloud storage, verified regulatory sources, consent controls and server-side AI processing.</Text></Card></ScrollView>}
-export default function App(){const[tab,setTab]=useState('Home');const[lang,setLang]=useState('English');const t=words[lang];const tabs=[['Home','home-outline'],['Compliance','shield-checkmark-outline'],['Staff','people-outline'],['Learning','mic-outline'],['Family','chatbubbles-outline']];return <SafeAreaView style={s.safe}><StatusBar style="dark"/><Header lang={lang} setLang={setLang}/><View style={{flex:1}}>{tab==='Home'?<Home setTab={setTab} t={t}/>:tab==='Compliance'?<Compliance/>:tab==='Staff'?<Staff/>:tab==='Learning'?<Learning/>:<Family/>}</View><View style={s.nav}>{tabs.map(([x,ic])=><TouchableOpacity key={x} style={s.navItem} onPress={()=>setTab(x)}><Ionicons name={tab===x?ic.replace('-outline',''):ic} size={22} color={tab===x?C.green:C.muted}/><Text style={[s.navT,tab===x&&{color:C.green}]}>{x}</Text></TouchableOpacity>)}</View></SafeAreaView>}
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:C.bg},header:{paddingHorizontal:20,paddingTop:Platform.OS==='android'?16:8,paddingBottom:13,backgroundColor:C.card,borderBottomWidth:1,borderColor:C.line,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},brand:{fontSize:22,fontWeight:'900',letterSpacing:1.5,color:C.navy},tag:{fontSize:11,color:C.muted,marginTop:2},lang:{flexDirection:'row',gap:6,alignItems:'center',padding:8,backgroundColor:C.bg,borderRadius:12},langT:{fontSize:12,fontWeight:'700',color:C.navy},pad:{padding:18},eyebrow:{fontSize:11,fontWeight:'800',letterSpacing:1.4,color:C.green,marginBottom:6},h1:{fontSize:29,fontWeight:'800',color:C.navy,lineHeight:35,marginBottom:18},h2:{fontSize:24,fontWeight:'800',color:C.navy,marginBottom:12},card:{backgroundColor:C.card,borderRadius:18,padding:16,marginBottom:12,borderWidth:1,borderColor:C.line},hero:{backgroundColor:C.navy,flexDirection:'row',alignItems:'center',padding:20},heroK:{fontSize:11,fontWeight:'800',letterSpacing:1,color:'#AFC5C0'},score:{fontSize:38,fontWeight:'900',color:'white',marginVertical:2},heroP:{color:'#D9E4E6',fontSize:13},ring:{height:68,width:68,borderRadius:34,backgroundColor:'#E9F7F2',alignItems:'center',justifyContent:'center'},section:{fontSize:17,fontWeight:'800',color:C.navy,marginTop:10,marginBottom:10},rowCard:{flexDirection:'row',alignItems:'flex-start',gap:12},iconBox:{width:38,height:38,borderRadius:12,backgroundColor:C.bg,alignItems:'center',justifyContent:'center'},cardTitle:{fontSize:15,fontWeight:'800',color:C.ink,marginBottom:4},meta:{fontSize:12,color:C.muted,lineHeight:18},body:{fontSize:14,color:C.ink,lineHeight:21},timeRow:{flexDirection:'row',paddingVertical:11},time:{width:58,fontSize:13,fontWeight:'800',color:C.green},timeName:{fontSize:14,color:C.ink,flex:1},border:{borderBottomWidth:1,borderColor:C.line},ai:{backgroundColor:'#EDF8F4'},aiHead:{flexDirection:'row',gap:8,alignItems:'center',marginBottom:8},aiTitle:{fontSize:16,fontWeight:'900',color:C.navy},req:{padding:17},reqTop:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between',gap:10},chip:{paddingHorizontal:9,paddingVertical:5,borderRadius:20},chipT:{fontSize:10,fontWeight:'800'},link:{fontSize:13,fontWeight:'800',color:C.green,marginTop:10},overlay:{flex:1,backgroundColor:'#0008',justifyContent:'flex-end'},modal:{backgroundColor:'white',padding:22,borderTopLeftRadius:24,borderTopRightRadius:24},modalTitle:{fontSize:20,fontWeight:'900',color:C.navy,marginBottom:12},option:{paddingVertical:15,flexDirection:'row',justifyContent:'space-between',borderBottomWidth:1,borderColor:C.line},optionT:{fontSize:16,color:C.ink},sheetWrap:{flex:1,backgroundColor:'#0008',justifyContent:'flex-end'},sheet:{backgroundColor:C.bg,padding:22,borderTopLeftRadius:26,borderTopRightRadius:26},handle:{height:4,width:46,borderRadius:2,backgroundColor:'#C8D1D5',alignSelf:'center',marginBottom:20},primary:{backgroundColor:C.green,padding:14,borderRadius:13,alignItems:'center',marginTop:14},primaryT:{color:'white',fontWeight:'800'},secondary:{padding:13,alignItems:'center'},secondaryT:{color:C.muted,fontWeight:'700'},stats:{flexDirection:'row',gap:10},stat:{flex:1},statN:{fontSize:28,fontWeight:'900',color:C.green},avatar:{width:44,height:44,borderRadius:22,backgroundColor:C.mint,alignItems:'center',justifyContent:'center',marginBottom:10},avatarT:{fontWeight:'900',color:C.green},cert:{flexDirection:'row',alignItems:'center',marginTop:13,paddingTop:12,borderTopWidth:1,borderColor:C.line},certT:{fontSize:13,fontWeight:'800',color:C.ink},smallBtn:{marginTop:12,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,padding:11,borderRadius:12,backgroundColor:C.bg},smallBtnT:{fontWeight:'800',fontSize:12,color:C.navy},voice:{backgroundColor:C.mint,borderRadius:18,padding:17,marginBottom:12,flexDirection:'row',gap:12,alignItems:'center'},mic:{height:48,width:48,borderRadius:24,backgroundColor:'white',alignItems:'center',justifyContent:'center'},input:{minHeight:90,backgroundColor:C.bg,borderRadius:12,padding:12,marginTop:12,textAlignVertical:'top',fontSize:14},media:{padding:18},fakePhoto:{height:150,borderRadius:15,backgroundColor:C.mint,marginVertical:12,alignItems:'center',justifyContent:'center',gap:8},bubble:{backgroundColor:'white',borderRadius:16,padding:13,marginBottom:9,maxWidth:'88%',borderWidth:1,borderColor:C.line},mine:{alignSelf:'flex-end',backgroundColor:C.mint},bubbleFrom:{fontSize:11,fontWeight:'800',color:C.green,marginBottom:4},composer:{position:'absolute',bottom:70,left:0,right:0,padding:10,backgroundColor:'white',borderTopWidth:1,borderColor:C.line,flexDirection:'row',gap:8},composeInput:{flex:1,backgroundColor:C.bg,borderRadius:22,paddingHorizontal:15,paddingVertical:10},send:{width:42,height:42,borderRadius:21,backgroundColor:C.green,alignItems:'center',justifyContent:'center'},menu:{flexDirection:'row',gap:12,alignItems:'center',paddingVertical:15},menuT:{flex:1,fontSize:14,fontWeight:'700',color:C.ink},nav:{position:'absolute',bottom:0,left:0,right:0,height:70,backgroundColor:'white',borderTopWidth:1,borderColor:C.line,flexDirection:'row',paddingBottom:4},navItem:{flex:1,alignItems:'center',justifyContent:'center',gap:3},navT:{fontSize:9,fontWeight:'700',color:C.muted}});
+import React, { useCallback, useEffect, useState } from "react";
+import { Modal, SafeAreaView, Text, TouchableOpacity, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
+import { C, s } from "./src/theme";
+import { words } from "./src/demo";
+import { Loading, ErrorBox } from "./src/ui";
+import { supabase } from "./src/lib/supabase";
+import { getMe, isLeader } from "./src/lib/data";
+import Auth from "./src/screens/Auth";
+import Onboarding from "./src/screens/Onboarding";
+import Home from "./src/screens/Home";
+import Compliance from "./src/screens/Compliance";
+import Staff from "./src/screens/Staff";
+import Learning from "./src/screens/Learning";
+import Family from "./src/screens/Family";
+import More from "./src/screens/More";
+
+const ALL_TABS = [
+  ["Home", "home-outline"],
+  ["Compliance", "shield-checkmark-outline"],
+  ["Staff", "people-outline"],
+  ["Learning", "mic-outline"],
+  ["Family", "chatbubbles-outline"],
+];
+
+function tabsFor(me) {
+  if (!me) return ALL_TABS; // demo mode shows everything
+  if (me.role === "parent") return ALL_TABS.filter(([t]) => t === "Family");
+  if (isLeader(me.role)) return ALL_TABS;
+  return ALL_TABS.filter(([t]) => t !== "Staff").concat([["Staff", "ribbon-outline"]]); // educators: own certificates
+}
+
+function Header({ lang, setLang, onAccount, me }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <View style={s.header}>
+        <View>
+          <Text style={s.brand}>BIGMOTHER</Text>
+          <Text style={s.tag}>{me?.centre?.name || "Childcare intelligence, made human."}</Text>
+        </View>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity style={s.lang} onPress={() => setOpen(true)} accessibilityLabel="Language">
+            <Ionicons name="language" size={19} color={C.navy} /><Text style={s.langT}>{lang}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.lang} onPress={onAccount} accessibilityLabel="Account">
+            <Ionicons name="person-circle-outline" size={21} color={C.navy} />
+          </TouchableOpacity>
+        </View>
+      </View>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <TouchableOpacity style={s.overlay} onPress={() => setOpen(false)}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>Choose language</Text>
+            {Object.keys(words).map((x) => (
+              <TouchableOpacity key={x} style={s.option} onPress={() => { setLang(x); setOpen(false); }}>
+                <Text style={s.optionT}>{x}</Text>
+                {lang === x && <Ionicons name="checkmark-circle" size={22} color={C.green} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+}
+
+export default function App() {
+  const [session, setSession] = useState(undefined); // undefined = still checking
+  const [me, setMe] = useState(null);
+  const [meError, setMeError] = useState("");
+  const [demo, setDemo] = useState(false);
+  const [tab, setTab] = useState("Home");
+  const [lang, setLang] = useState("English");
+  const [account, setAccount] = useState(false);
+  const [version, setVersion] = useState(0); // bump to reload screens
+  const t = words[lang];
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => setSession(sess ?? null));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const refreshMe = useCallback(async () => {
+    setMeError("");
+    try { setMe(await getMe()); } catch (e) { setMeError(e.message); }
+  }, []);
+
+  useEffect(() => {
+    if (session) refreshMe();
+    else { setMe(null); setAccount(false); }
+  }, [session, refreshMe]);
+
+  const tabs = tabsFor(demo ? null : me);
+  useEffect(() => {
+    if (!tabs.some(([x]) => x === tab)) setTab(tabs[0][0]);
+  }, [me?.role, demo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  let body;
+  if (!demo && session === undefined) body = <Loading />;
+  else if (!demo && !session) body = <Auth onDemo={() => { setDemo(true); setTab("Home"); }} />;
+  else if (!demo && meError) body = <View style={s.pad}><ErrorBox message={meError} onRetry={refreshMe} /></View>;
+  else if (!demo && !me) body = <Loading />;
+  else if (!demo && !me.centre) body = <Onboarding me={me} onDone={refreshMe} />;
+  else {
+    const user = demo ? null : me;
+    const screens = { Home, Compliance, Staff, Learning, Family };
+    const Screen = screens[tab] || Home;
+    body = (
+      <>
+        <Header lang={lang} setLang={setLang} me={user} onAccount={() => setAccount(true)} />
+        <View style={{ flex: 1 }}>
+          {account
+            ? <More me={user} onClose={() => setAccount(false)} onExitDemo={() => { setDemo(false); setAccount(false); }} onChanged={() => { refreshMe(); setVersion((v) => v + 1); setAccount(false); }} />
+            : <Screen key={`${tab}-${version}`} me={user} setTab={setTab} t={t} />}
+        </View>
+        {!account && (
+          <View style={s.nav}>
+            {tabs.map(([x, ic]) => (
+              <TouchableOpacity key={x} style={s.navItem} onPress={() => setTab(x)}>
+                <Ionicons name={tab === x ? ic.replace("-outline", "") : ic} size={22} color={tab === x ? C.green : C.muted} />
+                <Text style={[s.navT, tab === x && { color: C.green }]}>{x}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        {demo && !account && (
+          <TouchableOpacity onPress={() => setAccount(true)} style={{ position: "absolute", top: 78, right: 12, backgroundColor: C.amber, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+            <Text style={{ fontSize: 11, fontWeight: "800", color: C.navy }}>DEMO DATA</Text>
+          </TouchableOpacity>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <SafeAreaView style={s.safe}>
+      <StatusBar style="dark" />
+      {body}
+    </SafeAreaView>
+  );
+}
