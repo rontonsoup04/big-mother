@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f1bd32">
+<title>BEEHIVE · Owner workspace</title>
+<link rel="stylesheet" href="./app.css">
+<script src="./app.js" defer></script>
+</head>
+<body>
+<div class="appShell">
+  <aside class="sidebar">
+    <a class="brand" href="#" onclick="go('audit');return false" aria-label="BEEHIVE home">
+      <span class="brandMark">b</span><span><strong>BEEHIVE</strong><small>Audit readiness</small></span>
+    </a>
+    <div class="centreCard"><span class="centreIcon">✿</span><span><small>YOUR CENTRE</small><b>Beehive Early Learning</b></span><span class="chevron">⌄</span></div>
+    <div class="navLabel ownerOnly">OWNER WORKSPACE</div>
+    <nav class="navigation" aria-label="Main navigation">
+      <button class="navButton ownerOnly" data-nav="overview" onclick="go('overview')"><span>▦</span> Overview</button>
+      <button class="navButton ownerOnly" data-nav="audit" onclick="go('audit')"><span>☷</span> Audit readiness <b id="gapBadge">1</b></button>
+      <button class="navButton ownerOnly" data-nav="staff" onclick="go('staff')"><span>♙</span> Staff certifications <b id="certAlertBadge">3</b></button>
+      <button class="navButton ownerOnly" data-nav="updates" onclick="go('updates')"><span>✦</span> Regulation updates <b class="updateBadge">1</b></button>
+      <div class="navLabel parentOnly">FAMILY SPACE</div>
+      <button class="navButton parentOnly" data-nav="family" onclick="go('family')"><span>♡</span> Family home</button>
+      <button class="navButton parentOnly" data-nav="family-medical" onclick="go('family-medical')"><span>✚</span> Medical profile <b id="familyMedicalBadge" class="familyBadge"></b></button>
+      <button class="navButton parentOnly" data-nav="family-messages" onclick="go('family-messages')"><span>✉</span> Messages</button>
+    </nav>
+    <div class="sidebarBottom">
+      <div class="sourceCard ownerOnly"><span class="liveDot"></span><b>Checklist baseline</b><p id="baselineLabel">AI-suggested draft · owner review required</p><small>Prototype · sample records</small></div>
+      <div class="ownerProfile" id="workspaceProfile"><span class="avatar">SW</span><span><b>Sara Williams</b><small>Centre owner</small></span><button aria-label="Profile menu" onclick="toast('Profile settings are part of a future version.')">···</button></div>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="crumb"><span>Beehive Early Learning</span><i>/</i><b id="pageCrumb">Audit readiness</b></div>
+      <div class="topActions">
+        <div class="globalSearch"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search WWCC, incidents, evidence…" aria-label="Search audit evidence" autocomplete="off" oninput="searchEvidence(this.value)" onkeydown="if(event.key==='Enter')submitSearch(this.value)"><kbd>↵</kbd><div id="searchResults" class="searchResults hidden"></div></div>
+        <button class="iconButton notificationButton ownerOnly" aria-label="Notifications" onclick="handleNotifications()">♧<b id="notificationBadge" class="notificationBadge">3</b></button><button class="iconButton ownerOnly" aria-label="Help" onclick="openHelp()">?</button><button id="perspectiveButton" class="perspectiveButton" onclick="togglePerspective()">Family view <span>→</span></button><span id="topAvatar" class="avatar topAvatar">SW</span>
+      </div>
+    </header>
+    <section id="page" class="page" aria-live="polite"></section>
+  </main>
+</div>
+<nav class="mobileNav" aria-label="Mobile navigation">
+  <button class="ownerOnly" data-nav="overview" onclick="go('overview')"><i>▦</i>Overview</button>
+  <button class="ownerOnly" data-nav="audit" onclick="go('audit')"><i>☷</i>Checklist</button>
+  <button class="ownerOnly" data-nav="staff" onclick="go('staff')"><i>♙</i>Staff</button>
+  <button class="ownerOnly" data-nav="updates" onclick="go('updates')"><i>✦</i>Updates</button>
+  <button class="parentOnly" data-nav="family" onclick="go('family')"><i>♡</i>Home</button>
+  <button class="parentOnly" data-nav="family-medical" onclick="go('family-medical')"><i>✚</i>Medical</button>
+  <button class="parentOnly" data-nav="family-messages" onclick="go('family-messages')"><i>✉</i>Messages</button>
+</nav>
+<div id="modalRoot"></div><div id="toast" class="toast" role="status"></div><section id="printReport" class="printReport"><h1>BEEHIVE · Centre Audit-Readiness Report</h1><p id="printDate"></p><div id="printRows"></div><p class="printDisclaimer">Prototype report using sample data. Verify the current official sources and centre records before relying on this report.</p></section>
+</body>
+</html>
