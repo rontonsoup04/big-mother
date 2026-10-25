@@ -1,6 +1,6 @@
 # Beehive
 
-Childcare compliance and family communication for long day care centres. Expo / React Native app (runs on phones and in a web browser), backed by Supabase.
+Childcare compliance and family communication for long day care centres. Web app (works on desktop and phone screens) backed by Supabase, with an AI agent built in Microsoft Copilot Studio.
 
 **Authors:** Hani Lum · Aryan Talwar · Ricky An · Emilija Gliguroska
 
@@ -8,58 +8,71 @@ See [SPEC.md](SPEC.md) for the specification and [PROMPTS.md](PROMPTS.md) for AI
 
 ## Run it
 
-1. Install [Node.js](https://nodejs.org) (LTS).
-2. In this folder:
-   ```bash
-   npm install
-   npx expo start --web
-   ```
-3. It opens at **http://localhost:8081**. To look like a phone for a demo: press F12, then Ctrl+Shift+M (Cmd+Shift+M on Mac), and pick an iPhone size.
+The app is the static site in `beehive-demo/` (no build step).
 
-On a phone: run `npx expo start` and scan the QR code with the **Expo Go** app.
+- **Locally:** `npx serve beehive-demo` and open the address it prints (or any static server; opening `index.html` directly also works for offline mode).
+- **Vercel:** New Project → import this repo → **Root Directory** `beehive-demo` → Framework Preset **Other** → Deploy.
+- **Phone size:** the layout adapts below 680px wide (bottom navigation, card-style staff register, bottom-sheet dialogs, full-screen assistant). For a demo on a computer: F12 → Ctrl+Shift+M (Cmd+Shift+M on Mac) → pick an iPhone.
 
 ## Two ways to use it
 
-- **Demo mode:** on the sign-in screen tap **Explore the demo without signing in**. Uses built-in sample content. Nothing is saved. Safest for presentations.
-- **Live mode:** sign in. Everything comes from and is saved to Supabase.
+- **Live mode:** sign in. Everything is read from and saved to Supabase, and updates appear on other open screens straight away.
+- **Offline demo:** on the sign-in screen click **Explore the offline demo instead**. Sample data in the browser only. Safest if the internet is unreliable during a presentation.
+
+### Demo logins (after running the seed)
+
+Password for all three: `Beehive2026!`
+
+| Login | Role | Lands on |
+|---|---|---|
+| sara@beehive.demo | Centre owner (Sara Williams) | Overview: readiness, staff register, family inbox, AI drafts, Ask Beehive |
+| priya@beehive.demo | Parent of Maya Patel | Family app: messages, medical update form |
+| mia@beehive.demo | Educator (Mia Chen) | Upload her own certificate |
+
+The sign-in screen has one-click buttons for each.
 
 ## Supabase setup (once per project)
 
-The app is already pointed at project `gaxkvceirdxqfpeeskwf` (see `src/lib/config.js`). The publishable key is meant to be public; row-level security in the database controls access. **Never put the service_role / secret key in the app.**
+The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The publishable key there is public by design; row-level security in the database controls access. **Never put the service_role / secret key in the app or in GitHub.**
 
-1. **Create the tables.** Supabase dashboard → **SQL Editor** → paste and run, in order:
+1. **Tables and functions.** Supabase dashboard → **SQL Editor** → paste and run, in order:
    1. `supabase/migrations/20261015090000_init.sql`
    2. `supabase/migrations/20261025000000_realtime_messages.sql`
-   3. `supabase/migrations/20261025100000_beehive.sql` (audit readiness, certificate uploads, medical updates, parent messages, audit log, file storage)
+   3. `supabase/migrations/20261025100000_beehive.sql`
+   4. `supabase/migrations/20261025200000_frontend_alignment.sql` (matches the database to the web app's screens, adds the AI agent API)
+2. **Demo data.** Run `supabase/seed_demo.sql`. It creates the three logins, Beehive Early Learning, 10 educators with certificates, 12 children with medical profiles, incidents, a regulation update and a draft checklist. No compliance documents or evidence files are included; you add those during the demo. The last row it returns is the AI agent key. Re-run it any time to reset the demo.
+3. **Auth.** **Authentication → URL Configuration** → Site URL = your Vercel address (and `http://localhost:3000` for local). **Providers → Email** → turn off **Confirm email** if you want new sign-ups to work immediately.
 
-   Or connect the repo under **Project Settings → Integrations → GitHub** (working directory `.`, Deploy to production on `main`) so migrations apply on merge.
-2. **Make sign-up easy for testing:** **Authentication → Providers → Email** → turn off **Confirm email**.
-3. **Web address:** **Authentication → URL Configuration** → Site URL `http://localhost:8081` (add your deployed URL later).
+## Tables the app uses
 
-### First run in live mode
+| Screen | Tables / views |
+|---|---|
+| Audit readiness | `checklist_items`, `evidence`, `v_checklist_status`, `v_readiness`, `regulation_updates` |
+| Staff certificates | `staff`, `staff_certificates`, `certificate_types`, `certificate_submissions`, `reminders`, `v_certificate_reminders` |
+| Spot-check search | `spot_check_search()` over certificates, incidents, checklist and medical profiles |
+| Family messages | `messages`, `parent_messages`, `v_family_thread` |
+| Medical updates | `medical_updates`, `children`, `child_parents`, `v_child_medical_profile` |
+| Incidents | `incidents`, `v_incident_deadlines` |
+| Everything | `centres`, `users`, `audit_log` (append-only), storage bucket `beehive` for uploaded files |
 
-1. Sign up, choose **I run a centre**. You become the owner.
-2. Tap the person icon (top right) → **Load sample data**. Adds staff, certificates, children, compliance items, incidents, updates, an approved audit-readiness checklist (about 60% ready) and an AI message draft.
-3. To try other roles, sign up again in a private window using the **staff code** (educator) or **family code** (parent) from the same menu. Link a parent to a child with the `link_parent` function, or in SQL:
-   ```sql
-   select link_parent('<child id>', 'parent@email.com', 'Mother');  -- run while signed in as the owner, or insert into child_parents
-   ```
+## AI agent
 
-## What each screen does (live mode)
+The **Beehive Audit Assistant** runs in Microsoft Copilot Studio and reads live Beehive data through a REST tool. In the app:
 
-| Tab | Owner / director | Educator | Parent |
-|---|---|---|---|
-| Home | Compliance health, expired certificates, overdue incident notices, items due | Same, for their centre | — |
-| Compliance | Overdue / due-soon items; mark done (recurring items reschedule automatically) | Same | — |
-| Staff | Every staff member's certificates and reminder dates | Their own certificates | — |
-| Learning | Post updates for a child or all families; recent updates | Same | — |
-| Family | Message thread per child (live) | Same | Their child's updates and messages |
+- **Ask Beehive** (owner, bottom right): readiness, what to fix first, WWCC register, expiring certificates, draft a message.
+- **Draft with AI** in a family reply, and **AI drafts awaiting approval** on the overview.
 
-Voice notes record on phones only and stay on the device. The timetable is sample content.
+Set-up steps: [docs/copilot-studio/SETUP.md](docs/copilot-studio/SETUP.md). Until the agent's token endpoint is added to `config.js`, the app uses a built-in assistant over the same data, so the demo works either way.
+
+The agent never sends anything to a parent. Only receipts and reminders send automatically; every other message is a draft until a staff member approves it.
+
+## What's simulated
+
+SMS and email delivery (messages appear in the app only), reading expiry dates from certificate photos (the owner confirms the date), and regulation monitoring (updates are added by the agent or in the seed).
 
 ## Beehive flows (database and data functions)
 
-The three owner/parent flows (audit readiness, staff certification, parent medical updates) and AI-drafted parent messages are built in the database with data functions in `src/lib/beehive.js`. **See [docs/DATA.md](docs/DATA.md)** for every function, step by step. Screens for them come with the new front end.
+The three owner/parent flows (audit readiness, staff certification, parent medical updates) and AI-drafted parent messages are built in the database. The web app calls them in `beehive-demo/live.js`; [docs/DATA.md](docs/DATA.md) documents the earlier `src/lib/beehive.js` wrappers.
 
 Key rules enforced by the database:
 - Approved medical records lock. Parents can only see and submit for their own child.
@@ -69,22 +82,18 @@ Key rules enforced by the database:
 ## Code layout
 
 ```
-App.js                 Login, onboarding, role-based tabs, demo mode
-src/lib/config.js      Supabase URL + publishable key
-src/lib/supabase.js    Supabase client
-src/lib/data.js        Core database reads/writes (reuse this in any new front end)
-src/lib/beehive.js     Audit readiness, certificates, medical updates, parent messages, audit log
-src/screens/           Auth, Onboarding, Home, Compliance, Staff, Learning, Family, More
-src/demo.js            Demo-mode sample content
-supabase/migrations/   Database schema, views, triggers and security rules
+beehive-demo/          The web app
+  index.html, app.js, app.css   Screens (offline demo logic included)
+  live.js              Supabase sign-in, loading and saving (live mode)
+  assistant.js         Ask Beehive, Draft with AI, Connect AI agent
+  beehive-live.css     Live-mode extras and the phone layout
+  config.js            Supabase URL + publishable key + Copilot token endpoint
+supabase/migrations/   Database schema, views, functions and security rules
+supabase/seed_demo.sql Demo data for the web app
+docs/copilot-studio/   Agent setup guide and REST tool definition
+App.js, src/           Earlier Expo (React Native) version, kept for reference
 ```
-
-## AI
-
-The AI agent is built in **Microsoft Copilot Studio** as the *Beehive Audit Assistant*. Its one narrow job: help the owner prove audit readiness (generate the checklist, explain gaps, spot-check search, summarise regulation changes). Its instructions are in [PROMPTS.md](PROMPTS.md).
-
-Inside the app today, readiness scores and statuses are calculated exactly from records, not by AI, and parent message drafts use a template (`draftMessageText` in `src/lib/beehive.js`). Connecting the app to the Copilot Studio agent (via its web channel or Power Automate) is the next step. Staff approve every AI-drafted message before it reaches a parent.
 
 ## Prototype boundary
 
-Before real childcare use: verified regulatory content, consent and media controls, file storage for evidence and photos, reminder emails, audit logging, and a privacy review. Do not use compliance summaries as legal or regulatory advice.
+Before real childcare use: verified regulatory content, consent and media controls, real SMS/email delivery, signed-in access to the AI agent, and a privacy review. Do not use compliance summaries as legal or regulatory advice.
