@@ -345,6 +345,45 @@
           }
         }
       }
+    },
+    "/rpc/agent_compliance_tasks": {
+      "post": {
+        "operationId": "ListComplianceTasks",
+        "summary": "List recurring compliance tasks",
+        "description": "Lists every recurring compliance task (drills, safety checks, policy reviews, QIP review, fire equipment service, excursion risk assessments) with its regulation, frequency, state (overdue, due_soon, on_track, done), due date, last completion and the compliance library guide that explains it. Use for 'what compliance is overdue' or 'what's due this month'.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "p_key"
+              ],
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compliance tasks",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

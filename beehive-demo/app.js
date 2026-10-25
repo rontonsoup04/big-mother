@@ -465,7 +465,7 @@ function setNav() {
   let crumb = {
     overview: "Overview",
     updates: "Regulation updates",
-    library: "Compliance library",
+    compliance: "Compliance",
     staff: "Staff certifications",
     "staff-upload": "Staff certificate upload",
     audit: "Audit readiness",
@@ -478,6 +478,12 @@ function setNav() {
     crumb[current] || "Audit readiness";
   document.getElementById("gapBadge").textContent =
     countStatus("red") + countStatus("yellow");
+  let cb = document.getElementById("complianceBadge");
+  if (cb && typeof Library !== "undefined") {
+    let due = Library.taskList().filter((t) => t.state === "overdue" || t.state === "due_soon").length;
+    cb.textContent = due || "";
+    cb.style.display = due ? "" : "none";
+  }
   let c = document.getElementById("certAlertBadge");
   if (c) c.textContent = certDueCount() + (pendingSubmission ? 1 : 0);
   let n = document.getElementById("notificationBadge");
@@ -1446,7 +1452,7 @@ function render() {
       ? overviewPage()
       : current === "updates"
         ? updatesPage()
-        : current === "library"
+        : current === "compliance"
         ? Library.page()
         : current === "staff"
           ? staffPortalPage()
@@ -1588,6 +1594,7 @@ function logDrill(id) {
   x.status = "green";
   x.evidence = "Evacuation drill logged · " + new Date().toLocaleDateString();
   x.updated = "Logged " + new Date().toLocaleString();
+  if (typeof Library !== "undefined") Library.drillLogged();
   persist();
   closeModal();
   render();

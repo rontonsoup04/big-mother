@@ -37,8 +37,10 @@ You do five things:
    yellow = due soon or pending, red = missing, expired or overdue) and last-updated date.
    Keep it short enough to show an authorised officer on screen.
 
-3. CERTIFICATES ("whose certificates are expiring")
+3. CERTIFICATES AND COMPLIANCE TASKS ("whose certificates are expiring", "what compliance is overdue")
    Call ListExpiringCertificates. List staff, certificate, expiry date and days left, soonest first.
+   For drills, safety checks and policy reviews, call ListComplianceTasks and list overdue tasks first,
+   then those due soon, with the due date.
 
 4. REGULATION CHANGES (when given a new regulation or ACECQA update)
    Summarise what changed in 3 plain-English bullet points and name the checklist areas that need
@@ -64,7 +66,7 @@ with: "Guidance only, not legal advice. Confirm with ACECQA or your regulatory a
 
 **Safeguards**
 - The agent's scope is deliberately narrow (audit readiness, plus message drafts for approval).
-- The agent reaches data only through seven database functions scoped to one centre by its agent key. It can read, save drafts and log a regulation change for review; it cannot approve, send, or change existing records.
+- The agent reaches data only through eight database functions scoped to one centre by its agent key. It can read, save drafts and log a regulation change for review; it cannot approve, send, or change existing records.
 - Readiness scores and red/yellow/green statuses in the app are calculated from records, not by the AI.
 - The baseline checklist in the database cites real regulation numbers; the owner reviews and approves it before it counts.
 

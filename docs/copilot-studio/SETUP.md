@@ -2,7 +2,7 @@
 
 About 20 minutes. You need: Copilot Studio (UNSW login), the Supabase database set up (see the main README), and the owner login for Beehive.
 
-The agent reads live Beehive data through seven database functions, and can save parent-message **drafts** that staff approve in the app. It cannot send anything to parents itself.
+The agent reads live Beehive data through eight database functions, and can save parent-message **drafts** that staff approve in the app. It cannot send anything to parents itself.
 
 ## 1. Get the centre's agent key
 
@@ -25,16 +25,17 @@ The agent reads live Beehive data through seven database functions, and can save
 
 ## 3. Give it the Beehive tool
 
-1. Open [beehive-agent-openapi.json](beehive-agent-openapi.json) in a text editor. Replace every `PASTE_AGENT_KEY_HERE` with the key from step 1 (seven places). Save a copy somewhere outside the repo.
+1. Open [beehive-agent-openapi.json](beehive-agent-openapi.json) in a text editor. Replace every `PASTE_AGENT_KEY_HERE` with the key from step 1 (eight places). Save a copy somewhere outside the repo.
 2. In the agent: **Tools** → **Add a tool** → **New tool** → **REST API**.
 3. Upload your edited file. Name it **Beehive**, description *Beehive centre records and parent message drafts*.
 4. **Authentication:** API key. **Parameter label:** apikey · **Parameter name:** apikey · **Location:** Header.
-5. Select all seven tools → **Add**. When asked for a connection, paste the Supabase **publishable key**: `sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8` (it's public by design; never use the secret/service_role key).
+5. Select all eight tools → **Add**. When asked for a connection, paste the Supabase **publishable key**: `sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8` (it's public by design; never use the secret/service_role key).
 6. Open each tool and check **Allow the agent to use this tool** is on. For *DraftParentMessage* set **Ask the user before running** to off (it only saves a draft).
 
 Test in the right-hand panel:
 - "How ready are we for an audit?" → readiness score and the red items.
 - "Show me the WWCC register" → ten educators.
+- "What compliance is overdue?" → the sleep policy review and the evacuation rehearsal.
 - "What does the law say about sleep and rest?" → summary, steps and the ACECQA documents, with links.
 - "Draft a message to Maya's mum: she had a great day painting." → "Saved as a draft" — it appears on the Beehive overview under **AI drafts awaiting approval**.
 
@@ -61,7 +62,7 @@ Beehive web app ── Ask Beehive / Draft with AI ──► Copilot Studio agen
                                                        ▼
                                    Supabase: agent_readiness · agent_search · agent_certificates
                                              agent_children · agent_draft_parent_message
-                                             agent_add_regulation_update · agent_guidance
+                                             agent_add_regulation_update · agent_guidance · agent_compliance_tasks
 ```
 
 | Tool | What it does | Writes? |
@@ -72,6 +73,7 @@ Beehive web app ── Ask Beehive / Draft with AI ──► Copilot Studio agen
 | ListChildren | Names and rooms only | No |
 | DraftParentMessage | Saves a message as a draft for staff approval | Draft only |
 | AddRegulationUpdate | Records a regulation change for the owner to accept | Yes (as "new") |
+| ListComplianceTasks | Recurring compliance tasks with due dates and status | No |
 | GetOfficialGuidance | Official documents, summary and steps for a checklist item (the compliance library) | No |
 
 Every draft and regulation update the agent creates is written to the audit log. Messages reach a parent only after a staff member approves them in Beehive.

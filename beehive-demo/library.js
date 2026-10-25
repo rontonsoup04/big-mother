@@ -12,6 +12,7 @@ const Library = (() => {
   let data = typeof LIBRARY_DATA !== "undefined" ? LIBRARY_DATA : { checked: "", general: [], guides: [] };
   let source = "offline";
   let filter = "All";
+  let tab = "all";
 
   const guide = (key) => data.guides.find((g) => g.item_key === key);
   const fmtChecked = () => {
@@ -35,7 +36,7 @@ const Library = (() => {
         guides: g.data.map((x) => Object.assign({}, x, { documents: docs.filter((y) => y.item_key === x.item_key) })),
       };
       source = "database";
-      if (typeof current !== "undefined" && current === "library") render();
+      if (typeof current !== "undefined" && current === "compliance") render();
     } catch (e) { /* keep bundled copy */ }
   }
 
@@ -69,7 +70,7 @@ const Library = (() => {
     );
   }
 
-  function page() {
+  function guidancePage() {
     const areas = ["All", "Key references"].concat(Object.values(AREA_NAMES));
     const chips = areas.map((a) =>
       '<button class="filterButton ' + (filter === a ? "active" : "") + '" onclick="Library.setFilter(\'' + a.replace(/’/g, "\\u2019") + '\')">' + esc(a) + "</button>").join("");
@@ -81,11 +82,6 @@ const Library = (() => {
         return gs.length ? '<section class="libGroup"><h3 class="libGroupTitle">' + esc(name) + "</h3>" + gs.map(guideCard).join("") + "</section>" : "";
       }).join("");
     return (
-      header(
-        "Compliance library",
-        "The official government documents behind every checklist item, with a plain-English summary and what to do.",
-        '<button class="button" onclick="go(\'audit\')">Back to checklist</button>',
-      ) +
       '<div class="libNote"><b>Sources checked ' + esc(fmtChecked()) + '</b> · ACECQA, NSW Legislation, NSW Department of Education, the NSW Early Learning Commission and the Office of the Children’s Guardian. ' +
       "Summaries are guidance only, not legal advice. Always confirm the current official document." +
       (LIVE ? "" : " <span class=\"libMode\">Offline copy</span>") + "</div>" +
@@ -96,6 +92,137 @@ const Library = (() => {
       groups
     );
   }
+
+
+  // ---------- compliance register: recurring tasks ----------
+  const FREQ = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", quarterly: "Every 3 months", "six-monthly": "Every 6 months", annual: "Every 12 months", once: "One-off" };
+  const FREQ_DAYS = { daily: 1, weekly: 7, monthly: 30, quarterly: 91, "six-monthly": 182, annual: 365 };
+  // Offline demo copy of the seeded tasks: [title, regulation, frequency, days since done (latest first), due in days, note]
+  const OFFLINE_TASKS = [
+    ["Emergency and evacuation rehearsal", "Reg 97", "quarterly", [100, 190], -10, "Fire evacuation, all rooms, 4 min 10 s"],
+    ["Playground and premises safety check", "Reg 103", "weekly", [5, 12, 19], 2, "No hazards found"],
+    ["Fire equipment service", "Reg 97, 103", "six-monthly", [140], 40, "Extinguishers and blankets serviced by contractor"],
+    ["Medical conditions policy review", "Reg 90, 91", "annual", [300], 65, "Reviewed with families of children with action plans"],
+    ["Sun protection policy review", "Reg 114, 168", "annual", [355], 10, "Checked against ACECQA guidelines"],
+    ["Sleep and rest policy review", "Reg 84A–84C", "annual", [380], -15, "Annual review"],
+    ["Quality Improvement Plan review", "Reg 55, 56", "annual", [200], 165, "QA2 and QA7 goals updated"],
+    ["Staff record and responsible person register", "Reg 145, 150", "monthly", [26, 57], 4, "Register checked against roster"],
+    ["Excursion risk assessments up to date", "Reg 100–102", "once", [], 21, ""],
+  ];
+  const STORE = "beehive-compliance-v1";
+  let tasks = null;
+
+  const isoDay = (offset) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10); };
+  const daysUntil = (iso) => { if (!iso) return null; const t = new Date(); t.setHours(12, 0, 0, 0); return Math.round((new Date(String(iso).slice(0, 10) + "T12:00:00") - t) / 86400000); };
+  const fmtDay = (iso, year) => iso ? new Date(String(iso).slice(0, 10) + "T12:00:00").toLocaleDateString("en-AU", year ? { day: "numeric", month: "short", year: "numeric" } : { day: "numeric", month: "short" }) : "";
+  function guideKeyFor(title) {
+    const t = title.toLowerCase();
+    const rules = [[/evacuat|rehears|fire/, "evacuation"], [/playground|premises/, "premises"], [/medical/, "medical"], [/sun/, "sun"], [/sleep/, "sleep"],
+      [/quality improvement/, "qip"], [/excursion/, "excursions"], [/staff record|responsible person/, "wwcc"], [/incident/, "incidents"], [/enrol/, "enrolment"]];
+    const hit = rules.find(([re]) => re.test(t));
+    return hit ? hit[1] : null;
+  }
+  function offlineTasks() {
+    try { const saved = JSON.parse(localStorage.getItem(STORE) || "null"); if (saved && saved.length) return saved; } catch (e) {}
+    return OFFLINE_TASKS.map(([title, ref, freq, done, due, note], i) => ({
+      record_id: "offline-" + i, title, regulation_reference: ref, frequency: freq, due_date: isoDay(due),
+      last_completed: done.length ? isoDay(-done[0]) : null, last_completed_by: done.length ? (typeof OWNER_NAME !== "undefined" ? OWNER_NAME : "Centre owner") : null,
+      last_notes: note, times_completed: done.length, guide_key: guideKeyFor(title),
+    }));
+  }
+  function saveOffline() { try { localStorage.setItem(STORE, JSON.stringify(tasks)); } catch (e) {} }
+  function taskList() {
+    if (!LIVE && !tasks) tasks = offlineTasks();
+    return (tasks || []).map((t) => {
+      const days = t.due_date ? daysUntil(t.due_date) : null;
+      const state = !t.due_date ? "done" : days < 0 ? "overdue" : days <= 14 ? "due_soon" : "on_track";
+      return Object.assign({}, t, { days, state, guide_key: t.guide_key || guideKeyFor(t.title) });
+    }).sort((a, b) => (a.days === null ? 1e9 : a.days) - (b.days === null ? 1e9 : b.days));
+  }
+  async function loadTasks(sb) {
+    try {
+      const r = await sb.from("v_compliance_register").select("*").order("due_date", { ascending: true, nullsFirst: false });
+      if (!r.error) tasks = r.data || [];
+    } catch (e) { /* leave as is */ }
+  }
+  function resetOffline() { tasks = null; try { localStorage.removeItem(STORE); } catch (e) {} }
+  function complete(recordId) {
+    if (LIVE) return Live.completeTask(recordId);
+    const t = (tasks || []).find((x) => x.record_id === recordId);
+    if (!t || !t.due_date) return;
+    completeOffline(t);
+    render();
+    toast(t.due_date ? "Done. Next due " + fmtDay(t.due_date, true) + "." : "Done. This one-off task is complete.");
+  }
+  function completeOffline(t, note) {
+    t.last_completed = isoDay(0);
+    t.last_completed_by = typeof OWNER_NAME !== "undefined" ? OWNER_NAME : "Centre owner";
+    t.times_completed = (t.times_completed || 0) + 1;
+    if (note) t.last_notes = note;
+    t.due_date = FREQ_DAYS[t.frequency] ? isoDay(FREQ_DAYS[t.frequency]) : null;
+    saveOffline();
+  }
+  // Offline: logging a drill on the checklist also completes the rehearsal task.
+  function drillLogged() {
+    if (LIVE) return;
+    if (!tasks) tasks = offlineTasks();
+    const t = tasks.find((x) => /evacuation/i.test(x.title) && x.due_date);
+    if (t) completeOffline(t, "Drill logged");
+  }
+  const STATE_UI = { overdue: ["red", "Overdue"], due_soon: ["yellow", "Due soon"], on_track: ["green", "On track"], done: ["green", "Done"] };
+  function dueText(t) {
+    if (t.state === "done") return "Completed";
+    if (t.days < 0) return "Overdue by " + -t.days + " day" + (t.days === -1 ? "" : "s") + " · was due " + fmtDay(t.due_date);
+    if (t.days === 0) return "Due today";
+    if (t.state === "due_soon") return "Due in " + t.days + " day" + (t.days === 1 ? "" : "s") + " · " + fmtDay(t.due_date);
+    return "Due " + fmtDay(t.due_date, true);
+  }
+  function taskRow(t) {
+    const [cls, label] = STATE_UI[t.state];
+    const last = t.last_completed ? "Last done " + fmtDay(t.last_completed, true) + (t.last_completed_by ? " by " + esc(t.last_completed_by) : "") : "Not done yet";
+    return (
+      '<div class="taskRow ' + t.state + '"><div class="taskMain"><b>' + esc(t.title) + "</b><small>" + esc(t.regulation_reference || "") + " · " + esc(FREQ[t.frequency] || t.frequency) + " · " + last + "</small></div>" +
+      '<div class="taskDue"><span class="status ' + cls + '">' + label + "</span><small>" + esc(dueText(t)) + "</small></div>" +
+      '<div class="taskBtns">' + (t.guide_key ? '<button class="button small" onclick="Library.focus(\'' + t.guide_key + '\')">Guidance</button>' : "") +
+      (t.state !== "done" && t.record_id ? '<button class="button small primary" onclick="Library.complete(\'' + t.record_id + '\')">Mark done</button>' : "") + "</div></div>"
+    );
+  }
+  function checklistRow(x) {
+    return (
+      '<div class="taskRow"><div class="taskMain"><b>' + esc(x.title) + "</b><small>" + esc(x.area) + " · " + esc(x.source) + "</small></div>" +
+      '<div class="taskDue"><span class="status ' + x.status + '">' + statusLabel(x.status) + "</span><small>" + esc(x.updated || "") + "</small></div>" +
+      '<div class="taskBtns"><button class="button small" onclick="Library.focus(\'' + esc(x.key || x.id) + '\')">Guidance</button><button class="button small" onclick="openItem(\'' + x.id + '\')">Open</button></div></div>'
+    );
+  }
+  function registerPage() {
+    const ts = taskList();
+    const n = (st) => ts.filter((t) => t.state === st).length;
+    const list = typeof items !== "undefined" ? items : [];
+    const green = list.filter((x) => x.status === "green").length;
+    return (
+      '<div class="summaryGrid compTiles">' +
+      miniCard(n("overdue"), "Overdue", "tasks past their due date") +
+      miniCard(n("due_soon"), "Due in 14 days", "coming up next") +
+      miniCard(n("on_track") + n("done"), "On track", "scheduled or complete") +
+      miniCard(green + "/" + list.length, "Audit checklist", "items with current evidence") +
+      "</div>" +
+      '<section class="card compCard"><div class="compHead"><div><h2>Recurring compliance tasks</h2><p>Every regular check, review and service the regulations require. Mark a task done and Beehive sets the next due date.</p></div></div>' +
+      (ts.length ? ts.map(taskRow).join("") : '<div class="emptyState">No recurring tasks yet.</div>') + "</section>" +
+      '<section class="card compCard"><div class="compHead"><div><h2>Audit checklist</h2><p>' + (approved ? "Your approved baseline: the records an authorised officer can ask to see." : "Draft baseline: approve it in Audit readiness to start scoring.") + '</p></div><button class="button small" onclick="go(\'audit\')">Open audit readiness</button></div>' +
+      list.map(checklistRow).join("") + "</section>"
+    );
+  }
+  function page() {
+    const tabs = [["all", "All compliance"], ["guidance", "Official guidance"]].map(([k, l]) =>
+      '<button class="compTab ' + (tab === k ? "active" : "") + '" onclick="Library.setTab(\'' + k + '\')">' + l + "</button>").join("");
+    return (
+      header("Compliance", "Every compliance requirement for your centre in one place, with the official government guidance behind it.",
+        '<button class="button" onclick="go(\'audit\')">Audit readiness</button>') +
+      '<div class="compTabs" role="tablist">' + tabs + "</div>" +
+      (tab === "all" ? registerPage() : guidancePage())
+    );
+  }
+  function setTab(k) { tab = k; render(); window.scrollTo(0, 0); }
 
   // Short version inside a checklist item's dialog.
   function itemSection(key) {
@@ -113,7 +240,8 @@ const Library = (() => {
   function focus(key) {
     closeModal();
     filter = "All";
-    go("library");
+    tab = "guidance";
+    go("compliance");
     setTimeout(() => {
       const el = document.getElementById("guide-" + key);
       if (!el) return;
@@ -141,5 +269,6 @@ const Library = (() => {
         esc(g.title) + " · guidance</b><small>" + esc(g.source_ref) + " · " + (g.documents || []).length + " official documents</small></button>").join("");
   }
 
-  return { page, itemSection, focus, setFilter, searchHtml, loadFrom, guide, get source() { return source; } };
+  return { page, itemSection, focus, setFilter, setTab, searchHtml, loadFrom, guide, loadTasks, complete, drillLogged, resetOffline, taskList,
+           get source() { return source; } };
 })();

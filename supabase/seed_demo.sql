@@ -8,7 +8,8 @@
 --   priya@beehive.demo  – Priya Patel, parent of Maya Patel
 --   mia@beehive.demo    – Mia Chen, lead educator
 --
--- Not included on purpose: compliance documents / evidence uploads.
+-- Not included on purpose: evidence uploads for the audit checklist (added during the demo).
+-- Compliance task history is included so the compliance register has realistic dates.
 -- After approval, document-based checklist items show "Evidence missing" until real files are uploaded.
 -- ============================================================================
 
@@ -50,6 +51,27 @@ begin
   update public.users set centre_id = c_centre, role = 'parent',   full_name = 'Priya Patel',   phone = '04 0000 2468' where id = u_priya;
   update public.users set centre_id = c_centre, role = 'educator', full_name = 'Mia Chen'      where id = u_mia;
   perform public.seed_compliance_requirements(c_centre);
+
+  -- ---------- compliance history: when each recurring task was last done and when it's next due ----------
+  for s in select * from (values
+    ('Emergency and evacuation rehearsal',           array[100, 190], -10, 'Fire evacuation, all rooms, 4 min 10 s'),
+    ('Playground and premises safety check',         array[5, 12, 19],  2, 'No hazards found'),
+    ('Fire equipment service',                       array[140],       40, 'Extinguishers and blankets serviced by contractor'),
+    ('Medical conditions policy review',             array[300],       65, 'Reviewed with families of children with action plans'),
+    ('Sun protection policy review',                 array[355],       10, 'Checked against ACECQA guidelines'),
+    ('Sleep and rest policy review',                 array[380],      -15, 'Annual review'),
+    ('Quality Improvement Plan review',              array[200],      165, 'QA2 and QA7 goals updated'),
+    ('Staff record and responsible person register', array[26, 57],     4, 'Register checked against roster'),
+    ('Excursion risk assessments up to date',        array[]::int[],   21, '')
+  ) as t(title, done_days, due_in, note) loop
+    update public.compliance_records r set due_date = current_date + s.due_in
+      from public.compliance_requirements q
+     where r.requirement_id = q.id and q.centre_id = c_centre and q.title = s.title and r.status = 'pending';
+    insert into public.compliance_records (centre_id, requirement_id, status, due_date, completed_on, completed_by, notes, created_at)
+    select c_centre, q.id, 'completed', current_date - d, current_date - d, u_sara, s.note, now() - make_interval(days => d)
+      from public.compliance_requirements q, unnest(s.done_days) d
+     where q.centre_id = c_centre and q.title = s.title;
+  end loop;
 
   -- ---------- staff and certificates (days from today, as in the prototype) ----------
   insert into public.staff (centre_id, user_id, full_name, email, position, room)

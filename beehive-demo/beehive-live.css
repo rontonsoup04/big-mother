@@ -233,3 +233,36 @@ code.copyable { overflow-wrap: anywhere; }
 }
 .modalMeta a { color: #8b6a19; text-underline-offset: 2px; }
 .assistantMsg a { color: #8b6a19; text-underline-offset: 2px; }
+
+/* ---------- compliance register ---------- */
+.compTabs { display: inline-flex; gap: 4px; padding: 4px; background: #f3eedf; border-radius: 12px; margin: 0 0 14px; }
+.compTab { border: 0; background: transparent; color: #6e695e; font-size: 11px; font-weight: 700; padding: 8px 14px; border-radius: 9px; cursor: pointer; }
+.compTab.active { background: var(--paper); color: #574618; box-shadow: 0 1px 4px #5f4b1922; }
+.compTiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.compCard { padding: 14px 16px 6px; margin-bottom: 12px; }
+.compHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+.compHead h2 { font-size: 14px; margin: 0 0 3px; }
+.compHead p { font-size: 10px; color: var(--muted); margin: 0; line-height: 1.5; max-width: 620px; }
+.taskRow { display: grid; grid-template-columns: minmax(0, 1fr) 210px auto; gap: 12px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
+.taskMain b { display: block; font-size: 11px; color: #3d3829; }
+.taskMain small, .taskDue small { display: block; font-size: 9px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+.taskDue small { margin-top: 4px; }
+.taskRow.overdue .taskDue small { color: var(--red); font-weight: 700; }
+.taskBtns { display: flex; gap: 6px; justify-content: flex-end; }
+.navButton b:empty { display: none; }
+
+@media (max-width: 680px) {
+  .compTabs { display: flex; }
+  .compTab { flex: 1; font-size: 13px; padding: 10px; }
+  .compTiles { grid-template-columns: 1fr 1fr; }
+  .compHead { flex-direction: column; }
+  .compHead h2 { font-size: 16px; }
+  .compHead p { font-size: 12px; }
+  .taskRow { grid-template-columns: 1fr; gap: 6px; }
+  .taskMain b { font-size: 14px; }
+  .taskMain small, .taskDue small { font-size: 11px; }
+  .taskDue { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .taskDue small { margin-top: 0; }
+  .taskBtns { justify-content: stretch; }
+  .taskBtns .button { flex: 1; min-height: 38px; font-size: 12px; }
+}

@@ -624,6 +624,86 @@ const LIBRARY_DATA = {
      "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
     }
    ]
+  },
+  {
+   "item_key": "excursions",
+   "area": "safety_premises",
+   "title": "Excursion risk assessments and authorisations",
+   "source_ref": "National Regulations · Reg. 100–102",
+   "summary": "Do a risk assessment before every excursion, then get each family's written authorisation before their child goes. A risk assessment for a regular outing stays valid for 12 months unless something changes.",
+   "directions": [
+    "Complete and record the risk assessment before asking families for authorisation. Cover the destination, travel and planned activities.",
+    "For a regular outing, check the risk assessment is less than 12 months old. Update it, and the authorisation forms, if the route, location or number of children changes.",
+    "Send families a written authorisation form explaining transport, how long it takes, the activities, and the risks and how you'll manage them.",
+    "Have a written authorisation for every child before the day.",
+    "Plan ratios and groups around the risks, with a first-aid-qualified educator in each group.",
+    "Take the first aid kit, medication, medical management plans, emergency contacts and a phone. Do regular headcounts."
+   ],
+   "evidence": "A risk assessment for each excursion and regular outing, and signed authorisations for each child.",
+   "retention": "Child records, including authorisations: 3 years after the child's last day at the service (Reg. 183).",
+   "documents": [
+    {
+     "title": "Excursions: Policy and procedure guidelines",
+     "issuer": "ACECQA (Australian Government and all states)",
+     "doc_type": "Guidelines",
+     "jurisdiction": "National",
+     "published": "Apr 2026",
+     "url": "https://www.acecqa.gov.au/media/31966",
+     "note": "Risk assessments, regular outings, authorisations, ratios and what to take."
+    },
+    {
+     "title": "Education and Care Services National Regulations · Reg. 100–102",
+     "issuer": "NSW Legislation (applies nationally)",
+     "doc_type": "Regulation",
+     "jurisdiction": "National",
+     "published": "Current version",
+     "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
+    }
+   ]
+  },
+  {
+   "item_key": "qip",
+   "area": "policies_procedures",
+   "title": "Quality Improvement Plan reviewed",
+   "source_ref": "National Regulations · Reg. 31, 55, 56",
+   "summary": "Every service needs a Quality Improvement Plan: a self-assessment against the National Quality Standard, the areas you plan to improve, and your service philosophy. Review and revise it at least once a year, keep the current copy at the service, and give it to the regulator when asked.",
+   "directions": [
+    "Self-assess your practice against each of the 7 quality areas of the National Quality Standard, the National Law and the Regulations.",
+    "Record the areas that need improvement, with goals, steps, who's responsible and a timeframe for each.",
+    "Keep the statement of philosophy in the plan current.",
+    "Review and revise the plan at least once a year, and whenever the regulator directs.",
+    "Keep the current plan at the service, where families and the regulator can see it."
+   ],
+   "evidence": "The current Quality Improvement Plan with its last review date.",
+   "retention": "",
+   "documents": [
+    {
+     "title": "Self-assessment and quality improvement planning (Guide to the NQF)",
+     "issuer": "ACECQA (Australian Government and all states)",
+     "doc_type": "Guide to the NQF",
+     "jurisdiction": "National",
+     "published": "",
+     "url": "https://www.acecqa.gov.au/node/1076251",
+     "note": "What the plan must contain and how often to review it."
+    },
+    {
+     "title": "National Quality Standard",
+     "issuer": "ACECQA (Australian Government and all states)",
+     "doc_type": "Standard",
+     "jurisdiction": "National",
+     "published": "",
+     "url": "https://www.acecqa.gov.au/nqf/national-quality-standard",
+     "note": "The 7 quality areas to assess against."
+    },
+    {
+     "title": "Education and Care Services National Regulations · Reg. 31, 55, 56",
+     "issuer": "NSW Legislation (applies nationally)",
+     "doc_type": "Regulation",
+     "jurisdiction": "National",
+     "published": "Current version",
+     "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
+    }
+   ]
   }
  ]
 };

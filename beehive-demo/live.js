@@ -154,6 +154,7 @@ const Live = (() => {
   }
   function goOffline() { offline(); }
   function resetOffline() {
+    if (typeof Library !== "undefined") Library.resetOffline();
     set("beehive-audit-flow-v2", null);
     location.reload();
   }
@@ -184,6 +185,7 @@ const Live = (() => {
   async function load() {
     if (ME.role === "parent") return loadParent();
     if (!libraryRequested && typeof Library !== "undefined") { libraryRequested = true; Library.loadFrom(sb); }
+    const tasksP = typeof Library !== "undefined" ? Library.loadTasks(sb) : null;
     const leader = isLeader();
     const [rows, kids, staffRows, certRows, subs, meds, thread, regs, drafts] = await Promise.all([
       q(sb.from("v_checklist_status").select("*")),
@@ -301,6 +303,7 @@ const Live = (() => {
       trigger: TRIGGER_LABEL[d.trigger] || "Message",
       body: d.body,
     }));
+    if (tasksP) await tasksP;
   }
 
   async function loadParent() {
@@ -393,6 +396,11 @@ const Live = (() => {
     await busy(() => q(sb.from("evidence").insert({ centre_id: ME.centre.id, checklist_item_id: id, title: "Evacuation drill logged", recorded_on: todayISO(), uploaded_by: ME.id })),
       "Drill logged. The readiness score updated and a timestamp was recorded.");
     closeModal();
+    await reload();
+  }
+  async function completeTask(recordId) {
+    await busy(() => q(sb.rpc("complete_compliance_task", { p_record: recordId, p_notes: "" })),
+      (r) => r && r.next_due ? "Done. Next due " + fmtDate(r.next_due) + "." : "Done. This one-off task is complete.");
     await reload();
   }
   async function acceptUpdate() {
@@ -550,7 +558,7 @@ const Live = (() => {
 
   return {
     boot, signIn, signOut, fillDemo, goOffline, resetOffline, showLogin, reload,
-    approveChecklist, editBaseline, uploadEvidence, logDrill, acceptUpdate, markUpdateReviewed, runExpiryCheck,
+    completeTask, approveChecklist, editBaseline, uploadEvidence, logDrill, acceptUpdate, markUpdateReviewed, runExpiryCheck,
     submitCertificate, approveCertificate, submitFamilyUpdate, sendFamilyMessage, sendOwnerReply, acknowledgeFamilyUpdate,
     approveDraft, discardDraft, createDraft, searchEvidence, openResult,
     client: () => sb, config: cfg, q, explain, todayISO,

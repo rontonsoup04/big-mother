@@ -44,7 +44,7 @@ const Assistant = (() => {
       });
       return;
     }
-    const chips = ["What should I fix first?", "What does the law say about sleep?", "Show the WWCC register", "Which certificates expire soon?", "Draft a message to a family"];
+    const chips = ["What should I fix first?", "What compliance is overdue?", "What does the law say about sleep?", "Show the WWCC register", "Which certificates expire soon?", "Draft a message to a family"];
     panel.innerHTML =
       head +
       '<div class="assistantBody" id="assistantBody">' +
@@ -165,7 +165,7 @@ const Assistant = (() => {
   }
   // Match a question to a compliance library guide.
   const GUIDE_WORDS = {
-    sleep: /sleep|rest|bassinet|cot/, sun: /sun|uv|hat|shade|sunscreen/, evacuation: /evacuat|drill|lockdown/,
+    sleep: /sleep|\brest\b|bassinet|\bcots?\b/, sun: /\bsun|\buv\b|\bhats?\b|shade/, evacuation: /evacuat|drill|lockdown/,
     wwcc: /wwcc|working with children/, firstaid: /first aid|cpr|asthma|anaphylaxis training/, incidents: /incident|injur|trauma|illness/,
     medical: /medical|medication|allerg|action plan/, enrolment: /enrol|contact record|immunis/, authorisations: /collect|pick.?up|authoris|nominee|excursion|attendance/,
     premises: /premises|equipment|furniture|safety check|maintenance/, emergency: /display|floor plan|emergency contact/, training: /training|qualif|child protection|child safety/,
@@ -190,6 +190,13 @@ const Assistant = (() => {
           "Official source: " + (guide.documents || []).slice(0, 2).map((d) => '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.title) + " ↗</a>").join(" · ") +
           '<br><button class="textButton" onclick="Assistant.toggle(false);Library.focus(\'' + guide.item_key + '\')">All steps in the compliance library →</button>' +
           "<br><small>Guidance only, not legal advice. Confirm with ACECQA or the NSW Early Learning Commission.</small>";
+      } else if (/overdue|compliance|due (this|soon|next)|policy review|drill/.test(ql) && typeof Library !== "undefined") {
+        const ts = Library.taskList().filter((t) => t.state === "overdue" || t.state === "due_soon");
+        answer = ts.length
+          ? "These compliance tasks need attention:<ul>" + ts.map((t) => "<li><b>" + esc(t.title) + "</b> <span class=\"status " + (t.state === "overdue" ? "red" : "yellow") + "\">" +
+              (t.state === "overdue" ? "Overdue by " + -t.days + " days" : t.days === 0 ? "Due today" : "Due in " + t.days + " days") + "</span><br><small>" + esc(t.regulation_reference || "") + "</small></li>").join("") +
+            '</ul><button class="textButton" onclick="Assistant.toggle(false);go(\'compliance\')">Open the compliance register →</button>'
+          : "No compliance tasks are overdue or due in the next 14 days.";
       } else if (/fix|first|gap|priorit|ready|readiness|score/.test(ql)) {
         const gaps = items.filter((x) => x.status !== "green").sort((a, b) => (a.status === "red" ? 0 : 1) - (b.status === "red" ? 0 : 1));
         answer = approved

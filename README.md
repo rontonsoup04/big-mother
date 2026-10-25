@@ -41,6 +41,7 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
    3. `supabase/migrations/20261025100000_beehive.sql`
    4. `supabase/migrations/20261025200000_frontend_alignment.sql` (matches the database to the web app's screens, adds the AI agent API)
    5. `supabase/migrations/20261026090000_compliance_library.sql` (official government documents, summaries and steps for every checklist item)
+   6. `supabase/migrations/20261026100000_compliance_register.sql` (the compliance register: recurring tasks with due dates)
 2. **Demo data.** Run `supabase/seed_demo.sql`. It creates the three logins, Beehive Early Learning, 10 educators with certificates, 12 children with medical profiles, incidents, a regulation update and a draft checklist. No compliance documents or evidence files are included; you add those during the demo. The last row it returns is the AI agent key. Re-run it any time to reset the demo.
 3. **Auth.** **Authentication → URL Configuration** → Site URL = your Vercel address (and `http://localhost:3000` for local). **Providers → Email** → turn off **Confirm email** if you want new sign-ups to work immediately.
 
@@ -54,12 +55,22 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
 | Family messages | `messages`, `parent_messages`, `v_family_thread` |
 | Medical updates | `medical_updates`, `children`, `child_parents`, `v_child_medical_profile` |
 | Incidents | `incidents`, `v_incident_deadlines` |
+| Compliance register | `compliance_requirements`, `compliance_records`, `v_compliance_register` |
 | Compliance library | `compliance_guides`, `compliance_documents` (shared reference data, read-only) |
 | Everything | `centres`, `users`, `audit_log` (append-only), storage bucket `beehive` for uploaded files |
 
-## Compliance library
+## Compliance
 
-**Compliance library** (owner menu) lists the official documents behind every checklist item: the National Regulations, plus guidance from ACECQA, the NSW Department of Education, the NSW Early Learning Commission and the Office of the Children's Guardian. Each item has a plain-English summary, numbered steps to comply, what to show an officer, how long to keep records, and links to the official documents. The same guidance appears in each checklist item's dialog, in search results and in Ask Beehive.
+**Compliance** (owner menu) shows every compliance requirement in one place, in two tabs:
+
+- **All compliance:** the recurring tasks (evacuation rehearsals, weekly premises checks, fire equipment service, policy reviews, the Quality Improvement Plan, staff register, excursion risk assessments), each with its regulation, how often it's due, when it was last done and by whom, and whether it's overdue, due soon or on track. **Mark done** records it and sets the next due date. Logging an evacuation drill on the checklist also completes the rehearsal task. Below that are all the audit checklist items with their status.
+- **Official guidance:** the compliance library (below).
+
+The demo data includes realistic history: the sleep policy review and evacuation rehearsal are overdue, three tasks are due within 14 days, and the rest are on track.
+
+### Compliance library
+
+The **Official guidance** tab lists the official documents behind every checklist item and recurring task: the National Regulations, plus guidance from ACECQA, the NSW Department of Education, the NSW Early Learning Commission and the Office of the Children's Guardian. Each item has a plain-English summary, numbered steps to comply, what to show an officer, how long to keep records, and links to the official documents. The same guidance appears in each checklist item's dialog, in search results and in Ask Beehive.
 
 The content lives in one file, `tools/compliance_library.py`, with the date the sources were checked. To update it, edit that file and run `python3 tools/compliance_library.py`. That rewrites the migration and the offline copy (`beehive-demo/library-data.js`). Then run the migration again in Supabase; it's safe to re-run. Summaries are guidance, not legal advice.
 
