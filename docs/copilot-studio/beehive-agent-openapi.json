@@ -304,6 +304,47 @@
           }
         }
       }
+    },
+    "/rpc/agent_guidance": {
+      "post": {
+        "operationId": "GetOfficialGuidance",
+        "summary": "Get official compliance guidance",
+        "description": "Returns the official government documents (ACECQA, NSW Legislation, NSW Department of Education, NSW Early Learning Commission, Office of the Children's Guardian) behind a checklist item, with a plain-English summary, steps to comply, what to show an officer and how long to keep records. Use when explaining a gap or answering 'what does the law say about...'. Leave p_topic empty to list every item and the key references.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "p_key",
+                "p_topic"
+              ],
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                },
+                "p_topic": {
+                  "type": "string",
+                  "description": "Checklist item or topic, e.g. sleep, WWCC, incidents, evacuation, Reg 97. Empty for everything."
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Guidance with official documents",
+            "schema": {
+              "type": "object"
+            }
+          }
+        }
+      }
     }
   }
 }

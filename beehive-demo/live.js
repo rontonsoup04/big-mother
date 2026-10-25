@@ -24,6 +24,7 @@ const Live = (() => {
   let channel = null;
   let reloadTimer = null;
   let searchTimer = null;
+  let libraryRequested = false;
   let lastResults = [];
 
   // ---------- helpers ----------
@@ -182,6 +183,7 @@ const Live = (() => {
 
   async function load() {
     if (ME.role === "parent") return loadParent();
+    if (!libraryRequested && typeof Library !== "undefined") { libraryRequested = true; Library.loadFrom(sb); }
     const leader = isLeader();
     const [rows, kids, staffRows, certRows, subs, meds, thread, regs, drafts] = await Promise.all([
       q(sb.from("v_checklist_status").select("*")),
@@ -526,7 +528,8 @@ const Live = (() => {
           ? lastResults.slice(0, 8).map((r, i) =>
               '<button class="searchResult" onclick="Live.openResult(' + i + ')"><b>' + esc(r.title) + "</b><small>" + esc(label[r.kind] || r.kind) + " · " + esc(status(r.status)) +
               " · " + esc(r.detail || "") + (r.last_updated ? " · updated " + esc(fmtDate(r.last_updated)) : "") + "</small></button>").join("")
-          : '<div class="emptyState">Try “WWCC”, “incident records”, “first aid” or “policy”.</div>');
+          : '<div class="emptyState">Try “WWCC”, “incident records”, “first aid” or “policy”.</div>') +
+        (typeof Library !== "undefined" ? Library.searchHtml(text) : "");
       box.classList.remove("hidden");
     }, 250);
   }

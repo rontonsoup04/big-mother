@@ -360,6 +360,10 @@ function initials(n) { return String(n || "").trim().split(/\s+/).map((w) => w[0
 function CN() { return esc(CENTRE_NAME); }
 function CF() { return esc(firstName(familyMedical.childName)); }
 function greeting() { let h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; }
+function syncLibrarySources() {
+  if (typeof Library === "undefined") return;
+  items.forEach((x) => { let g = Library.guide(x.key || x.id); if (g) x.source = g.source_ref; });
+}
 function findItemByKey(k) { return items.find((x) => (x.key || x.id) === k); }
 function loadState() {
   try {
@@ -461,6 +465,7 @@ function setNav() {
   let crumb = {
     overview: "Overview",
     updates: "Regulation updates",
+    library: "Compliance library",
     staff: "Staff certifications",
     "staff-upload": "Staff certificate upload",
     audit: "Audit readiness",
@@ -1428,6 +1433,7 @@ function handleNotifications() {
 }
 
 function render() {
+  if (!LIVE) syncLibrarySources();
   setNav();
   let baselineLabel = document.getElementById("baselineLabel");
   if (baselineLabel)
@@ -1440,6 +1446,8 @@ function render() {
       ? overviewPage()
       : current === "updates"
         ? updatesPage()
+        : current === "library"
+        ? Library.page()
         : current === "staff"
           ? staffPortalPage()
           : current === "staff-upload"
@@ -1529,7 +1537,7 @@ function openItem(id) {
     esc(x.title) +
     '</h2><p>Evidence and source details for your centre baseline</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div><div class="modalSection"><h3>Plain-English requirement summary</h3><p>' +
     esc(x.summary) +
-    '</p></div><div class="modalMeta"><span>Source regulation</span><b><a href="https://www.acecqa.gov.au/nqf/national-law-regulations/national-regulations" target="_blank" rel="noopener">' +
+    '</p></div><div class="modalMeta"><span>Source regulation</span><b><a href="https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653" target="_blank" rel="noopener">' +
     esc(x.source) +
     ' ↗</a></b></div><div class="modalMeta"><span>Evidence source</span><b>' +
     esc(x.evidence) +
@@ -1541,7 +1549,7 @@ function openItem(id) {
     statusLabel(x.status) +
     '</span></div><div class="modalSection"><h3>What needs attention</h3><p>' +
     esc(x.risk) +
-    '</p></div><div class="modalActions"><button class="button" onclick="closeModal()">Close</button>' +
+    '</p></div>' + Library.itemSection(x.key || x.id) + '<div class="modalActions"><button class="button" onclick="closeModal()">Close</button>' +
     ((x.key || x.id) === "evacuation"
       ? '<button class="button primary" onclick="logDrill(\'' +
         x.id +
@@ -1695,7 +1703,8 @@ function searchEvidence(value) {
               "</small></button>",
           )
           .join("")
-      : '<div class="emptyState">Try “WWCC”, “incident records” or “policy”.</div>');
+      : '<div class="emptyState">Try “WWCC”, “incident records” or “policy”.</div>') +
+    Library.searchHtml(query);
   box.classList.remove("hidden");
 }
 function submitSearch(value) {

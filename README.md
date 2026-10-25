@@ -40,6 +40,7 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
    2. `supabase/migrations/20261025000000_realtime_messages.sql`
    3. `supabase/migrations/20261025100000_beehive.sql`
    4. `supabase/migrations/20261025200000_frontend_alignment.sql` (matches the database to the web app's screens, adds the AI agent API)
+   5. `supabase/migrations/20261026090000_compliance_library.sql` (official government documents, summaries and steps for every checklist item)
 2. **Demo data.** Run `supabase/seed_demo.sql`. It creates the three logins, Beehive Early Learning, 10 educators with certificates, 12 children with medical profiles, incidents, a regulation update and a draft checklist. No compliance documents or evidence files are included; you add those during the demo. The last row it returns is the AI agent key. Re-run it any time to reset the demo.
 3. **Auth.** **Authentication → URL Configuration** → Site URL = your Vercel address (and `http://localhost:3000` for local). **Providers → Email** → turn off **Confirm email** if you want new sign-ups to work immediately.
 
@@ -53,7 +54,14 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
 | Family messages | `messages`, `parent_messages`, `v_family_thread` |
 | Medical updates | `medical_updates`, `children`, `child_parents`, `v_child_medical_profile` |
 | Incidents | `incidents`, `v_incident_deadlines` |
+| Compliance library | `compliance_guides`, `compliance_documents` (shared reference data, read-only) |
 | Everything | `centres`, `users`, `audit_log` (append-only), storage bucket `beehive` for uploaded files |
+
+## Compliance library
+
+**Compliance library** (owner menu) lists the official documents behind every checklist item: the National Regulations, plus guidance from ACECQA, the NSW Department of Education, the NSW Early Learning Commission and the Office of the Children's Guardian. Each item has a plain-English summary, numbered steps to comply, what to show an officer, how long to keep records, and links to the official documents. The same guidance appears in each checklist item's dialog, in search results and in Ask Beehive.
+
+The content lives in one file, `tools/compliance_library.py`, with the date the sources were checked. To update it, edit that file and run `python3 tools/compliance_library.py`. That rewrites the migration and the offline copy (`beehive-demo/library-data.js`). Then run the migration again in Supabase; it's safe to re-run. Summaries are guidance, not legal advice.
 
 ## AI agent
 
@@ -86,11 +94,14 @@ beehive-demo/          The web app
   index.html, app.js, app.css   Screens (offline demo logic included)
   live.js              Supabase sign-in, loading and saving (live mode)
   assistant.js         Ask Beehive, Draft with AI, Connect AI agent
+  library.js           Compliance library page, item guidance, search
+  library-data.js      Offline copy of the library (generated)
   beehive-live.css     Live-mode extras and the phone layout
   config.js            Supabase URL + publishable key + Copilot token endpoint
 supabase/migrations/   Database schema, views, functions and security rules
 supabase/seed_demo.sql Demo data for the web app
 docs/copilot-studio/   Agent setup guide and REST tool definition
+tools/compliance_library.py  Source of the compliance library (generates the migration + offline copy)
 App.js, src/           Earlier Expo (React Native) version, kept for reference
 ```
 

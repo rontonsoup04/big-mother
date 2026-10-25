@@ -12,6 +12,8 @@
 <script src="./config.js" defer></script>
 <script src="./live.js" defer></script>
 <script src="./assistant.js" defer></script>
+<script src="./library-data.js" defer></script>
+<script src="./library.js" defer></script>
 <script src="./app.js" defer></script>
 </head>
 <body>
@@ -27,6 +29,7 @@
       <button class="navButton ownerOnly" data-nav="audit" onclick="go('audit')"><span>☷</span> Audit readiness <b id="gapBadge">1</b></button>
       <button class="navButton ownerOnly" data-nav="staff" onclick="go('staff')"><span>♙</span> Staff certifications <b id="certAlertBadge">3</b></button>
       <button class="navButton ownerOnly" data-nav="updates" onclick="go('updates')"><span>✦</span> Regulation updates <b class="updateBadge">1</b></button>
+      <button class="navButton ownerOnly" data-nav="library" onclick="go('library')"><span>▤</span> Compliance library</button>
       <div class="navLabel parentOnly">FAMILY SPACE</div>
       <button class="navButton parentOnly" data-nav="family" onclick="go('family')"><span>♡</span> Family home</button>
       <button class="navButton parentOnly" data-nav="family-medical" onclick="go('family-medical')"><span>✚</span> Medical profile <b id="familyMedicalBadge" class="familyBadge"></b></button>
@@ -55,6 +58,7 @@
   <button class="ownerOnly" data-nav="audit" onclick="go('audit')"><i>☷</i>Checklist</button>
   <button class="ownerOnly" data-nav="staff" onclick="go('staff')"><i>♙</i>Staff</button>
   <button class="ownerOnly" data-nav="updates" onclick="go('updates')"><i>✦</i>Updates</button>
+  <button class="ownerOnly" data-nav="library" onclick="go('library')"><i>▤</i>Library</button>
   <button class="parentOnly" data-nav="family" onclick="go('family')"><i>♡</i>Home</button>
   <button class="parentOnly" data-nav="family-medical" onclick="go('family-medical')"><i>✚</i>Medical</button>
   <button class="parentOnly" data-nav="family-messages" onclick="go('family-messages')"><i>✉</i>Messages</button>
