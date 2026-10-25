@@ -37,7 +37,7 @@ function Header({ lang, setLang, onAccount, me }) {
     <>
       <View style={s.header}>
         <View>
-          <Text style={s.brand}>BIGMOTHER</Text>
+          <Text style={s.brand}>BEEHIVE</Text>
           <Text style={s.tag}>{me?.centre?.name || "Childcare intelligence, made human."}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>

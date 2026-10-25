@@ -26,7 +26,7 @@ export default function Auth({ onDemo }) {
 
   return (
     <ScrollView contentContainerStyle={[s.pad, { maxWidth: 480, width: "100%", alignSelf: "center", paddingTop: 40 }]}>
-      <Text style={s.brand}>BIGMOTHER</Text>
+      <Text style={s.brand}>BEEHIVE</Text>
       <Text style={[s.tag, { marginBottom: 28 }]}>Childcare intelligence, made human.</Text>
       <Text style={s.h1}>{mode === "signin" ? "Sign in" : "Create your account"}</Text>
       <Card>

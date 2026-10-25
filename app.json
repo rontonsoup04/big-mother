@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "BIGMOTHER",
-    "slug": "bigmother-mobile",
+    "name": "Beehive",
+    "slug": "beehive",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "BIGMOTHER uses the microphone to let educators record voice notes."
+        "NSMicrophoneUsageDescription": "Beehive uses the microphone to let educators record voice notes."
       }
     },
     "android": {

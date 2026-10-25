@@ -4,13 +4,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { C, s } from "../theme";
 import { Card } from "../ui";
 import { isLeader, loadDemoData, signOut } from "../lib/data";
+import { loadBeehiveDemo } from "../lib/beehive";
 import { notify } from "../lib/notify";
 
 export default function More({ me, onClose, onExitDemo, onChanged }) {
   const [busy, setBusy] = useState(false);
   async function sample() {
     setBusy(true);
-    try { await loadDemoData(); notify("Sample data loaded", "Staff, certificates, children, incidents and updates were added."); onChanged?.(); }
+    try { await loadDemoData(); await loadBeehiveDemo(); notify("Sample data loaded", "Staff, certificates, children, incidents, an audit-readiness checklist and a message draft were added."); onChanged?.(); }
     catch (e) { notify("Couldn't load sample data", e.message); }
     setBusy(false);
   }
