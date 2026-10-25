@@ -1,0 +1,4 @@
+-- Seed data for Supabase preview branches.
+-- Reference data (certificate types) is created by the migration.
+-- Centre demo data needs a signed-in owner, so load it from the app:
+-- sign up, create a centre, then Centre → "Load sample data".

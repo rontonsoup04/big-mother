@@ -1,0 +1,309 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Beehive",
+    "version": "1.0",
+    "description": "Beehive audit-readiness data for one long day care centre. Read readiness, search records for spot checks, list expiring staff certificates, and save parent-message drafts that staff must approve."
+  },
+  "host": "gaxkvceirdxqfpeeskwf.supabase.co",
+  "basePath": "/rest/v1",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "securityDefinitions": {
+    "apikey": {
+      "type": "apiKey",
+      "in": "header",
+      "name": "apikey"
+    }
+  },
+  "security": [
+    {
+      "apikey": []
+    }
+  ],
+  "paths": {
+    "/rpc/agent_readiness": {
+      "post": {
+        "operationId": "GetAuditReadiness",
+        "summary": "Get audit readiness",
+        "description": "Returns the centre's readiness score, every checklist item (status green/yellow/red, source regulation, what it requires, what needs attention), pending reviews and new regulation updates. Items are sorted most urgent first. Use for: 'how ready are we', 'what should I fix first', 'explain this gap'.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                }
+              },
+              "required": [
+                "p_key"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "schema": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "/rpc/agent_search": {
+      "post": {
+        "operationId": "SpotCheckSearch",
+        "summary": "Search records for a spot check",
+        "description": "Finds staff certificates, incident records, checklist items and medical profiles matching a query such as 'WWCC', 'incident records', 'first aid' or a person's name. Use when an authorised officer asks to see records.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                },
+                "p_query": {
+                  "type": "string",
+                  "description": "What to search for, e.g. WWCC or incident records."
+                }
+              },
+              "required": [
+                "p_key",
+                "p_query"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching records",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rpc/agent_certificates": {
+      "post": {
+        "operationId": "ListExpiringCertificates",
+        "summary": "List expired or expiring staff certificates",
+        "description": "Lists staff certificates that are expired or due within 60 days, with staff name, room, expiry date, days left and reminder status.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                }
+              },
+              "required": [
+                "p_key"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Certificates",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rpc/agent_children": {
+      "post": {
+        "operationId": "ListChildren",
+        "summary": "List children",
+        "description": "Lists the names and rooms of enrolled children (no medical information). Use to check a child's exact name before drafting a message.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                }
+              },
+              "required": [
+                "p_key"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Children",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rpc/agent_draft_parent_message": {
+      "post": {
+        "operationId": "DraftParentMessage",
+        "summary": "Save a draft message to a child's family",
+        "description": "Saves a message to a child's parents as a DRAFT. It is not sent: a staff member reviews and approves it in Beehive first. Only include facts the user gave you.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                },
+                "p_child_name": {
+                  "type": "string",
+                  "description": "Child's first name or full name."
+                },
+                "p_body": {
+                  "type": "string",
+                  "description": "The message text, 2–4 warm sentences in plain Australian English."
+                },
+                "p_trigger": {
+                  "type": "string",
+                  "description": "Type of message.",
+                  "enum": [
+                    "manual",
+                    "daily_summary",
+                    "incident",
+                    "medical",
+                    "document_request"
+                  ],
+                  "default": "manual"
+                },
+                "p_staff_note": {
+                  "type": "string",
+                  "description": "The staff member's original note or request."
+                }
+              },
+              "required": [
+                "p_key",
+                "p_child_name",
+                "p_body"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "schema": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "/rpc/agent_add_regulation_update": {
+      "post": {
+        "operationId": "AddRegulationUpdate",
+        "summary": "Record a regulation or guidance change",
+        "description": "Records a new regulation or ACECQA guidance change for the owner to review and accept in Beehive. Use match terms that appear in affected checklist item titles, e.g. 'sleep', 'sun', 'evacuation'.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "p_key": {
+                  "type": "string",
+                  "description": "Beehive agent key for this centre.",
+                  "default": "PASTE_AGENT_KEY_HERE",
+                  "x-ms-visibility": "internal"
+                },
+                "p_title": {
+                  "type": "string"
+                },
+                "p_summary": {
+                  "type": "string",
+                  "description": "Plain-English summary of what changed."
+                },
+                "p_match_terms": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Words that identify affected checklist items."
+                },
+                "p_source_url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_key",
+                "p_title",
+                "p_summary",
+                "p_match_terms"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "schema": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
+  }
+}

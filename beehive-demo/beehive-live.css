@@ -1,0 +1,179 @@
+/* Beehive live mode, AI assistant and phone layout. Builds on app.css tokens. */
+
+.hidden { display: none !important; }
+
+/* upload boxes are labels: make them blocks so the dashed box doesn't break apart */
+.fileDrop, .familyFile { display: block; cursor: pointer; }
+
+/* ---------- role-based navigation ---------- */
+.educatorOnly { display: none !important; }
+.educatorMode .educatorOnly { display: flex !important; }
+.educatorMode .navLabel.educatorOnly { display: block !important; }
+.educatorMode .ownerOnly,
+.educatorMode .parentOnly,
+.educatorMode .ownerBack { display: none !important; }
+
+/* ---------- sign-in ---------- */
+#authRoot { position: fixed; inset: 0; z-index: 40; }
+.authShade {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 15% 10%, #fff2c9 0, transparent 45%),
+    radial-gradient(circle at 90% 90%, #f9dc78 0, transparent 40%),
+    var(--cream);
+}
+.authCard {
+  width: min(400px, 100%);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 28px 70px #5f4b1922;
+  padding: 26px 24px 20px;
+}
+.authBrand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+.authBrand strong { display: block; letter-spacing: 0.14em; font-size: 13px; }
+.authBrand small { display: block; color: var(--muted); font-size: 10px; }
+.authCard h1 { font-size: 24px; margin: 0 0 4px; }
+.authCard .muted { margin: 0 0 14px; font-size: 11px; }
+.authCard .formLabel { display: block; margin-top: 12px; }
+.authCard .formControl { font-size: 13px; height: 42px; }
+.authError { color: var(--red); font-size: 11px; min-height: 16px; margin: 10px 0 4px; }
+.authSubmit { width: 100%; padding: 12px; font-size: 12px; }
+.authDemo { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.authDemo small { display: block; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; margin-bottom: 8px; }
+.authDemo div { display: flex; flex-wrap: wrap; gap: 6px; }
+.authOffline { display: block; margin: 16px auto 0; font-size: 11px; }
+
+/* search results close button */
+.resultHeading { display: flex; align-items: center; justify-content: space-between; }
+.resultClose { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px; }
+
+/* ---------- AI drafts card (overview) ---------- */
+.aiDraftsCard { padding: 15px; margin-top: 14px; border-color: #f1dfaa; background: linear-gradient(180deg, #fffdf3, var(--paper)); }
+.draftItem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; padding: 12px 0; border-top: 1px solid var(--line); }
+.draftBody small { display: block; color: var(--muted); font-size: 9px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+.draftBody textarea { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font: inherit; font-size: 11px; color: var(--ink); background: white; }
+.draftActions { display: flex; gap: 6px; }
+
+/* ---------- reply composer with Draft with AI ---------- */
+.composerButtons { display: flex; flex-direction: column; gap: 6px; }
+#draftNote { margin: 8px 2px 0; }
+
+/* ---------- Ask Beehive ---------- */
+.page { padding-bottom: 96px; }
+.assistantFab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #e8bb48;
+  border-radius: 999px;
+  padding: 11px 16px;
+  background: linear-gradient(135deg, #f7d66e, #efb92c);
+  color: #4d3d12;
+  font-weight: 800;
+  font-size: 11px;
+  box-shadow: 0 12px 30px #d3a72b40;
+  cursor: pointer;
+}
+.assistantFab span { font-size: 14px; }
+.assistantOpen .assistantFab { display: none; }
+.assistantPanel {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 16;
+  width: min(380px, calc(100vw - 28px));
+  height: min(620px, calc(100vh - 44px));
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 28px 70px #1d180e33;
+  overflow: hidden;
+  animation: rise 0.2s ease;
+}
+.assistantHead { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, #fff9e6, #fff2c9); }
+.assistantHead b { display: block; font-size: 13px; }
+.assistantHead small { display: block; color: var(--muted); font-size: 9px; }
+.assistantHead .closeButton { margin-left: auto; }
+.assistantMark { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: #f1bd32; color: #4d3d12; font-size: 15px; }
+.assistantBody { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 9px; }
+.assistantMsg { max-width: 92%; padding: 10px 12px; border-radius: 14px; font-size: 11px; line-height: 1.5; }
+.assistantMsg.bot { background: white; border: 1px solid var(--line); align-self: flex-start; }
+.assistantMsg.you { background: #fff2c9; align-self: flex-end; }
+.assistantMsg ul { margin: 6px 0 0; padding-left: 16px; }
+.assistantMsg li { margin-bottom: 6px; }
+.assistantMsg small { color: var(--muted); }
+.assistantMsg .status { margin-left: 4px; }
+.assistantChips { display: flex; gap: 6px; overflow-x: auto; padding: 8px 14px; border-top: 1px solid var(--line); }
+.assistantChips .chip { flex: none; border: 1px solid #f1dfaa; background: #fff8df; color: #725a1c; border-radius: 999px; padding: 6px 10px; font-size: 10px; font-weight: 700; cursor: pointer; }
+.assistantInput { display: flex; gap: 6px; padding: 10px 14px 6px; }
+.assistantInput input { flex: 1; height: 36px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; font: inherit; font-size: 12px; background: white; color: var(--ink); }
+.assistantFoot { margin: 0; padding: 0 14px 10px; color: var(--muted); font-size: 9px; }
+.webchat { flex: 1; min-height: 0; }
+.assistantLoading, .assistantError { padding: 16px; font-size: 11px; color: var(--muted); }
+.assistantError b { color: var(--red); }
+
+/* ---------- connect agent ---------- */
+.keyBox { display: flex; gap: 8px; align-items: center; margin-top: 10px; padding: 10px; border: 1px dashed #e8bb48; border-radius: 10px; background: #fffdf3; }
+.keyBox code { flex: 1; overflow-wrap: anywhere; font-size: 11px; }
+code.copyable { overflow-wrap: anywhere; }
+
+/* ---------- phone layout ---------- */
+@media (max-width: 680px) {
+  /* readable inputs (prevents iOS zoom) */
+  .globalSearch input, .formControl, .familyField textarea, .familyField input:not([type="file"]):not([type="checkbox"]), .familyComposer textarea, .staffSearch, .draftBody textarea, .assistantInput input { font-size: 16px !important; }
+  input[type="file"] { font-size: 11px !important; max-width: 100%; }
+  .globalSearch { width: auto; flex: 1; min-width: 0; }
+  .globalSearch kbd { display: none; }
+  .topbar { gap: 8px; }
+  .topActions { flex: 1; min-width: 0; justify-content: flex-end; }
+  .searchResults { position: fixed; top: 60px; left: 10px; right: 10px; max-height: 70vh; overflow: auto; }
+
+  /* staff register: cards instead of a wide table */
+  .staffTableScroller { overflow: visible; }
+  .staffTable { min-width: 0 !important; }
+  .staffTable thead { display: none; }
+  .staffTable, .staffTable tbody, .staffTable tr, .staffTable td { display: block; width: 100%; }
+  .staffTable tr { border: 1px solid var(--line); border-radius: 14px; margin: 0 0 10px; padding: 10px 12px; background: white; }
+  .staffTable td { border: 0 !important; padding: 5px 0 !important; }
+  .staffTable td:nth-child(2)::before { content: "WWCC"; }
+  .staffTable td:nth-child(3)::before { content: "First Aid"; }
+  .staffTable td:nth-child(4)::before { content: "CPR"; }
+  .staffTable td:nth-child(5)::before { content: "Anaphylaxis"; }
+  .staffTable td:nth-child(2)::before, .staffTable td:nth-child(3)::before, .staffTable td:nth-child(4)::before, .staffTable td:nth-child(5)::before {
+    display: inline-block; width: 82px; color: var(--muted); font-size: 10px; font-weight: 700; vertical-align: top;
+  }
+  .staffTable td .certCell { display: inline-flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+  .staffTable td:last-child .button { width: 100%; margin-top: 4px; }
+
+  /* modals become bottom sheets */
+  .modalShade { place-items: end center; padding: 0; }
+  .modal { width: 100%; max-height: 88vh; border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .modalActions { flex-wrap: wrap; }
+  .modalActions .button { flex: 1 1 auto; }
+
+  /* AI drafts + composer */
+  .draftItem { grid-template-columns: 1fr; }
+  .draftActions .button { flex: 1; }
+  .composerButtons { flex-direction: row; }
+  .composerButtons .button { flex: 1; }
+
+  /* assistant: full screen sheet, button above the bottom nav */
+  .assistantFab { right: 14px; bottom: calc(76px + env(safe-area-inset-bottom)); padding: 10px 14px; }
+  .assistantPanel { inset: 0; width: 100%; height: 100%; border-radius: 0; right: 0; bottom: 0; }
+  .assistantOpen .mobileNav { display: none !important; }
+
+  /* educator: only their nav item */
+  .educatorMode .mobileNav button.educatorOnly { min-width: 120px; }
+
+  .authCard { padding: 22px 18px 18px; }
+}
