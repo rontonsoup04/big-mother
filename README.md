@@ -81,7 +81,7 @@ The **Beehive Audit Assistant** runs in Microsoft Copilot Studio and reads live 
 - **Ask Beehive** (owner, bottom right): readiness, what to fix first, WWCC register, expiring certificates, draft a message.
 - **Draft with AI** in a family reply, and **AI drafts awaiting approval** on the overview.
 
-Set-up steps: [docs/copilot-studio/SETUP.md](docs/copilot-studio/SETUP.md). Until the agent's token endpoint is added to `config.js`, the app uses a built-in assistant over the same data, so the demo works either way.
+Copilot Studio connects to Beehive through an MCP server that deploys with the site at `/api/mcp` (`beehive-demo/api/mcp.js`). Set-up steps: [docs/copilot-studio/SETUP.md](docs/copilot-studio/SETUP.md). Until the agent's token endpoint is added to `config.js`, the app uses a built-in assistant over the same data, so the demo works either way.
 
 The agent never sends anything to a parent. Only receipts and reminders send automatically; every other message is a draft until a staff member approves it.
 
@@ -109,6 +109,7 @@ beehive-demo/          The web app
   library-data.js      Offline copy of the library (generated)
   beehive-live.css     Live-mode extras and the phone layout
   config.js            Supabase URL + publishable key + Copilot token endpoint
+  api/mcp.js           MCP server for the Copilot Studio agent (Vercel function)
 supabase/migrations/   Database schema, views, functions and security rules
 supabase/seed_demo.sql Demo data for the web app
 docs/copilot-studio/   Agent setup guide and REST tool definition
