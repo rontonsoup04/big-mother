@@ -1,7 +1,7 @@
 import React,{useMemo,useState}from'react';
 import{SafeAreaView,View,Text,StyleSheet,ScrollView,TouchableOpacity,TextInput,Modal,Alert,Platform}from'react-native';
 import{StatusBar}from'expo-status-bar';import{Ionicons}from'@expo/vector-icons';
-let Audio;try{Audio=require('expo-av').Audio}catch(e){}
+let Audio;if(Platform.OS!=='web'){try{Audio=require('expo-av').Audio}catch(e){}}
 const C={navy:'#152536',ink:'#243447',muted:'#6C7A89',bg:'#F4F7F8',card:'#FFFFFF',mint:'#DFF4EC',green:'#2E8B72',amber:'#F4B860',red:'#D65C5C',blue:'#4D7CFE',line:'#E4EAED',purple:'#7768AE'};
 const compliance=[{id:1,title:'First Aid qualifications',source:'National Regulations',due:'18 Oct',level:'High',summary:'Confirm at least one first-aid, anaphylaxis and asthma-qualified educator is immediately available at all times.'},{id:2,title:'Emergency & evacuation rehearsal',source:'Regulation 97',due:'24 Oct',level:'Medium',summary:'Document and rehearse emergency and evacuation procedures at least every three months.'},{id:3,title:'Child protection training review',source:'Centre policy',due:'2 Nov',level:'Medium',summary:'Review staff training records and flag educators whose child-protection refresher is approaching expiry.'}];
 const initialStaff=[{name:'Maya Chen',role:'Room Leader',cert:'First Aid + CPR',expiry:'2026-10-22',status:'Expiring'},{name:'Noah Williams',role:'Educator',cert:'Working With Children',expiry:'2027-03-12',status:'Valid'},{name:'Amelia Singh',role:'Educator',cert:'Child Protection',expiry:'2026-11-08',status:'Expiring'}];
