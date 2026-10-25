@@ -94,6 +94,93 @@ const Library = (() => {
   }
 
 
+
+  // ---------- Beehive Compliance Agent (server: /api/agent, see AGENT.md) ----------
+  let agentQueue = [];
+  let agentRun = { busy: false, reply: "", actions: [], error: "" };
+  const PASS_KEY = "beehive-agent-passcode";
+  const getPass = () => { try { return sessionStorage.getItem(PASS_KEY) || ""; } catch (e) { return ""; } };
+  const setPass = (v) => { try { sessionStorage.setItem(PASS_KEY, v); } catch (e) {} };
+  const PRIO = { high: "red", medium: "yellow", low: "neutral" };
+  const KIND = { renewal: "Renewal", missing: "Missing", follow_up: "Follow-up", escalation: "Needs your decision" };
+
+  async function runAgent() {
+    const pass = (document.getElementById("agentPass") || {}).value || "";
+    const message = ((document.getElementById("agentAsk") || {}).value || "").trim() || "Run the weekly credential check.";
+    if (!pass) { agentRun = { busy: false, reply: "", actions: [], error: "Enter the team passcode first." }; return render(); }
+    setPass(pass);
+    agentRun = { busy: true, reply: "", actions: [], error: "", message };
+    render();
+    try {
+      const res = await fetch("api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: pass, message }) });
+      let body = {};
+      try { body = await res.json(); } catch (e) { body = { error: res.status === 404 ? "The agent isn't deployed on this site yet (no /api/agent). Deploy the latest version on Vercel." : "The agent returned an unexpected response (" + res.status + ")." }; }
+      if (!res.ok) agentRun = { busy: false, reply: "", actions: [], error: body.error || "The agent couldn't run (" + res.status + ")." , message };
+      else agentRun = { busy: false, reply: body.reply, actions: body.actions || [], error: "", message, saved: body.drafts_saved, escalated: body.escalated };
+    } catch (e) {
+      agentRun = { busy: false, reply: "", actions: [], error: "Couldn't reach the agent: " + (e.message || e), message };
+    }
+    if (LIVE) await Live.reload(); else render();
+  }
+
+  function agentCard() {
+    const drafts = agentQueue.filter((d) => d.kind !== "escalation");
+    const escalations = agentQueue.filter((d) => d.kind === "escalation");
+    const prioRank = { high: 0, medium: 1, low: 2 };
+    drafts.sort((a, b) => prioRank[a.priority] - prioRank[b.priority]);
+    if (!LIVE) {
+      return '<section class="card agentCard"><div class="agentHead"><span class="assistantMark">✦</span><div><h2>Beehive Compliance Agent</h2><p>Checks every educator’s credentials, drafts personalised renewal reminders with an upload link, and flags what you must decide. Sign in to Beehive to run it: it works on live data and runs on the server.</p></div></div></section>';
+    }
+    const result = agentRun.busy
+      ? '<div class="agentResult"><span class="agentSpinner"></span> Checking credentials and drafting reminders…</div>'
+      : agentRun.error
+      ? '<div class="agentResult agentError"><b>Couldn’t run the agent.</b> ' + esc(agentRun.error) + "</div>"
+      : agentRun.reply
+      ? '<div class="agentResult"><small>You asked: “' + esc(agentRun.message || "") + '”</small><div class="agentReply">' + esc(agentRun.reply).replace(/\n/g, "<br>") + "</div>" +
+        (agentRun.actions.length ? '<div class="agentSteps">' + agentRun.actions.map((a, i) => "<span>" + (i + 1) + ". " + esc(a.tool.replace(/_/g, " ")) + (a.result ? " · " + esc(a.result) : "") + "</span>").join("") + "</div>" : "") + "</div>"
+      : "";
+    return (
+      '<section class="card agentCard"><div class="agentHead"><span class="assistantMark">✦</span><div><h2>Beehive Compliance Agent</h2>' +
+      "<p>Checks every educator’s WWCC, first aid, CPR and anaphylaxis, decides what needs attention, drafts personalised renewal reminders with an upload link and a follow-up date, and flags what you must decide. Nothing is sent until you approve it.</p></div></div>" +
+      '<div class="agentForm"><input class="formControl" id="agentAsk" placeholder="Run the weekly credential check" value="' + esc(agentRun.message && agentRun.message !== "Run the weekly credential check." ? agentRun.message : "") + '" onkeydown="if(event.key===\'Enter\')Library.runAgent()">' +
+      '<input class="formControl agentPass" id="agentPass" type="password" placeholder="Team passcode" autocomplete="off" value="' + esc(getPass()) + '">' +
+      '<button class="button primary" ' + (agentRun.busy ? "disabled" : "") + ' onclick="Library.runAgent()">' + (agentRun.busy ? "Running…" : "Run agent") + "</button></div>" +
+      result +
+      (escalations.length ? '<div class="agentList"><h3>Needs your decision · ' + escalations.length + "</h3>" + escalations.map((d) =>
+        '<div class="agentItem escalation"><div><b>' + esc(d.staff_name) + (d.certificate_code ? " · " + esc(d.certificate_name || d.certificate_code) : "") + "</b><small>" + esc(d.reason) + "</small></div>" +
+        '<div class="draftActions"><button class="button small" onclick="Library.decide(\'' + d.id + '\',\'resolved\')">Mark handled</button></div></div>').join("") + "</div>" : "") +
+      (drafts.length ? '<div class="agentList"><h3>Reminder drafts awaiting approval · ' + drafts.length + "</h3>" + drafts.map((d) =>
+        '<div class="agentItem"><div class="agentItemTop"><b>' + esc(d.staff_name) + " · " + esc(d.certificate_name || d.certificate_code || "") + '</b><span class="status ' + PRIO[d.priority] + '">' + esc(d.priority) + " · " + esc(KIND[d.kind] || d.kind) + "</span></div>" +
+        "<small>" + esc(d.reason) + (d.follow_up_on ? " · follow up " + esc(fmtDay(d.follow_up_on, true)) + " if still outstanding" : "") + "</small>" +
+        '<textarea id="rd-' + d.id + '" rows="4">' + esc(d.body) + "</textarea>" +
+        '<div class="draftActions"><button class="button small" onclick="Library.decide(\'' + d.id + '\',\'discarded\')">Discard</button><button class="button small primary" onclick="Library.approveReminder(\'' + d.id + '\')">Approve & send</button></div></div>').join("") + "</div>"
+        : (agentRun.reply ? "" : '<p class="agentEmpty">No reminder drafts waiting. Run the agent to check credentials.</p>')) +
+      "</section>"
+    );
+  }
+
+  async function approveReminder(id) {
+    const ta = document.getElementById("rd-" + id);
+    try {
+      const r = await Live.q(Live.client().rpc("approve_staff_reminder", { p_id: id, p_body: ta ? ta.value : null }));
+      toast("Reminder sent to the educator" + (r && r.follow_up_on ? ". Follow-up check on " + fmtDay(r.follow_up_on, true) + "." : "."));
+      await Live.reload();
+    } catch (e) { toast(e.message || String(e)); }
+  }
+  async function decide(id, decision) {
+    try {
+      await Live.q(Live.client().rpc("decide_staff_reminder", { p_id: id, p_decision: decision }));
+      toast(decision === "resolved" ? "Marked as handled." : "Draft discarded.");
+      await Live.reload();
+    } catch (e) { toast(e.message || String(e)); }
+  }
+  // Educators: reminders the owner approved for them.
+  function educatorReminders() {
+    if (!LIVE || !agentQueue.length) return "";
+    return '<section class="card agentCard educatorReminders"><h2>Reminders from ' + esc(typeof ownerFirst === "function" ? ownerFirst() : "your centre") + "</h2>" +
+      agentQueue.map((d) => '<div class="agentItem"><div class="agentItemTop"><b>' + esc(d.certificate_name || d.certificate_code || "Certificate") + "</b><small>" + esc(fmtDay(String(d.decided_at || "").slice(0, 10), true)) + "</small></div><p>" + esc(d.body).replace(/\n/g, "<br>") + "</p></div>").join("") + "</section>";
+  }
+
   // ---------- compliance register: recurring tasks ----------
   const FREQ = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", quarterly: "Every 3 months", "six-monthly": "Every 6 months", annual: "Every 12 months", once: "One-off" };
   const FREQ_DAYS = { daily: 1, weekly: 7, monthly: 30, quarterly: 91, "six-monthly": 182, annual: 365 };
@@ -141,8 +228,14 @@ const Library = (() => {
   }
   async function loadTasks(sb) {
     try {
-      const r = await sb.from("v_compliance_register").select("*").order("due_date", { ascending: true, nullsFirst: false });
+      const leader = typeof ME !== "undefined" && ME && (ME.role === "owner" || ME.role === "director");
+      const [r, qd] = await Promise.all([
+        leader ? sb.from("v_compliance_register").select("*").order("due_date", { ascending: true, nullsFirst: false }) : Promise.resolve({ data: [] }),
+        leader ? sb.from("v_staff_reminder_queue").select("*").eq("status", "draft").order("created_at", { ascending: false })
+               : sb.from("v_staff_reminder_queue").select("*").eq("status", "sent").order("decided_at", { ascending: false }).limit(5),
+      ]);
       if (!r.error) tasks = r.data || [];
+      if (!qd.error) agentQueue = qd.data || [];
     } catch (e) { /* leave as is */ }
   }
   function resetOffline() { tasks = null; try { localStorage.removeItem(STORE); } catch (e) {} }
@@ -200,6 +293,7 @@ const Library = (() => {
     const list = typeof items !== "undefined" ? items : [];
     const green = list.filter((x) => x.status === "green").length;
     return (
+      agentCard() +
       '<div class="summaryGrid compTiles">' +
       miniCard(n("overdue"), "Overdue", "tasks past their due date") +
       miniCard(n("due_soon"), "Due in 14 days", "coming up next") +
@@ -270,5 +364,6 @@ const Library = (() => {
   }
 
   return { page, itemSection, focus, setFilter, setTab, searchHtml, loadFrom, guide, loadTasks, complete, drillLogged, resetOffline, taskList,
+           runAgent, approveReminder, decide, educatorReminders, agentDraftCount: () => agentQueue.filter((d) => d.status === "draft").length,
            get source() { return source; } };
 })();

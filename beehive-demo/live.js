@@ -176,6 +176,7 @@ const Live = (() => {
     await load();
     if (me.role === "educator") current = "staff-upload";
     else if (me.role !== "parent") current = approved ? "overview" : "audit";
+    if (location.hash === "#upload" && me.role !== "parent") current = "staff-upload";
     hideLogin();
     render();
     startRealtime();

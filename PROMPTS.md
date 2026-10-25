@@ -2,6 +2,14 @@
 
 Every AI prompt that shapes Beehive.
 
+## 0. Beehive Compliance Agent (Gemini, server-side)
+
+**Where it runs:** `beehive-demo/api/agent.js` (Vercel function) with the Vercel AI SDK and a Gemini Flash model. Started from the Compliance page with the team passcode.
+**Prompt:** the "Agent instructions" section of [AGENT.md](AGENT.md), copied word for word into `beehive-demo/api/_agent-instructions.js` by `tools/sync_agent_instructions.py`. AGENT.md's Design Card is the source of truth: change a decision there, regenerate the instructions, sync, and retest.
+**Safeguards:** three tools only (review credentials, save reminder drafts, flag for owner); the database refuses drafts for current credentials, submitted renewals, duplicates and unknown names; the server adds the upload link, caps each call at 15 drafts and stops after 5 tool calls; every reminder is a draft until Sara approves it; every agent action is in the audit log.
+
+**v1 (26 Oct 2026):** first version from the Design Card.
+
 ## 1. Beehive Audit Assistant (Microsoft Copilot Studio agent)
 
 **Where it runs:** Copilot Studio, published with a Direct Line token endpoint. Beehive's **Ask Beehive** panel and **Draft with AI** button talk to it (see [docs/copilot-studio/SETUP.md](docs/copilot-studio/SETUP.md)).

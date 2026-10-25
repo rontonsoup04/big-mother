@@ -480,7 +480,7 @@ function setNav() {
     countStatus("red") + countStatus("yellow");
   let cb = document.getElementById("complianceBadge");
   if (cb && typeof Library !== "undefined") {
-    let due = Library.taskList().filter((t) => t.state === "overdue" || t.state === "due_soon").length;
+    let due = Library.taskList().filter((t) => t.state === "overdue" || t.state === "due_soon").length + Library.agentDraftCount();
     cb.textContent = due || "";
     cb.style.display = due ? "" : "none";
   }
@@ -1247,6 +1247,7 @@ function staffUploadPage() {
       "Mobile-friendly self-service preview for an educator renewing a credential.",
       '<button class="button ownerBack" onclick="go(\'staff\')">← Back to portal</button>',
     ) +
+    (typeof Library !== "undefined" ? Library.educatorReminders() : "") +
     '<div class="staffUploadLayout"><section class="card uploadPanel"><div class="eyebrow">SECURE UPLOAD LINK · STAFF VIEW</div><h2>Submit a renewed certificate</h2><p>' + (LIVE ? "Choose the certificate type, add a photo or PDF and check the expiry date. It goes to " + esc(ownerFirst()) + " to verify." : "Choose the staff record and certificate type, then select a photo or PDF. This prototype simulates date extraction and sends the submission to " + esc(ownerFirst()) + " for approval.") + '</p><label class="formLabel" for="uploadStaff">Staff member</label><select class="formControl" id="uploadStaff">' +
     options +
     '</select><label class="formLabel" for="uploadCertType">Certificate type</label><select class="formControl" id="uploadCertType">' +

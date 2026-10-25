@@ -266,3 +266,44 @@ code.copyable { overflow-wrap: anywhere; }
   .taskBtns { justify-content: stretch; }
   .taskBtns .button { flex: 1; min-height: 38px; font-size: 12px; }
 }
+
+/* ---------- Beehive Compliance Agent ---------- */
+.agentCard { padding: 16px 18px; margin-bottom: 12px; border-color: #f1dfaa; background: linear-gradient(180deg, #fffdf3, var(--paper)); }
+.agentHead { display: flex; gap: 12px; align-items: flex-start; }
+.agentHead h2, .educatorReminders h2 { font-size: 14px; margin: 0 0 4px; }
+.agentHead p { font-size: 10px; color: var(--muted); margin: 0; line-height: 1.55; max-width: 720px; }
+.agentForm { display: grid; grid-template-columns: minmax(0, 1fr) 170px auto; gap: 8px; margin-top: 12px; }
+.agentForm .formControl { height: 38px; font-size: 12px; }
+.agentResult { margin-top: 12px; padding: 11px 13px; border-radius: 12px; background: white; border: 1px solid var(--line); font-size: 11px; line-height: 1.6; }
+.agentResult > small { display: block; color: var(--muted); margin-bottom: 6px; }
+.agentError { border-color: #f0c2b8; background: #fff6f3; color: #7a3a2c; }
+.agentSteps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.agentSteps span { font-size: 9px; background: #f3eedf; color: #6e695e; border-radius: 20px; padding: 3px 8px; }
+.agentSpinner { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #e8bb48; border-top-color: transparent; animation: spin .8s linear infinite; vertical-align: -1px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.agentList { margin-top: 14px; }
+.agentList h3 { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #8c7a4a; margin: 0 0 6px; }
+.agentItem { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
+.agentItem.escalation { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.agentItem b { font-size: 11px; }
+.agentItem small { font-size: 9px; color: var(--muted); display: block; margin-top: 2px; }
+.agentItem textarea { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 11px; line-height: 1.5; color: var(--ink); background: white; }
+.agentItem p { margin: 0; font-size: 11px; line-height: 1.55; }
+.agentItemTop { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.agentItem .draftActions { justify-content: flex-end; }
+.agentEmpty { font-size: 10px; color: var(--muted); margin: 12px 0 0; }
+.status.neutral { background: #f3eedf; color: #6e695e; }
+
+@media (max-width: 680px) {
+  .agentHead h2, .educatorReminders h2 { font-size: 16px; }
+  .agentHead p { font-size: 12px; }
+  .agentForm { grid-template-columns: 1fr; }
+  .agentForm .formControl { height: 44px; }
+  .agentResult, .agentItem p { font-size: 13px; }
+  .agentItem b { font-size: 13px; }
+  .agentItem small { font-size: 11px; }
+  .agentItem textarea { font-size: 16px; }
+  .agentItem.escalation { grid-template-columns: 1fr; }
+  .agentItem .draftActions .button { flex: 1; min-height: 38px; }
+}
+.agentHead .assistantMark { flex: none; }

@@ -1,0 +1,11 @@
+{
+  "name": "beehive-demo",
+  "private": true,
+  "description": "Beehive web app (static) with Vercel functions in /api",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@ai-sdk/google": "2.0.17",
+    "ai": "5.0.60",
+    "zod": "3.25.76"
+  }
+}
