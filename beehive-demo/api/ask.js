@@ -11,6 +11,7 @@
 const { generateText, tool, stepCountIs } = require("ai");
 const { z } = require("zod");
 const crypto = require("crypto");
+const { explainError } = require("./agent.js");
 
 const SUPABASE_URL = process.env.BEEHIVE_SUPABASE_URL || "https://gaxkvceirdxqfpeeskwf.supabase.co";
 const SUPABASE_KEY = process.env.BEEHIVE_SUPABASE_KEY || "sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8"; // public by design
@@ -20,7 +21,7 @@ const MAX_STEPS = 4;
 const ASK_INSTRUCTIONS = `You are "Ask beehive", the assistant inside beehive, a compliance app for an Australian long day care centre (NSW, Education and Care Services National Regulations). You answer the centre owner's questions.
 
 How to answer:
-- Use only facts from your tools. Call get_overview first for anything about readiness, gaps, staff credentials, renewals, regulation updates, compliance tasks or what needs the owner. Use get_guidance for what the law or official guidance says. Use search_records to find specific records for a spot check.
+- Use only facts from the BEEHIVE OVERVIEW in the message and from your tools. The overview is current: it covers readiness, gaps, staff credentials, renewals, regulation updates, compliance tasks and what needs the owner, so answer those questions straight from it without calling a tool. Use get_guidance for what the law or official guidance says. Use search_records to find specific records for a spot check.
 - Never invent names, dates, numbers or regulations. If the records don't answer the question, say so and suggest where in beehive to look.
 - Be brief and practical: a one-sentence answer first, then up to 5 short bullet points ("- " at the start of a line). Use the exact requirement titles and staff names from the data. For each gap say why it matters and the next action.
 - "What is stopping us from being audit ready?" means: the requirements that aren't compliant, highest priority first, with why each matters and what to do next.
@@ -87,12 +88,24 @@ async function ask({ question, history, model, fetchImpl, timeLimitMs }) {
   const messages = (Array.isArray(history) ? history : []).slice(-6)
     .filter((h) => h && (h.role === "user" || h.role === "assistant") && typeof h.text === "string" && h.text.trim())
     .map((h) => ({ role: h.role, content: h.text.slice(0, 1500) }));
-  messages.push({ role: "user", content: String(question || "").slice(0, 600) });
-  const result = await generateText({
-    model: m.model, providerOptions: m.providerOptions, system: ASK_INSTRUCTIONS, messages, tools: buildTools(ctx),
-    stopWhen: stepCountIs(MAX_STEPS), maxRetries: 1, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
-  });
-  return { answer: (result.text || "").trim() || "I couldn’t find an answer in beehive’s records.", tools: ctx.used };
+  // The overview goes in up front (a quick database call), so most questions need a single Gemini call.
+  const t0 = Date.now();
+  const overview = await rpc("agent_overview", {}, fetchImpl);
+  ctx.timings = [{ step: "beehive overview", ms: Date.now() - t0 }];
+  messages.push({ role: "user", content: String(question || "").slice(0, 600) + "\n\nBEEHIVE OVERVIEW (current):\n" + JSON.stringify(overview) });
+  let last = Date.now();
+  try {
+    const result = await generateText({
+      model: m.model, providerOptions: m.providerOptions, system: ASK_INSTRUCTIONS, messages, tools: buildTools(ctx),
+      stopWhen: stepCountIs(MAX_STEPS), maxRetries: 0, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
+      onStepFinish: () => { ctx.timings.push({ step: "Gemini step " + ctx.timings.length, ms: Date.now() - last }); last = Date.now(); },
+    });
+    return { answer: (result.text || "").trim() || "I couldn’t find an answer in beehive’s records.", tools: ctx.used, timings: ctx.timings };
+  } catch (e) {
+    ctx.timings.push({ step: "Gemini step " + ctx.timings.length + " (unfinished)", ms: Date.now() - last });
+    e.timings = ctx.timings;
+    throw e;
+  }
 }
 
 async function draft({ child, parent, note, model, timeLimitMs }) {
@@ -101,7 +114,7 @@ async function draft({ child, parent, note, model, timeLimitMs }) {
     ". Educator's note: \"" + (String(note || "").trim().slice(0, 500) || "general positive update about the day") + "\".";
   const result = await generateText({
     model: m.model, providerOptions: m.providerOptions, system: DRAFT_INSTRUCTIONS, prompt,
-    maxRetries: 1, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
+    maxRetries: 0, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
   });
   return { text: (result.text || "").trim() };
 }
@@ -135,10 +148,8 @@ module.exports = async function handler(req, res) {
     if (!String(body.question || "").trim()) return send(res, 400, { error: "Ask a question." });
     return send(res, 200, await ask(body));
   } catch (e) {
-    const msg = String((e && e.message) || e);
-    if ((e && (e.name === "TimeoutError" || e.name === "AbortError")) || /aborted|timed? ?out/i.test(msg))
-      return send(res, 504, { error: "Gemini took too long. Try again, or ask something narrower." });
-    return send(res, 502, { error: "Gemini couldn't answer: " + msg.slice(0, 300) });
+    const out = explainError(e);
+    return send(res, 502, { error: out.error.replace("The AI agent couldn't finish", "Gemini couldn't answer").replace(" Try again, or ask for something narrower, like “Only check WWCC”.", " Try again, or ask something narrower.").replace(", so the agent stopped", "") });
   }
 };
 module.exports.ask = ask;
