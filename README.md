@@ -55,6 +55,7 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
    5. `supabase/migrations/20261026090000_compliance_library.sql` (official government documents, summaries and steps for every checklist item)
    6. `supabase/migrations/20261026100000_compliance_register.sql` (the compliance register: recurring tasks with due dates)
    7. `supabase/migrations/20261026110000_compliance_agent.sql` (the Beehive Compliance Agent's tools and reminder drafts)
+   8. `supabase/migrations/20261028090000_staff_agent.sql` (the staff compliance agent: renewal tasks, simulated messages, checked uploads, activity feed, daily schedule)
 2. **Demo data.** Run `supabase/seed_demo.sql`. It creates the three logins, Beehive Early Learning, 10 educators with certificates, 12 children with medical profiles, incidents, a regulation update and a draft checklist. No compliance documents or evidence files are included; you add those during the demo. The last row it returns is the AI agent key. Re-run it any time to reset the demo.
 3. **Auth.** **Authentication → URL Configuration** → Site URL = your Vercel address (and `http://localhost:3000` for local). **Providers → Email** → turn off **Confirm email** if you want new sign-ups to work immediately.
 
@@ -64,6 +65,7 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
 |---|---|
 | Audit readiness | `checklist_items`, `evidence`, `v_checklist_status`, `v_readiness`, `regulation_updates` |
 | Staff certificates | `staff`, `staff_certificates`, `certificate_types`, `certificate_submissions`, `reminders`, `v_certificate_reminders` |
+| Staff compliance agent | `credential_tasks`, `agent_messages`, `agent_events`, `agent_runs`, `v_credential_tasks`, `v_agent_feed` |
 | Spot-check search | `spot_check_search()` over certificates, incidents, checklist and medical profiles |
 | Family messages | `messages`, `parent_messages`, `v_family_thread` |
 | Medical updates | `medical_updates`, `children`, `child_parents`, `v_child_medical_profile` |
@@ -86,6 +88,21 @@ The demo data includes realistic history: the sleep policy review and evacuation
 The **Official guidance** tab lists the official documents behind every checklist item and recurring task: the National Regulations, plus guidance from ACECQA, the NSW Department of Education, the NSW Early Learning Commission and the Office of the Children's Guardian. Each item has a plain-English summary, numbered steps to comply, what to show an officer, how long to keep records, and links to the official documents. The same guidance appears in each checklist item's dialog, in search results and in Ask Beehive.
 
 The content lives in one file, `tools/compliance_library.py`, with the date the sources were checked. To update it, edit that file and run `python3 tools/compliance_library.py`. That rewrites the migration and the offline copy (`beehive-demo/library-data.js`). Then run the migration again in Supabase; it's safe to re-run. Summaries are guidance, not legal advice.
+
+## Staff compliance agent
+
+beehive manages staff credential renewals on the owner's behalf. Every educator's WWCC, first aid, CPR and anaphylaxis training goes through one loop:
+
+1. **Detect and prioritise.** Critical = expired or missing, High = 7 days or less, Medium = 30 days or less, Monitor = later (watched from 60 days). The same scale is used in the database, the staff table, the Overview and every tag.
+2. **Request.** For anything High, Medium or Critical, beehive sends the educator a personal renewal request naming the credential and deadline, with a secure upload link (`#upload/<token>`, no sign-in needed). Email is used if there's an address, otherwise SMS. **Delivery is simulated:** each message is recorded with recipient, time, outcome and next follow-up date, but nothing leaves beehive, and the interface says so.
+3. **Follow up.** If nothing arrives by the follow-up date (Critical 1 day, High 2, Medium 5), beehive asks again. A credential that becomes more urgent is re-prioritised and chased straight away.
+4. **Escalate.** Expired or missing credentials, three unanswered requests, or no contact details go to the owner with an explanation and a recommended action (for example, not counting the educator towards first aid cover).
+5. **Check the upload.** The certificate is read in the browser (pdf.js for PDFs, Tesseract OCR for photos and scans). beehive extracts the name, credential, issue and expiry dates and number, compares them with the staff record and flags mismatches, missing fields, old certificates, unreadable files and anything it was unsure of. Uploading the same file twice is refused, and a newer upload replaces an unchecked older one.
+6. **Owner verifies.** Nothing counts until the owner approves. Approving updates the credential, verification status and date, closes the task and refreshes compliance; flagged uploads need an extra confirmation. Rejecting keeps the record, records the reason and sends the educator a correction request.
+
+Everything the agent does is in **Agent activity** on the Overview (filter by Monitoring, Action taken, Waiting, Owner review, Resolved) and in the **Renewals** section of Staff certifications, each linked to the staff record with a direct action. It runs when the owner opens beehive, from **Check now**, and every morning at 7:00 Sydney time through `pg_cron` where the project has it enabled. In the offline demo the same rules run in the browser.
+
+**Demo scenario:** Oliver King's First Aid moves from 33 to 30 days, so beehive raises it to Medium and sends the request. Open his task, then *Open Oliver's upload link (demo)*, pick the *Renewed* sample certificate and send it. Back on the Overview, verify it: his record, the task and the staff table update. The seed also has Luca's expired First Aid and Jack's missing anaphylaxis training (escalated), Amara's old WWCC upload (flagged; reject it to see the correction request), overdue follow-ups for Noah, Mia and Luca, and Leo with no email (SMS). Seeded history is labelled *Demo history*, and the sample certificates say *SAMPLE ONLY*.
 
 ## Beehive Compliance Agent
 
@@ -117,7 +134,7 @@ The agent never sends anything to a parent. Only receipts and reminders send aut
 
 ## What's simulated
 
-SMS and email delivery (messages appear in the app only), reading expiry dates from certificate photos (the owner confirms the date), and regulation monitoring (updates are added by the agent or in the seed).
+SMS and email delivery (messages are recorded in the app, never delivered) and regulation monitoring (updates are added by the agent or in the seed). Certificate reading is real OCR in the browser, but it only ever suggests: the owner verifies every certificate.
 
 ## Beehive flows (database and data functions)
 
@@ -139,6 +156,8 @@ beehive-demo/          The web app
   assistant.js         Ask Beehive, Draft with AI, Connect AI agent
   library.js           Compliance library page, item guidance, search
   library-data.js      Offline copy of the library (generated)
+  agent.js             Staff compliance agent: renewals, activity feed, review, upload link (plus the offline engine)
+  extract.js           Reads certificates in the browser (pdf.js, Tesseract) and makes demo sample certificates
   config.js            Supabase URL + publishable key + Copilot token endpoint
   api/agent.js         Beehive Compliance Agent (Vercel function, Gemini via the AI SDK)
   api/_agent-instructions.js  Its system prompt, generated from AGENT.md

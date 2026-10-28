@@ -85,7 +85,7 @@ begin
     ('Ella Brooks',   'ella@example.com',   'Educator',           'Banksia Room', 615, 201, 201, 104),
     ('Oliver King',   'oliver@example.com', 'Educator',           'Gumtree Room', 326, 30,  35,  220),
     ('Zara Ali',      'zara@example.com',   'Educator',           'Wattle Room',  534, 60,  48,  86),
-    ('Leo Thompson',  'leo@example.com',    'Assistant educator', 'Banksia Room', 286, 107, 107, 107),
+    ('Leo Thompson',  'leo@example.com',    'Assistant educator', 'Banksia Room', 286, 107, 20,  107),
     ('Amara Singh',   'amara@example.com',  'Educator',           'Gumtree Room', 7,   192, 192, 202),
     ('Jack Wilson',   'jack@example.com',   'Educator',           'Wattle Room',  453, 88,  88,  233)
   ) as t(name, email, position, room, d_wwcc, d_fa, d_cpr, d_ana) loop
@@ -105,6 +105,41 @@ begin
   from public.staff_certificates sc join public.staff st on st.id = sc.staff_id
   where r.staff_certificate_id = sc.id and st.centre_id = c_centre and r.status = 'scheduled'
     and ((st.full_name = 'Mia Chen' and r.window_days = 30) or (st.full_name = 'Noah Williams' and r.window_days = 7));
+
+  -- ---------- staff compliance agent: contact details and a few days of history ----------
+  -- Phone numbers are invented. Leo has no email, so the agent texts him (simulated SMS).
+  update public.staff set phone = '04 0000 ' || lpad((1000 + x.rn)::text, 4, '0')
+    from (select id as sid, row_number() over (order by full_name) as rn from public.staff where centre_id = c_centre) x
+   where id = x.sid;
+  update public.staff set email = '' where centre_id = c_centre and full_name = 'Leo Thompson';
+  -- Jack never supplied his anaphylaxis training (missing = critical).
+  delete from public.staff_certificates sc using public.staff st, public.certificate_types ct
+   where sc.staff_id = st.id and sc.certificate_type_id = ct.id and st.centre_id = c_centre and st.full_name = 'Jack Wilson' and ct.code = 'ANAPHYLAXIS';
+  -- Oliver's First Aid is the live demo: three days ago it was still 33 days out (Monitor), so the agent only watched it.
+  update public.staff_certificates sc set expiry_date = current_date + 33
+    from public.staff st, public.certificate_types ct
+   where sc.staff_id = st.id and sc.certificate_type_id = ct.id and st.centre_id = c_centre and st.full_name = 'Oliver King' and ct.code = 'FIRST_AID';
+  perform public.run_staff_agent_for(c_centre, 'seed');
+  update public.staff_certificates sc set expiry_date = current_date + 30
+    from public.staff st, public.certificate_types ct
+   where sc.staff_id = st.id and sc.certificate_type_id = ct.id and st.centre_id = c_centre and st.full_name = 'Oliver King' and ct.code = 'FIRST_AID';
+  -- That run happened three days ago.
+  update public.agent_events set created_at = created_at - interval '3 days', demo = true where centre_id = c_centre;
+  update public.agent_messages set sent_at = sent_at - interval '3 days', next_follow_up = next_follow_up - 3 where centre_id = c_centre;
+  update public.agent_runs set ran_at = ran_at - interval '3 days' where centre_id = c_centre;
+  update public.credential_tasks set opened_at = opened_at - interval '3 days', updated_at = updated_at - interval '3 days',
+         last_request_at = last_request_at - interval '3 days', next_follow_up = next_follow_up - 3,
+         escalated_at = escalated_at - interval '3 days'
+   where centre_id = c_centre;
+  -- Yesterday Amara uploaded a Working with Children Check through her link, but it's her old one: flagged for Sara.
+  perform public._submit_checked(st, ct, 'amara-wwcc.jpg', null, null, 'demo-amara-old-wwcc',
+            jsonb_build_object('readable', true, 'name', 'Amara Singh', 'type_code', 'WWCC', 'number', 'WWC0458812E',
+                               'issue_date', current_date + 7 - 1825, 'expiry_date', current_date + 7, 'demo', true),
+            null, null, 'link', null)
+    from public.staff st, public.certificate_types ct
+   where st.centre_id = c_centre and st.full_name = 'Amara Singh' and ct.code = 'WWCC';
+  update public.certificate_submissions set submitted_at = now() - interval '1 day' where centre_id = c_centre and source = 'link';
+  update public.agent_events set created_at = now() - interval '1 day', demo = true where centre_id = c_centre and kind in ('upload_received', 'flagged');
 
   -- ---------- children (3 rooms) ----------
   insert into public.children (centre_id, first_name, last_name, date_of_birth, room, emergency_contact) values

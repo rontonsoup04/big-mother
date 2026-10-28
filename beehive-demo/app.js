@@ -487,8 +487,14 @@ function setNav() {
     cb.textContent = due || "";
     cb.style.display = due ? "" : "none";
   }
-  badge("certAlertBadge", certDueCount() + certExpiredCount() + (pendingSubmission ? 1 : 0), certExpiredCount() > 0);
-  badge("notificationBadge", (pendingSubmission ? 1 : 0) + (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0) + certDueCount());
+  if (agentOn()) {
+    let ac = StaffAgent.counts();
+    badge("certAlertBadge", ac.owner, ac.critical > 0);
+    badge("notificationBadge", StaffAgent.decisions().length + (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0));
+  } else {
+    badge("certAlertBadge", certDueCount() + certExpiredCount() + (pendingSubmission ? 1 : 0), certExpiredCount() > 0);
+    badge("notificationBadge", (pendingSubmission ? 1 : 0) + (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0) + certDueCount());
+  }
   let fm = document.getElementById("familyMedicalBadge");
   if (fm)
     fm.textContent =
@@ -704,12 +710,12 @@ function certRows() {
   return out.sort((a, b) => a.c.days - b.c.days);
 }
 function decisionItems() {
-  let d = [];
-  if (pendingSubmission)
+  let d = agentOn() ? StaffAgent.decisions() : [];
+  if (pendingSubmission && !agentOn())
     d.push({ kind: "Verify certificate", who: pendingSubmission.staffName, detail: pendingSubmission.type + ", uploaded " + (pendingSubmission.submittedAt || ""), act: "reviewSubmission()", btn: "Review" });
   if (medicalSubmission && medicalSubmission.status === "pending")
     d.push({ kind: "Approve medical update", who: medicalSubmission.childName, detail: medicalSubmission.room + ", from " + (medicalSubmission.signer || "parent"), act: "reviewFamilyUpdate()", btn: "Review", urgent: true });
-  certRows().filter((x) => x.c.days < 0).forEach((x) =>
+  if (!agentOn()) certRows().filter((x) => x.c.days < 0).forEach((x) =>
     d.push({ kind: "Expired credential", who: x.e.name, detail: x.c.type + " expired " + x.c.expiry + ". Decide on rostering.", act: "openStaffDetail('" + x.e.id + "')", btn: "Open", urgent: true }));
   let regPending = LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
   if (regPending)
@@ -786,8 +792,9 @@ function auditEntry(a) {
 }
 function hiveActivity() {
   let out = [];
+  let agent = agentOn();
   // in progress: reminders sent, waiting for a renewed certificate
-  educators.forEach((e) => {
+  if (!agent) educators.forEach((e) => {
     let due = e.certs.filter((c) => c.days <= 60).sort((a, b) => a.days - b.days)[0];
     if (!due) return;
     let st = (e.alertState || "").toLowerCase();
@@ -801,12 +808,12 @@ function hiveActivity() {
     Library.taskList().filter((t) => t.state === "due_soon").slice(0, 2).forEach((t) =>
       out.push({ state: "watch", label: "Task due soon", who: t.title, sub: t.days === 0 ? "Due today" : "Due in " + t.days + " days", act: "go('compliance')" }));
   // completed
-  if (LIVE) auditFeed.map(auditEntry).filter(Boolean).slice(0, 8).forEach((x) => out.push(x));
+  if (LIVE) auditFeed.filter((a) => !agent || !/^(agent\.|certificate\.|reminders\.)/.test(a.action)).map(auditEntry).filter(Boolean).slice(0, 8).forEach((x) => out.push(x));
   else {
     if (approved) out.push({ state: "done", label: "Checklist approved", who: items.length + " checks in your baseline", time: "This week", act: "go('audit')" });
     items.filter((x) => /^Logged|^Uploaded|^Reviewed/.test(x.updated || "")).forEach((x) => out.push({ state: "done", label: "Evidence added", who: x.title, time: "Today", act: "openItem('" + x.id + "')" }));
-    educators.forEach((e) => e.certs.filter((c) => c.approvedAt).forEach((c) => out.push({ state: "done", label: "Certificate verified", who: e.name + ", " + c.type, time: c.approvedAt, act: "openStaffDetail('" + e.id + "')" })));
-    educators.filter((e) => /prompt sent/i.test(e.alertState || "")).forEach((e) => out.push({ state: "done", label: "Renewal reminder sent", who: e.name, sub: e.alertState.replace(/^Renewal prompt sent · /, "") + " before expiry", time: "This week", act: "openStaffDetail('" + e.id + "')" }));
+    if (!agent) educators.forEach((e) => e.certs.filter((c) => c.approvedAt).forEach((c) => out.push({ state: "done", label: "Certificate verified", who: e.name + ", " + c.type, time: c.approvedAt, act: "openStaffDetail('" + e.id + "')" })));
+    if (!agent) educators.filter((e) => /prompt sent/i.test(e.alertState || "")).forEach((e) => out.push({ state: "done", label: "Renewal reminder sent", who: e.name, sub: e.alertState.replace(/^Renewal prompt sent · /, "") + " before expiry", time: "This week", act: "openStaffDetail('" + e.id + "')" }));
   }
   return out;
 }
@@ -845,19 +852,28 @@ function overviewPage() {
       today + ". " + (decisions.length ? decisions.length + (decisions.length === 1 ? " decision is" : " decisions are") + " waiting for you." : "Nothing needs your decision right now."),
       '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>',
     ) +
+    (agentOn() ? StaffAgent.overviewSummary() : "") +
     '<section class="section decisions"><div class="sectionHead"><h2>Needs your decision<span class="count">' + decisions.length + "</span></h2></div>" +
     (decisions.length ? decisions.map(decisionRow).join("") : '<p class="empty">You’re all caught up. beehive will flag anything that needs you.</p>') +
     "</section>" +
-    '<div class="twoCol"><div>' +
-    '<section class="section"><div class="sectionHead"><h2>Staff credentials<span class="count">' + creds.length + '</span></h2><button class="textButton" onclick="go(\'staff\')">All staff</button></div>' +
-    (creds.length ? group("Expired", expired, 4) + group("Due within 14 days", soon, 4) + group("Due within 60 days", later, 3) : '<p class="empty">Every credential is current for at least 60 days.</p>') +
-    "</section>" +
-    '<section class="section"><div class="sectionHead"><h2>Regulations and compliance</h2><button class="textButton" onclick="go(\'compliance\')">Compliance</button></div>' +
-    (regPending ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
-    '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
-    '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Audit readiness</b><small>' + (approved ? countStatus("red") + " missing, " + countStatus("yellow") + " due for review" : "Checklist waiting for your approval") + '</small></span><span class="rowMeta num">' + (approved ? readiness() + "%" : "Draft") + "</span></button>" +
-    "</section></div>" +
-    '<section class="section"><div class="sectionHead"><h2>Hive activity</h2></div>' + timelineHtml() + "</section></div>"
+    (agentOn()
+      ? '<div class="twoCol"><div><section class="section"><div class="sectionHead"><h2>Staff renewals<span class="count">' + (StaffAgent.counts().critical + StaffAgent.counts().high + StaffAgent.counts().medium + StaffAgent.counts().monitor) + '</span></h2><button class="textButton" onclick="go(\'staff\')">All staff</button></div>' + StaffAgent.renewalsCompact(3) + "</section></div><div>" +
+        '<section class="section"><div class="sectionHead"><h2>Regulations and compliance</h2><button class="textButton" onclick="go(\'compliance\')">Compliance</button></div>' +
+        (regPending ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
+        '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
+        '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Audit readiness</b><small>' + (approved ? countStatus("red") + " missing, " + countStatus("yellow") + " due for review" : "Checklist waiting for your approval") + '</small></span><span class="rowMeta num">' + (approved ? readiness() + "%" : "Draft") + "</span></button>" +
+        "</section></div></div>" +
+        '<section class="section" id="agentActivity"><div class="sectionHead"><h2>Agent activity</h2><p>What beehive did, what it’s waiting for and what needs you</p></div>' + StaffAgent.feedHtml() + "</section>"
+      : '<div class="twoCol"><div>' +
+        '<section class="section"><div class="sectionHead"><h2>Staff credentials<span class="count">' + creds.length + '</span></h2><button class="textButton" onclick="go(\'staff\')">All staff</button></div>' +
+        (creds.length ? group("Expired", expired, 4) + group("Due within 14 days", soon, 4) + group("Due within 60 days", later, 3) : '<p class="empty">Every credential is current for at least 60 days.</p>') +
+        "</section>" +
+        '<section class="section"><div class="sectionHead"><h2>Regulations and compliance</h2><button class="textButton" onclick="go(\'compliance\')">Compliance</button></div>' +
+        (regPending ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
+        '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
+        '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Audit readiness</b><small>' + (approved ? countStatus("red") + " missing, " + countStatus("yellow") + " due for review" : "Checklist waiting for your approval") + '</small></span><span class="rowMeta num">' + (approved ? readiness() + "%" : "Draft") + "</span></button>" +
+        "</section></div>" +
+        '<section class="section"><div class="sectionHead"><h2>Hive activity</h2></div>' + timelineHtml() + "</section></div>")
   );
 }
 function openDraftsDrawer() {
@@ -1016,7 +1032,7 @@ function reviewFamilyUpdate() {
 function certificateCell(c, label) {
   let s = certStatus(c);
   return (
-    '<td data-label="' + (label || c.type) + '"><div class="certCell"><span class="certState ' + s + '">' + certStatusLabel(s) + '</span><small class="num">' + esc(c.expiry) +
+    '<td data-label="' + (label || c.type) + '"><div class="certCell"><span class="certState ' + PRIO_CLASS[certPrio(c)] + '">' + certPrioLabel(c) + '</span><small class="num">' + esc(c.expiry) +
     (c.days >= 0 && c.days <= 60 ? ' <span class="days">' + c.days + " days</span>" : "") + "</small>" +
     (c.approvedAt ? '<small class="days">Verified ' + esc(c.approvedAt) + "</small>" : "") + "</div></td>"
   );
@@ -1027,7 +1043,7 @@ function staffRows() {
       .map((e) =>
         '<tr onclick="staffDetail(\'' + e.id + '\')"><td><div class="staffPerson"><b>' + esc(e.name) + "</b><small>" + esc(e.room) + ", " + esc(e.role) + "</small></div></td>" +
         e.certs.map((c) => certificateCell(c)).join("") +
-        '<td data-label="Renewal"><span class="alertState ' + (e.alertState ? "sent" : "") + '">' + (e.alertState ? esc(e.alertState) : "No prompt sent") + "</span></td></tr>")
+        '<td data-label="Renewal">' + (agentOn() ? StaffAgent.staffState(e.id) || '<span class="alertState">Nothing due</span>' : '<span class="alertState ' + (e.alertState ? "sent" : "") + '">' + (e.alertState ? esc(e.alertState) : "No prompt sent") + "</span>") + "</td></tr>")
       .join("") || '<tr><td colspan="6"><p class="empty">No educators match that search.</p></td></tr>'
   );
 }
@@ -1035,6 +1051,17 @@ function staffPortalPage() {
   let due = certDueCount(),
     expired = certExpiredCount(),
     reminderTotal = educators.filter((e) => e.alertState && /prompt/i.test(e.alertState)).length;
+  if (agentOn() || (LIVE && typeof StaffAgent !== "undefined" && StaffAgent.data().error))
+    return (
+      header("Staff certifications", "beehive watches every credential, chases renewals and brings you only the decisions.", '<button class="button" onclick="StaffAgent.runNow()"><span data-icon="refresh"></span>Check now</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
+      StaffAgent.staffSection() +
+      '<section class="section"><div class="sectionHead"><h2>All educators<span class="count">' + educators.length + "</span></h2></div>" +
+      '<div class="tableTools"><div class="legend"><span class="certState crit">Critical: expired or missing</span><span class="certState high">High: 7 days</span><span class="certState medium">Medium: 30 days</span><span class="certState monitor">Monitor: 60 days</span><span class="certState current">Current</span></div>' +
+      '<input id="staffSearch" class="staffSearch" type="search" placeholder="Search educators or credentials" aria-label="Search staff certifications" oninput="searchStaff(this.value)"></div>' +
+      '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Renewal</th></tr></thead><tbody id="staffRows">' +
+      staffRows() + "</tbody></table></div></section>" +
+      '<p class="footnote">' + (LIVE ? "The agent checks every credential when you open beehive and each morning. " : "Offline demo: the agent runs in this browser with sample educators. ") + "Email and SMS are simulated: messages are recorded with recipient and time but not delivered.</p>"
+    );
   return (
     header("Staff certifications", "", '<button class="button" onclick="runExpiryCheck()"><span data-icon="refresh"></span>Run expiry check</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
     (pendingSubmission
@@ -1056,30 +1083,33 @@ function staffUploadPage() {
   return (
     header(isEducator() ? "My certificates" : "Upload a certificate", isEducator() ? "Upload a renewed certificate. " + esc(ownerFirst().replace(/^the/, "The")) + " checks it before it counts." : "Upload on an educator’s behalf. This is the same page educators open from their reminder.", '<button class="button ownerBack" onclick="go(\'staff\')">Back to staff</button>') +
     (typeof Library !== "undefined" ? Library.educatorReminders() : "") +
+    (agentOn() ? StaffAgent.educatorRequests() : "") +
     '<div class="uploadLayout"><div><h2>Submit a renewed certificate</h2>' +
     '<div class="ownerField"><label class="formLabel" for="uploadStaff">Educator</label><select class="formControl" id="uploadStaff">' + options + "</select></div>" +
     '<label class="formLabel" for="uploadCertType">Certificate</label><select class="formControl" id="uploadCertType">' + types.map((t) => "<option>" + t + "</option>").join("") + "</select>" +
-    '<label class="fileDrop"><b>Add a photo or PDF</b>Take a photo of the certificate or choose a file.<input id="certFile" type="file" accept=".pdf,image/*" onchange="uploadFileSelected(this)"><small id="uploadFileName">No file selected</small></label>' +
-    '<div class="extracted"><div><b>Suggested date</b><small id="extractPreview">Add a file and beehive suggests the expiry date.</small></div>' + statusTag("yellow", "Check before submitting") + "</div>" +
-    '<label class="formLabel" for="uploadExpiry">Expiry date on the certificate</label><input class="formControl" type="date" id="uploadExpiry">' +
-    '<div class="formActions" style="justify-content:flex-start"><button class="button primary" onclick="submitCertificate()">Submit for owner approval</button></div>' +
+    (agentOn()
+      ? StaffAgent.uploadWidget() + '<div class="formActions" style="justify-content:flex-start"><button class="button primary" id="submitUpload" onclick="StaffAgent.submitUpload()">Submit for owner approval</button></div>'
+      : '<label class="fileDrop"><b>Add a photo or PDF</b>Take a photo of the certificate or choose a file.<input id="certFile" type="file" accept=".pdf,image/*" onchange="uploadFileSelected(this)"><small id="uploadFileName">No file selected</small></label>' +
+        '<div class="extracted"><div><b>Suggested date</b><small id="extractPreview">Add a file and beehive suggests the expiry date.</small></div>' + statusTag("yellow", "Check before submitting") + "</div>" +
+        '<label class="formLabel" for="uploadExpiry">Expiry date on the certificate</label><input class="formControl" type="date" id="uploadExpiry">' +
+        '<div class="formActions" style="justify-content:flex-start"><button class="button primary" onclick="submitCertificate()">Submit for owner approval</button></div>') +
     '<p class="footnote">' + (LIVE ? "Your file goes to the centre’s private storage." : "Offline demo: the file stays in this browser and the date is simulated.") + "</p></div>" +
-    '<aside><h3 style="margin-bottom:12px">What happens next</h3><ol class="steps"><li><b>You submit</b>The certificate is attached to your record.</li><li><b>' + esc(ownerFirst().replace(/^the/, "The")) + ' checks it</b>The expiry date is confirmed against the file.</li><li><b>You’re up to date</b>Your record turns green and your next reminder is set.</li></ol></aside></div>'
+    '<aside><h3 style="margin-bottom:12px">What happens next</h3><ol class="steps"><li><b>You submit</b>beehive reads the name, credential and dates, and flags anything that doesn’t match the record.</li><li><b>' + esc(ownerFirst().replace(/^the/, "The")) + ' checks it</b>Nothing changes until the file is verified.</li><li><b>You’re up to date</b>Your record turns green and your next reminder is set.</li></ol></aside></div>'
   );
 }
 function openStaffDetail(id) {
   let e = educators.find((x) => x.id === id);
   if (!e) return;
   let rows = e.certs
-    .map((c) => '<div class="modalMeta"><span>' + esc(c.type) + '</span><span class="rowEnd"><span class="num">' + esc(c.expiry) + (c.days >= 0 && c.days <= 60 ? ", " + c.days + " days" : "") + "</span>" + statusTag(certStatus(c), certStatusLabel(certStatus(c))) + "</span></div>")
+    .map((c) => '<div class="modalMeta"><span>' + esc(c.type) + '</span><span class="rowEnd"><span class="num">' + esc(c.expiry) + (c.days >= 0 && c.days <= 60 ? ", " + c.days + " days" : "") + "</span>" + statusTag(PRIO_CLASS[certPrio(c)], certPrioLabel(c)) + "</span></div>")
     .join("");
-  let pending =
+  let pending = agentOn() ? StaffAgent.staffDetailHtml(id) :
     pendingSubmission && pendingSubmission.staffId === id
       ? '<div class="callout" style="margin-top:16px"><span class="hx lg"></span><div><b>Certificate waiting for you</b><p>' + esc(pendingSubmission.type) + ", " + esc(pendingSubmission.fileName) + '</p></div><span class="rowEnd"><button class="button primary small" onclick="reviewSubmission()">Review</button></span></div>'
       : "";
   openModal(
     '<div class="modalHead"><div><h2>' + esc(e.name) + "</h2><p>" + esc(e.room) + ", " + esc(e.role) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<p class="modalSection">' + statusTag(staffStatus(e), staffStatus(e) === "green" ? "All credentials current" : staffStatus(e) === "yellow" ? "Renewal coming up" : "Expired credential") + '<span class="muted" style="margin-left:12px">' + esc(e.alertState || "No reminder sent") + "</span></p>" +
+      '<p class="modalSection">' + statusTag(staffStatus(e), staffStatus(e) === "green" ? "All credentials current" : staffStatus(e) === "yellow" ? "Renewal coming up" : "Expired or missing credential") + (agentOn() ? "" : '<span class="muted" style="margin-left:12px">' + esc(e.alertState || "No reminder sent") + "</span>") + "</p>" +
       rows + pending +
       '<div class="modalActions"><button class="button" onclick="closeModal()">Close</button></div>',
   );
@@ -1118,11 +1148,12 @@ function openHelp() {
   openModal(
     '<div class="modalHead"><div><h2>Your hive guide</h2><p>How beehive keeps your centre compliant, and when it needs you.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<section class="guideFlow"><h3>Staff compliance</h3><p>Every educator’s WWCC, first aid, CPR and anaphylaxis.</p><ol class="guideSteps2">' +
-      step("auto", "Expiry detected", "Checked against every certificate, 60, 30 and 7 days out.") +
-      step("auto", "Educator contacted", "A reminder with an upload link. The agent drafts it; you approve.") +
-      step("auto", "Certificate uploaded", "From the educator’s phone. beehive suggests the expiry date.") +
-      step("you", "Verified", "You check the file and approve it.") +
-      step("auto", "Compliance updated", "Status turns green and the next reminder is scheduled.") +
+      step("auto", "Detected and prioritised", "Every credential, every day. Critical: expired or missing. High: 7 days. Medium: 30 days. Monitor: later.") +
+      step("auto", "Educator asked to renew", "A personal request with the deadline and a secure upload link (simulated email or SMS).") +
+      step("auto", "Followed up", "If nothing arrives by the follow-up date, beehive asks again. Critical or ignored requests are escalated to you with a recommended action.") +
+      step("auto", "Upload checked", "beehive reads the name, credential and dates and flags anything that doesn’t match.") +
+      step("you", "Verified", "You approve or reject. Nothing counts until you do.") +
+      step("auto", "Record updated", "The credential, verification date and compliance status update and the task closes.") +
       "</ol></section>" +
       '<section class="guideFlow"><h3>Audit readiness</h3><p>Your approved checklist, mapped to the regulations.</p><ol class="guideSteps2">' +
       step("auto", "Requirement monitored", "Each check is matched to its evidence in beehive.") +
@@ -1144,11 +1175,26 @@ function openSourceInfo() {
   );
 }
 
+function agentOn() {
+  return typeof StaffAgent !== "undefined" && StaffAgent.active();
+}
+// One priority scale everywhere: Critical = expired or missing, High = 7 days or less, Medium = 30 days or less,
+// Monitor = within 60 days (the agent is watching), Current = later.
+function certPrio(c) {
+  if (!c || c.missing || c.days < 0) return "critical";
+  return c.days <= 7 ? "high" : c.days <= 30 ? "medium" : c.days <= 60 ? "monitor" : "current";
+}
+const PRIO_CLASS = { critical: "crit", high: "high", medium: "medium", monitor: "monitor", current: "current" };
+function certPrioLabel(c) {
+  let p = certPrio(c);
+  return p === "critical" ? (c.missing ? "Critical · missing" : "Critical · expired") : p === "current" ? "Current" : p.charAt(0).toUpperCase() + p.slice(1);
+}
 function certStatus(c) {
-  return c.days < 0 ? "red" : c.days <= 60 ? "yellow" : "green";
+  let p = certPrio(c);
+  return p === "critical" ? "red" : p === "current" ? "green" : "yellow";
 }
 function certStatusLabel(s) {
-  return s === "green" ? "Active" : s === "yellow" ? "Expiring" : "Expired";
+  return s === "green" ? "Current" : s === "yellow" ? "Expiring" : "Expired";
 }
 function certDueCount() {
   return educators.reduce(
@@ -1300,6 +1346,11 @@ function approveCertificate() {
   );
 }
 function handleNotifications() {
+  if (agentOn()) {
+    if (StaffAgent.decisions().length) { if (current !== "overview") go("overview"); StaffAgent.nextDecision(); return; }
+    if (medicalSubmission && medicalSubmission.status === "pending") return reviewFamilyUpdate();
+    return go("staff");
+  }
   if (pendingSubmission) {
     current = "staff";
     render();

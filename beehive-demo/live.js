@@ -83,6 +83,8 @@ const Live = (() => {
 
   // ---------- boot, login, logout ----------
   async function boot() {
+    // An educator's secure upload link works without signing in.
+    if (typeof StaffAgent !== "undefined" && StaffAgent.linkToken()) { client(); StaffAgent.showUploadPage(StaffAgent.linkToken()); return; }
     if (!client()) { offline(); return; }
     let session = null;
     try { session = (await sb.auth.getSession()).data.session; } catch (e) {}
@@ -99,6 +101,7 @@ const Live = (() => {
     LIVE = false;
     hideLogin();
     document.body.classList.remove("educatorMode", "liveMode");
+    if (typeof StaffAgent !== "undefined") StaffAgent.loadOffline();
     render();
     typeof Assistant !== "undefined" && Assistant.refresh();
   }
@@ -155,6 +158,7 @@ const Live = (() => {
   function goOffline() { offline(); }
   function resetOffline() {
     if (typeof Library !== "undefined") Library.resetOffline();
+    if (typeof StaffAgent !== "undefined") StaffAgent.reset();
     set("beehive-audit-flow-v2", null);
     location.reload();
   }
@@ -173,7 +177,7 @@ const Live = (() => {
     document.body.classList.toggle("educatorMode", me.role === "educator");
     if (me.role === "parent") { PARENT_NAME = me.full_name || me.email; current = "family"; }
     else { OWNER_NAME = me.full_name || me.email; }
-    await load();
+    await load({ runAgent: true });
     if (me.role === "educator") current = "staff-upload";
     else if (me.role !== "parent") current = approved ? "overview" : "audit";
     if (location.hash === "#upload" && me.role !== "parent") current = "staff-upload";
@@ -183,8 +187,10 @@ const Live = (() => {
     typeof Assistant !== "undefined" && Assistant.refresh();
   }
 
-  async function load() {
+  async function load(opts) {
     if (ME.role === "parent") return loadParent();
+    // The staff compliance agent: the owner's first load runs the loop, every load reads its records.
+    const agentP = typeof StaffAgent !== "undefined" ? StaffAgent.loadLive(sb, { run: !!(opts && opts.runAgent), announce: !!(opts && opts.runAgent) }) : Promise.resolve();
     if (!libraryRequested && typeof Library !== "undefined") { libraryRequested = true; Library.loadFrom(sb); }
     const tasksP = typeof Library !== "undefined" ? Library.loadTasks(sb) : null;
     const leader = isLeader();
@@ -236,8 +242,8 @@ const Live = (() => {
         const mine = certRows.filter((c) => c.staff_id === s.id);
         const certs = CERT_ORDER.map((code) => {
           const c = mine.find((x) => x.code === code);
-          if (!c) return { type: CERT_LABEL[code], code, expiry: "Not on file", days: -1 };
-          return { type: CERT_LABEL[code], code, certId: c.id, expiry: fmtDate(c.expiry_date), days: c.days_until_expiry, approvedAt: c.verified_at ? fmtDT(c.verified_at) : "" };
+          if (!c) return { type: CERT_LABEL[code], code, expiry: "Not on file", days: -1, missing: true };
+          return { type: CERT_LABEL[code], code, certId: c.id, expiry: fmtDate(c.expiry_date), expiryISO: String(c.expiry_date).slice(0, 10), days: c.days_until_expiry, approvedAt: c.verified_at ? fmtDT(c.verified_at) : "" };
         });
         const states = mine.map((c) => c.alert_state).filter(Boolean);
         const pick = states.find((x) => x.startsWith("Renewal submitted")) || states.find((x) => x.startsWith("Follow up")) ||
@@ -312,6 +318,8 @@ const Live = (() => {
     }));
     if (tasksP) await tasksP;
     auditFeed = await feedP;
+    await agentP;
+    if (typeof StaffAgent !== "undefined" && StaffAgent.active()) pendingSubmission = null;
   }
 
   async function loadParent() {
@@ -365,6 +373,10 @@ const Live = (() => {
   }
 
   // ---------- realtime: owner sees parent updates, parent sees replies, without refreshing ----------
+  // Coming back to the tab (for example after opening an educator's upload link) refreshes the agent's view.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && LIVE && ME && isLeader() && !document.querySelector(".modalShade")) reload().catch(() => {});
+  });
   function startRealtime() {
     stopRealtime();
     const bump = () => {
@@ -577,6 +589,6 @@ const Live = (() => {
     completeTask, approveChecklist, editBaseline, uploadEvidence, logDrill, acceptUpdate, markUpdateReviewed, runExpiryCheck,
     submitCertificate, approveCertificate, submitFamilyUpdate, sendFamilyMessage, sendOwnerReply, acknowledgeFamilyUpdate,
     approveDraft, discardDraft, createDraft, searchEvidence, openResult,
-    client: () => sb, config: cfg, q, explain, todayISO,
+    client: () => client(), config: cfg, q, explain, todayISO, signedUrl,
   };
 })();
