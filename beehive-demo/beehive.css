@@ -514,7 +514,9 @@ details.more[open] > summary::after { content: "–"; }
 .assistantInput input { flex: 1; height: 36px; border: 1px solid var(--line-2); border-radius: var(--r-md); padding: 0 10px; font-size: var(--t-sm); background: var(--surface); }
 .assistantInput input:focus { outline: none; border-color: var(--honey); box-shadow: var(--focus); }
 .assistantFoot { padding: 0 var(--s4) var(--s3); color: var(--ink-3); font-size: var(--t-xs); }
-.webchat { flex: 1; min-height: 0; }
+.srcNote { display: block; margin-top: 4px; font-size: 11px; color: var(--ink-3); }
+.assistantMsg p { margin: 0 0 6px; }
+.askLinks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .assistantLoading, .assistantError { padding: var(--s4); font-size: var(--t-sm); color: var(--ink-3); }
 .assistantError b { color: var(--red); }
 .keyBox { display: flex; gap: var(--s2); align-items: center; margin-top: var(--s2); padding: var(--s2) var(--s3); border: 1px dashed var(--line-2); border-radius: var(--r-md); }

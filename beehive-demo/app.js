@@ -602,7 +602,7 @@ function openProfileMenu() {
   let rows = LIVE
     ? '<div class="modalMeta"><span>Signed in as</span><b>' + esc(ME.email) + '</b></div><div class="modalMeta"><span>Role</span><b style="text-transform:capitalize">' + esc(ME.role) + "</b></div>" +
       (leader
-        ? '<div class="modalMeta"><span>Staff join code</span><b>' + esc(ME.centre.staff_code) + '</b></div><div class="modalMeta"><span>Family join code</span><b>' + esc(ME.centre.family_code) + '</b></div><div class="modalActions"><button class="button" onclick="Assistant.openConnect()">Connect AI agent</button><button class="button primary" onclick="Live.signOut()">Sign out</button></div>'
+        ? '<div class="modalMeta"><span>Staff join code</span><b>' + esc(ME.centre.staff_code) + '</b></div><div class="modalMeta"><span>Family join code</span><b>' + esc(ME.centre.family_code) + '</b></div><div class="modalActions"><button class="button" onclick="Assistant.openSettings()">AI settings</button><button class="button primary" onclick="Live.signOut()">Sign out</button></div>'
         : '<div class="modalActions"><button class="button primary" onclick="Live.signOut()">Sign out</button></div>')
     : '<p class="modalSection">You’re using the offline demo. Changes stay in this browser.</p><div class="modalActions"><button class="button" onclick="Live.resetOffline()">Reset demo data</button><button class="button primary" onclick="Live.showLogin()">Sign in to beehive</button></div>';
   openModal('<div class="modalHead"><div><h2>' + esc(who) + "</h2><p>" + CN() + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' + rows);

@@ -1,6 +1,6 @@
 # Beehive
 
-Childcare compliance and family communication for long day care centres. Web app (works on desktop and phone screens) backed by Supabase, with an AI agent built in Microsoft Copilot Studio.
+Childcare compliance and family communication for long day care centres. Web app (works on desktop and phone screens) backed by Supabase, with AI agents that run on Google Gemini.
 
 **Authors:** Hani Lum · Aryan Talwar · Ricky An · Emilija Gliguroska
 
@@ -37,7 +37,7 @@ Password for all three: `Beehive2026!`
 
 | Login | Role | Lands on |
 |---|---|---|
-| sara@beehive.demo | Centre owner (Sara Williams) | Overview: readiness, staff register, family inbox, AI drafts, Ask Beehive |
+| sara@beehive.demo | Centre owner (Sara Williams) | Overview: readiness, staff register, family inbox, AI drafts, Ask beehive |
 | priya@beehive.demo | Parent of Maya Patel | Family app: messages, medical update form |
 | mia@beehive.demo | Educator (Mia Chen) | Upload her own certificate |
 
@@ -89,7 +89,7 @@ The demo data includes realistic history: the sleep policy review and evacuation
 
 ### Compliance library
 
-The **Official guidance** tab lists the official documents behind every checklist item and recurring task: the National Regulations, plus guidance from ACECQA, the NSW Department of Education, the NSW Early Learning Commission and the Office of the Children's Guardian. Each item has a plain-English summary, numbered steps to comply, what to show an officer, how long to keep records, and links to the official documents. The same guidance appears in each checklist item's dialog, in search results and in Ask Beehive.
+The **Official guidance** tab lists the official documents behind every checklist item and recurring task: the National Regulations, plus guidance from ACECQA, the NSW Department of Education, the NSW Early Learning Commission and the Office of the Children's Guardian. Each item has a plain-English summary, numbered steps to comply, what to show an officer, how long to keep records, and links to the official documents. The same guidance appears in each checklist item's dialog, in search results and in Ask beehive.
 
 The content lives in one file, `tools/compliance_library.py`, with the date the sources were checked. To update it, edit that file and run `python3 tools/compliance_library.py`. That rewrites the migration and the offline copy (`beehive-demo/library-data.js`). Then run the migration again in Supabase; it's safe to re-run. Summaries are guidance, not legal advice.
 
@@ -152,14 +152,14 @@ It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and G
 
 Free AI tiers aren't private: only use the invented demo data.
 
-## AI agent
+## Ask beehive (Gemini)
 
-The **Beehive Audit Assistant** runs in Microsoft Copilot Studio and reads live Beehive data through a REST tool. In the app:
+**Ask beehive** (owner, top right) and **Draft with AI** (in a family reply) use Gemini through `beehive-demo/api/ask.js`, a Vercel function with the same settings as the Compliance agent (`GOOGLE_GENERATIVE_AI_API_KEY`, `AGENT_PASSCODE`, `BEEHIVE_AGENT_KEY`, optional `AGENT_MODEL`).
 
-- **Ask Beehive** (owner, bottom right): readiness, what to fix first, WWCC register, expiring certificates, draft a message.
-- **Draft with AI** in a family reply, and **AI drafts awaiting approval** on the overview.
-
-Copilot Studio connects to Beehive through an MCP server that deploys with the site at `/api/mcp` (`beehive-demo/api/mcp.js`). Set-up steps: [docs/copilot-studio/SETUP.md](docs/copilot-studio/SETUP.md). Until the agent's token endpoint is added to `config.js`, the app uses a built-in assistant over the same data, so the demo works either way.
+- **Ask beehive** answers from beehive's own records through three read-only tools: the Overview data (`agent_overview`: readiness and how it's worked out, every requirement with status, priority, why and next action, staff renewals, audit tasks, regulation updates and decisions, compliance tasks, what's waiting for the owner), the compliance library (`agent_guidance`) and record search. It can't change anything and never sees children's medical details. Readiness questions also get links straight to the gaps.
+- **Draft with AI** writes a short message from the educator's note. It's saved as a draft and nothing is sent until a staff member approves it.
+- The first time, enter the team passcode (account menu → **AI settings**, or the Compliance agent). Without it, in the offline demo, or if Gemini is unavailable, a built-in assistant answers from the same records with fixed rules and says so.
+- Database functions: `supabase/migrations/20261031090000_ask_beehive.sql`.
 
 The agent never sends anything to a parent. Only receipts and reminders send automatically; every other message is a draft until a staff member approves it.
 
@@ -184,20 +184,20 @@ beehive-demo/          The web app
   beehive.css          The design system and all styles
   icons.js             Line icons and the hexagon brand mark
   live.js              Supabase sign-in, loading and saving (live mode)
-  assistant.js         Ask Beehive, Draft with AI, Connect AI agent
+  assistant.js         Ask beehive, Draft with AI, AI settings (Gemini via api/ask.js, built-in fallback)
   library.js           Compliance library page, item guidance, search
   library-data.js      Offline copy of the library (generated)
   agent.js             Staff compliance agent: renewals, activity feed, review, upload link (plus the offline engine)
   audit.js             Audit-readiness agent: requirements, gaps, evidence review, regulation reviews (plus the offline engine)
   extract.js           Reads certificates in the browser (pdf.js, Tesseract) and makes demo sample certificates
-  config.js            Supabase URL + publishable key + Copilot token endpoint
+  config.js            Supabase URL + publishable key
   api/agent.js         Beehive Compliance Agent (Vercel function, Gemini via the AI SDK)
   api/_agent-instructions.js  Its system prompt, generated from AGENT.md
-  api/mcp.js           MCP server for the Copilot Studio agent (Vercel function)
+  api/ask.js           Ask beehive and Draft with AI (Vercel function, Gemini via the AI SDK)
+  vercel.json          Gives the Gemini functions up to 60 seconds
   package.json         Server dependencies (ai, @ai-sdk/google, zod)
 supabase/migrations/   Database schema, views, functions and security rules
 supabase/seed_demo.sql Demo data for the web app
-docs/copilot-studio/   Agent setup guide and REST tool definition
 tools/compliance_library.py  Source of the compliance library (generates the migration + offline copy)
 App.js, src/           Earlier Expo (React Native) version, kept for reference
 ```

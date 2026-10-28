@@ -390,7 +390,7 @@ create trigger medical_updates_submitted after insert on public.medical_updates
 
 -- Step 1 of the compliance flow: draft the baseline checklist (owner then reviews and approves).
 -- Items are a curated starting point from the Education and Care Services National Regulations.
--- An AI assistant (e.g. Copilot Studio) can add or reword items; every item keeps its source reference.
+-- An AI assistant can add or reword items; every item keeps its source reference.
 create or replace function public.generate_checklist()
 returns integer language plpgsql security definer set search_path = public as $$
 declare v_centre uuid := my_centre_id(); v_count int;
