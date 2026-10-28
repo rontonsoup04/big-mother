@@ -38,16 +38,18 @@ function buildTools(ctx) {
   const guard = (name) => {
     ctx.calls += 1;
     if (ctx.calls > MAX_TOOL_CALLS) throw new Error("Tool limit reached (" + MAX_TOOL_CALLS + " calls). Stop and summarise.");
-    ctx.log.push({ tool: name });
+    const entry = { tool: name };
+    ctx.log.push(entry);
+    return entry; // tools can run in parallel, so each writes its result to its own entry
   };
   return {
     review_credentials: tool({
       description: "Read the educators' required credentials (WWCC, FIRST_AID, CPR, ANAPHYLAXIS) that are expired, missing or expiring within their reminder window, with days left, last reminder sent, whether a renewal was submitted and whether a draft or escalation is already waiting.",
       inputSchema: z.object({}),
       execute: async () => {
-        guard("review_credentials");
+        const entry = guard("review_credentials");
         const r = await rpc("agent_credential_review", {}, ctx.fetch);
-        ctx.log[ctx.log.length - 1].result = (r.needs_attention || []).length + " credentials need attention";
+        entry.result = (r.needs_attention || []).length + " credentials need attention";
         return r;
       },
     }),
@@ -65,14 +67,14 @@ function buildTools(ctx) {
         })).min(1).max(15),
       }),
       execute: async ({ drafts }) => {
-        guard("save_reminder_drafts");
+        const entry = guard("save_reminder_drafts");
         // Server-side: every reminder carries the upload link, whatever the model wrote.
         const cleaned = drafts.map((d) => Object.assign({}, d, {
           body: d.body.includes(ctx.uploadLink) ? d.body.trim() : d.body.trim() + "\n\nUpload your new certificate here: " + ctx.uploadLink,
         }));
         const r = await rpc("agent_save_reminder_drafts", { p_drafts: cleaned }, ctx.fetch);
         ctx.saved += (r.saved || []).length;
-        ctx.log[ctx.log.length - 1].result = (r.saved || []).length + " drafts saved, " + (r.skipped || []).length + " skipped";
+        entry.result = (r.saved || []).length + " drafts saved, " + (r.skipped || []).length + " skipped";
         return r;
       },
     }),
@@ -86,10 +88,10 @@ function buildTools(ctx) {
         })).min(1).max(15),
       }),
       execute: async ({ items }) => {
-        guard("flag_for_owner");
+        const entry = guard("flag_for_owner");
         const r = await rpc("agent_flag_for_owner", { p_items: items }, ctx.fetch);
         ctx.escalated += (r.escalated || []).length;
-        ctx.log[ctx.log.length - 1].result = (r.escalated || []).length + " escalated";
+        entry.result = (r.escalated || []).length + " escalated" + ((r.skipped || []).length ? ", " + r.skipped.length + " already escalated" : "");
         return r;
       },
     }),
@@ -101,7 +103,7 @@ function buildTools(ctx) {
 const TIME_LIMIT_MS = Number(process.env.AGENT_TIME_LIMIT_MS) || 50000;
 
 async function runAgent({ message, uploadLink, model, fetchImpl, timeLimitMs }) {
-  const ctx = { calls: 0, saved: 0, escalated: 0, log: [], fetch: fetchImpl, uploadLink };
+  const ctx = { calls: 0, saved: 0, escalated: 0, log: [], fetch: fetchImpl, uploadLink, timings: [] };
   const modelId = process.env.AGENT_MODEL || "gemini-3.8-flash";
   if (!model) {
     const { google } = require("@ai-sdk/google");
@@ -109,17 +111,44 @@ async function runAgent({ message, uploadLink, model, fetchImpl, timeLimitMs }) 
   }
   // Gemini 3 models think before answering; "low" is plenty for this task and keeps each step fast.
   const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: "low" } } } : undefined;
-  const result = await generateText({
-    model,
-    system: INSTRUCTIONS.replace("{UPLOAD_LINK}", uploadLink),
-    prompt: String(message || "Run the weekly credential check.").slice(0, 1000),
-    tools: buildTools(ctx),
-    stopWhen: stepCountIs(MAX_TOOL_CALLS + 1),
-    providerOptions,
-    maxRetries: 1,
-    abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
-  });
-  return { reply: result.text || "(The agent finished without a summary.)", actions: ctx.log, drafts_saved: ctx.saved, escalated: ctx.escalated };
+  // Read the credentials first (a quick database call), so Gemini needs two calls instead of four:
+  // one to save drafts and escalations together, one to write the summary.
+  const t0 = Date.now();
+  const review = await rpc("agent_credential_review", {}, fetchImpl);
+  ctx.log.push({ tool: "review_credentials", result: (review.needs_attention || []).length + " credentials need attention" });
+  ctx.timings = [{ step: "beehive credential review", ms: Date.now() - t0 }];
+  let last = Date.now();
+  try {
+    const result = await generateText({
+      model,
+      system: INSTRUCTIONS.replace("{UPLOAD_LINK}", uploadLink),
+      prompt: String(message || "Run the weekly credential check.").slice(0, 1000) + "\n\nCREDENTIAL REVIEW (from beehive just now):\n" + JSON.stringify(review),
+      tools: buildTools(ctx),
+      stopWhen: stepCountIs(MAX_TOOL_CALLS + 1),
+      providerOptions,
+      maxRetries: 0, // a rate limit shows straight away instead of a silent wait
+      abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
+      onStepFinish: () => { ctx.timings.push({ step: "Gemini step " + ctx.timings.length, ms: Date.now() - last }); last = Date.now(); },
+    });
+    return { reply: result.text || "(The agent finished without a summary.)", actions: ctx.log, drafts_saved: ctx.saved, escalated: ctx.escalated, timings: ctx.timings, seconds: Math.round((Date.now() - t0) / 1000) };
+  } catch (e) {
+    ctx.timings.push({ step: "Gemini step " + ctx.timings.length + " (unfinished)", ms: Date.now() - last });
+    e.timings = ctx.timings; e.saved = ctx.saved;
+    throw e;
+  }
+}
+
+// Turn a failure into something the owner can act on, with where the time went.
+function explainError(e) {
+  const msg = String((e && e.message) || e);
+  const where = e && e.timings && e.timings.length ? " Timing: " + e.timings.map((t) => t.step + " " + (t.ms / 1000).toFixed(1) + "s").join(", ") + "." : "";
+  const saved = e && e.saved ? " " + e.saved + " draft" + (e.saved === 1 ? " was" : "s were") + " saved before it stopped." : "";
+  const status = e && (e.statusCode || (e.lastError && e.lastError.statusCode));
+  if (status === 429 || /quota|rate.?limit|resource.?exhausted|too many requests/i.test(msg))
+    return { error: "Gemini’s usage limit was reached (free tier). Wait a minute and try again." + saved + where };
+  if ((e && (e.name === "TimeoutError" || e.name === "AbortError")) || /aborted|timed? ?out/i.test(msg))
+    return { error: "Gemini took too long, so the agent stopped." + saved + where + " Try again, or ask for something narrower, like “Only check WWCC”." };
+  return { error: "The AI agent couldn't finish: " + msg.slice(0, 300) + saved + where };
 }
 
 function samePasscode(a, b) {
@@ -154,11 +183,9 @@ module.exports = async function agent(req, res) {
   try {
     return send(res, 200, await runAgent({ message: body.message, uploadLink }));
   } catch (e) {
-    const msg = String((e && e.message) || e);
-    if ((e && (e.name === "TimeoutError" || e.name === "AbortError")) || /aborted|timed? ?out/i.test(msg))
-      return send(res, 504, { error: "The AI agent took too long and was stopped. Any drafts it saved before stopping are on this page. Try again, or ask for something narrower, like “Only check WWCC”." });
-    return send(res, 502, { error: "The AI agent couldn't finish: " + msg.slice(0, 400) });
+    return send(res, 502, explainError(e));
   }
 };
 module.exports.runAgent = runAgent;
+module.exports.explainError = explainError;
 module.exports.MAX_TOOL_CALLS = MAX_TOOL_CALLS;

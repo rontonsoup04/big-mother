@@ -123,7 +123,7 @@ const Library = (() => {
           : "The agent returned an unexpected response (" + res.status + ")." };
       }
       if (!res.ok) agentRun = { busy: false, reply: "", actions: [], error: body.error || "The agent couldn't run (" + res.status + ")." , message };
-      else agentRun = { busy: false, reply: body.reply, actions: body.actions || [], error: "", message, saved: body.drafts_saved, escalated: body.escalated };
+      else agentRun = { busy: false, reply: body.reply, actions: body.actions || [], error: "", message, saved: body.drafts_saved, escalated: body.escalated, seconds: body.seconds };
     } catch (e) {
       agentRun = { busy: false, reply: "", actions: [], error: e && e.name === "AbortError" ? "The agent didn’t answer within 75 seconds. Try again, or ask for something narrower." : "Couldn't reach the agent: " + (e.message || e), message };
     } finally {
@@ -146,7 +146,7 @@ const Library = (() => {
       : agentRun.error
       ? '<div class="agentResult agentError"><b>Couldn’t run the agent.</b> ' + esc(agentRun.error) + "</div>"
       : agentRun.reply
-      ? '<div class="agentResult"><small>You asked: “' + esc(agentRun.message || "") + '”</small><div class="agentReply">' + esc(agentRun.reply).replace(/\n/g, "<br>") + "</div>" +
+      ? '<div class="agentResult"><small>You asked: “' + esc(agentRun.message || "") + '”' + (agentRun.seconds != null ? " · took " + agentRun.seconds + " s" : "") + '</small><div class="agentReply">' + esc(agentRun.reply).replace(/\n/g, "<br>") + "</div>" +
         (agentRun.actions.length ? '<div class="agentSteps">' + agentRun.actions.map((a, i) => "<span>" + (i + 1) + ". " + esc(a.tool.replace(/_/g, " ")) + (a.result ? ": " + esc(a.result) : "") + "</span>").join("") + "</div>" : "") + "</div>"
       : "";
     return (

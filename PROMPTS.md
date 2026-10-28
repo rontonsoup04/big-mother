@@ -9,6 +9,7 @@ Every AI prompt that shapes Beehive.
 **Safeguards:** three tools only (review credentials, save reminder drafts, flag for owner); the database refuses drafts for current credentials, submitted renewals, duplicates and unknown names; the server adds the upload link, caps each call at 15 drafts and stops after 5 tool calls; every reminder is a draft until Sara approves it; every agent action is in the audit log.
 
 **v1 (26 Oct 2026):** first version from the Design Card.
+**v2 (29 Oct 2026):** the server reads the credential review before calling Gemini and Gemini saves drafts and escalations in one step (two Gemini calls instead of four), to finish within Vercel's time limit.
 
 ## 1. Ask beehive (Gemini, server-side)
 
