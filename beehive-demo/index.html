@@ -3,70 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#f1bd32">
-<title>Beehive</title>
-<meta name="description" content="Audit readiness, staff certifications and family medical updates for long day care centres.">
-<link rel="stylesheet" href="./app.css">
-<link rel="stylesheet" href="./beehive-live.css">
+<meta name="theme-color" content="#ffffff">
+<title>beehive</title>
+<meta name="description" content="Staff certifications, audit readiness and family medical updates for long day care centres.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 32'%3E%3Cpath d='M14 1.5 26 8.5v15L14 30.5 2 23.5v-15z' fill='none' stroke='%23c08a22' stroke-width='2.4'/%3E%3Cpath d='M14 10.5 19.5 13.7v6.6L14 23.5 8.5 20.3v-6.6z' fill='%23c08a22'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./beehive.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" defer></script>
+<script src="./icons.js" defer></script>
 <script src="./config.js" defer></script>
 <script src="./live.js" defer></script>
 <script src="./assistant.js" defer></script>
 <script src="./library-data.js" defer></script>
 <script src="./library.js" defer></script>
+<script src="./extract.js" defer></script>
+<script src="./agent.js" defer></script>
+<script src="./audit.js" defer></script>
 <script src="./app.js" defer></script>
 </head>
 <body>
 <div class="appShell">
   <aside class="sidebar">
-    <a class="brand" href="#" onclick="go('audit');return false" aria-label="BEEHIVE home">
-      <span class="brandMark">b</span><span><strong>BEEHIVE</strong><small>Audit readiness</small></span>
+    <a class="brand" href="#" onclick="go(isFamily() ? 'family' : (isEducator() ? 'staff-upload' : 'overview'));return false" aria-label="beehive home">
+      <span class="brandMark" data-icon="brand"></span><span class="brandName">beehive</span>
     </a>
-    <div class="centreCard"><span class="centreIcon">✿</span><span><small>YOUR CENTRE</small><b class="centreName">Beehive Early Learning</b></span><span class="chevron">⌄</span></div>
-    <div class="navLabel ownerOnly">OWNER WORKSPACE</div>
+    <div class="centreLine"><small>Centre</small><b class="centreName">Beehive Early Learning</b></div>
     <nav class="navigation" aria-label="Main navigation">
-      <button class="navButton ownerOnly" data-nav="overview" onclick="go('overview')"><span>▦</span> Overview</button>
-      <button class="navButton ownerOnly" data-nav="audit" onclick="go('audit')"><span>☷</span> Audit readiness <b id="gapBadge">1</b></button>
-      <button class="navButton ownerOnly" data-nav="staff" onclick="go('staff')"><span>♙</span> Staff certifications <b id="certAlertBadge">3</b></button>
-      <button class="navButton ownerOnly" data-nav="updates" onclick="go('updates')"><span>✦</span> Regulation updates <b class="updateBadge">1</b></button>
-      <button class="navButton ownerOnly" data-nav="compliance" onclick="go('compliance')"><span>▤</span> Compliance <b id="complianceBadge"></b></button>
-      <div class="navLabel parentOnly">FAMILY SPACE</div>
-      <button class="navButton parentOnly" data-nav="family" onclick="go('family')"><span>♡</span> Family home</button>
-      <button class="navButton parentOnly" data-nav="family-medical" onclick="go('family-medical')"><span>✚</span> Medical profile <b id="familyMedicalBadge" class="familyBadge"></b></button>
-      <button class="navButton parentOnly" data-nav="family-messages" onclick="go('family-messages')"><span>✉</span> Messages</button>
-      <div class="navLabel educatorOnly">MY WORKSPACE</div>
-      <button class="navButton educatorOnly" data-nav="staff-upload" onclick="go('staff-upload')"><span>♙</span> My certificates</button>
+      <button class="navButton ownerOnly" data-nav="overview" onclick="go('overview')"><span data-icon="overview"></span>Overview</button>
+      <button class="navButton ownerOnly" data-nav="staff" onclick="go('staff')"><span data-icon="staff"></span>Staff certifications<b id="certAlertBadge"></b></button>
+      <button class="navButton ownerOnly" data-nav="audit" onclick="go('audit')"><span data-icon="audit"></span>Audit readiness<b id="gapBadge"></b></button>
+      <button class="navButton ownerOnly" data-nav="updates" onclick="go('updates')"><span data-icon="updates"></span>Regulation updates<b class="updateBadge"></b></button>
+      <button class="navButton ownerOnly" data-nav="compliance" onclick="go('compliance')"><span data-icon="compliance"></span>Compliance<b id="complianceBadge"></b></button>
+      <button class="navButton parentOnly" data-nav="family" onclick="go('family')"><span data-icon="home"></span>Home</button>
+      <button class="navButton parentOnly" data-nav="family-medical" onclick="go('family-medical')"><span data-icon="medical"></span>Medical profile<b id="familyMedicalBadge"></b></button>
+      <button class="navButton parentOnly" data-nav="family-messages" onclick="go('family-messages')"><span data-icon="messages"></span>Messages</button>
+      <button class="navButton educatorOnly" data-nav="staff-upload" onclick="go('staff-upload')"><span data-icon="certificate"></span>My certificates</button>
     </nav>
     <div class="sidebarBottom">
-      <div class="sourceCard ownerOnly"><span class="liveDot"></span><b>Checklist baseline</b><p id="baselineLabel">AI-suggested draft · owner review required</p><small id="dataModeLabel">Prototype · sample records</small></div>
-      <div class="ownerProfile" id="workspaceProfile"><span class="avatar">SW</span><span><b>Sara Williams</b><small>Centre owner</small></span><button aria-label="Profile menu" onclick="toast('Profile settings are part of a future version.')">···</button></div>
+      <p class="modeLine"><span class="hx"></span><span id="dataModeLabel">Offline demo</span><span id="baselineLabel" class="sr-only"></span></p>
+      <div class="ownerProfile" id="workspaceProfile"><span class="avatar">SW</span><span><b>Sara Williams</b><small>Centre owner</small></span><button aria-label="Account" onclick="openProfileMenu()">···</button></div>
     </div>
   </aside>
   <main class="main">
     <header class="topbar">
-      <div class="crumb"><span class="centreName">Beehive Early Learning</span><i>/</i><b id="pageCrumb">Audit readiness</b></div>
+      <div class="crumb"><span class="centreName">Beehive Early Learning</span><i>/</i><b id="pageCrumb">Overview</b></div>
       <div class="topActions">
-        <div class="globalSearch"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search WWCC, incidents, evidence…" aria-label="Search audit evidence" autocomplete="off" oninput="searchEvidence(this.value)" onkeydown="if(event.key==='Enter')submitSearch(this.value)"><kbd>↵</kbd><div id="searchResults" class="searchResults hidden"></div></div>
-        <button class="iconButton notificationButton ownerOnly" aria-label="Notifications" onclick="handleNotifications()">♧<b id="notificationBadge" class="notificationBadge">3</b></button><button class="iconButton ownerOnly" aria-label="Help" onclick="openHelp()">?</button><button id="perspectiveButton" class="perspectiveButton" onclick="togglePerspective()">Family view <span>→</span></button><span id="topAvatar" class="avatar topAvatar">SW</span>
+        <div class="globalSearch"><span data-icon="search"></span><input id="globalSearch" type="search" placeholder="Search records" aria-label="Search records and evidence" autocomplete="off" oninput="searchEvidence(this.value)" onkeydown="if(event.key==='Enter')submitSearch(this.value)"><kbd>⌘K</kbd><div id="searchResults" class="searchResults hidden"></div></div>
+        <button class="iconButton notificationButton ownerOnly" aria-label="Notifications" onclick="handleNotifications()"><span data-icon="bell"></span><b id="notificationBadge" class="notificationBadge"></b></button>
+        <button id="assistantFab" class="askButton hidden" onclick="Assistant.toggle()" aria-label="Ask beehive"><span data-icon="spark"></span><span class="label">Ask beehive</span></button>
+        <button class="guideButton ownerOnly" onclick="openHelp()" aria-label="Your hive guide"><span class="hx"></span><span class="label">Your hive guide</span></button>
+        <button id="perspectiveButton" class="perspectiveButton" onclick="togglePerspective()">Family view</button>
+        <span id="topAvatar" class="avatar topAvatar">SW</span>
       </div>
     </header>
     <section id="page" class="page" aria-live="polite"></section>
   </main>
 </div>
 <nav class="mobileNav" aria-label="Mobile navigation">
-  <button class="ownerOnly" data-nav="overview" onclick="go('overview')"><i>▦</i>Overview</button>
-  <button class="ownerOnly" data-nav="audit" onclick="go('audit')"><i>☷</i>Checklist</button>
-  <button class="ownerOnly" data-nav="staff" onclick="go('staff')"><i>♙</i>Staff</button>
-  <button class="ownerOnly" data-nav="updates" onclick="go('updates')"><i>✦</i>Updates</button>
-  <button class="ownerOnly" data-nav="compliance" onclick="go('compliance')"><i>▤</i>Compliance</button>
-  <button class="parentOnly" data-nav="family" onclick="go('family')"><i>♡</i>Home</button>
-  <button class="parentOnly" data-nav="family-medical" onclick="go('family-medical')"><i>✚</i>Medical</button>
-  <button class="parentOnly" data-nav="family-messages" onclick="go('family-messages')"><i>✉</i>Messages</button>
-  <button class="educatorOnly" data-nav="staff-upload" onclick="go('staff-upload')"><i>♙</i>Certificates</button>
+  <button class="ownerOnly" data-nav="overview" onclick="go('overview')"><span data-icon="overview"></span>Overview</button>
+  <button class="ownerOnly" data-nav="staff" onclick="go('staff')"><span data-icon="staff"></span>Staff</button>
+  <button class="ownerOnly" data-nav="audit" onclick="go('audit')"><span data-icon="audit"></span>Audit</button>
+  <button class="ownerOnly" data-nav="updates" onclick="go('updates')"><span data-icon="updates"></span>Updates</button>
+  <button class="ownerOnly" data-nav="compliance" onclick="go('compliance')"><span data-icon="compliance"></span>Compliance</button>
+  <button class="parentOnly" data-nav="family" onclick="go('family')"><span data-icon="home"></span>Home</button>
+  <button class="parentOnly" data-nav="family-medical" onclick="go('family-medical')"><span data-icon="medical"></span>Medical</button>
+  <button class="parentOnly" data-nav="family-messages" onclick="go('family-messages')"><span data-icon="messages"></span>Messages</button>
+  <button class="educatorOnly" data-nav="staff-upload" onclick="go('staff-upload')"><span data-icon="certificate"></span>Certificates</button>
 </nav>
-<button id="assistantFab" class="assistantFab hidden" onclick="Assistant.toggle()" aria-label="Ask Beehive"><span>✦</span> Ask Beehive</button>
-<aside id="assistantPanel" class="assistantPanel hidden" aria-label="Ask Beehive assistant"></aside>
+<aside id="assistantPanel" class="assistantPanel hidden" aria-label="Ask beehive"></aside>
 <div id="authRoot" class="hidden"></div>
-<div id="modalRoot"></div><div id="toast" class="toast" role="status"></div><section id="printReport" class="printReport"><h1>BEEHIVE · Centre Audit-Readiness Report</h1><p id="printDate"></p><div id="printRows"></div><p class="printDisclaimer">Prototype report using sample data. Verify the current official sources and centre records before relying on this report.</p></section>
+<div id="modalRoot"></div><div id="toast" class="toast" role="status"></div>
+<section id="printReport" class="printReport"><h1>beehive audit-readiness report</h1><p id="printDate"></p><div id="printRows"></div><p class="printDisclaimer">Generated from beehive records. Verify the current official sources and centre records before relying on this report.</p></section>
 </body>
 </html>

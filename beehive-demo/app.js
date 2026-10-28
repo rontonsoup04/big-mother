@@ -355,6 +355,8 @@ let ownerThread = null; // { childId, childName, room } the owner is replying to
 let aiDrafts = []; // AI-drafted parent messages waiting for staff approval
 let regUpdate = null; // current regulation update (live mode)
 let pendingDraftId = null; // AI draft being edited in the reply box
+let auditFeed = []; // recent audit log entries (live mode) for the Overview timeline
+let childIndex = {}; // child id -> name (live mode)
 function firstName(n) { return String(n || "").trim().split(/\s+/)[0] || ""; }
 function initials(n) { return String(n || "").trim().split(/\s+/).map((w) => w[0] || "").join("").slice(0, 2).toUpperCase(); }
 function CN() { return esc(CENTRE_NAME); }
@@ -380,6 +382,7 @@ function persist() {
       items: items,
       approved: approved,
       updateAccepted: !!saved.updateAccepted,
+      updateReviewed: !!saved.updateReviewed,
       educators: educators,
       pendingSubmission: pendingSubmission,
       familyMedical: familyMedical,
@@ -409,7 +412,7 @@ function statusLabel(s) {
 function readiness() {
   if (!items.length) return 0;
   let score = items.reduce(
-    (n, x) => n + (x.status === "green" ? 1 : x.status === "yellow" ? 0.8 : 0),
+    (n, x) => n + (x.status === "green" ? 1 : x.status === "yellow" ? 0.5 : 0),
     0,
   );
   return Math.round((score / items.length) * 100);
@@ -449,9 +452,7 @@ function setNav() {
     .querySelectorAll(".parentOnly")
     .forEach((e) => (e.style.display = parent ? "" : "none"));
   document.querySelector(".globalSearch").style.display = parent ? "none" : "";
-  document.getElementById("perspectiveButton").innerHTML = parent
-    ? "Owner view <span>→</span>"
-    : "Family view <span>→</span>";
+  document.getElementById("perspectiveButton").textContent = parent ? "Owner view" : "Family view";
   document.getElementById("topAvatar").textContent = initials(parent ? PARENT_NAME : OWNER_NAME);
   document.getElementById("workspaceProfile").innerHTML = parent
     ? '<span class="avatar">' + initials(PARENT_NAME) + '</span><span><b>' + esc(PARENT_NAME) + '</b><small>' + CF() + '’s parent</small></span><button aria-label="Profile menu" onclick="openProfileMenu()">···</button>'
@@ -459,7 +460,7 @@ function setNav() {
   if (isEducator()) document.querySelector("#workspaceProfile small").textContent = "Educator";
   document.querySelectorAll(".centreName").forEach((e) => (e.textContent = CENTRE_NAME));
   let dm = document.getElementById("dataModeLabel");
-  if (dm) dm.textContent = LIVE ? "Live · " + CENTRE_NAME : "Offline demo · sample records";
+  if (dm) dm.textContent = LIVE ? "Live data" : "Offline demo";
   let pb = document.getElementById("perspectiveButton");
   if (pb) pb.style.display = LIVE ? "none" : "";
   let crumb = {
@@ -467,445 +468,37 @@ function setNav() {
     updates: "Regulation updates",
     compliance: "Compliance",
     staff: "Staff certifications",
-    "staff-upload": "Staff certificate upload",
+    "staff-upload": isEducator() ? "My certificates" : "Upload a certificate",
     audit: "Audit readiness",
-    family: "Family home",
+    family: "Home",
     "family-medical": "Medical profile",
     "family-form": "Update medical details",
     "family-messages": "Messages",
   };
   document.getElementById("pageCrumb").textContent =
     crumb[current] || "Audit readiness";
-  document.getElementById("gapBadge").textContent =
-    countStatus("red") + countStatus("yellow");
+  let badge = (id, n, alert) => { let el = typeof id === "string" ? document.getElementById(id) : id; if (!el) return; el.textContent = n ? n : ""; el.classList.toggle("alert", !!alert); };
+  badge("gapBadge", approved ? countStatus("red") + countStatus("yellow") : "", auditOn() && items.some((x) => x.req && x.req.priority === "critical"));
+  let regOpen = auditOn() ? AuditAgent.data().updates.filter((u) => u.status !== "reviewed").length : LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
+  document.querySelectorAll(".updateBadge").forEach((el) => badge(el, regOpen ? 1 : 0));
   let cb = document.getElementById("complianceBadge");
   if (cb && typeof Library !== "undefined") {
     let due = Library.taskList().filter((t) => t.state === "overdue" || t.state === "due_soon").length + Library.agentDraftCount();
     cb.textContent = due || "";
     cb.style.display = due ? "" : "none";
   }
-  let c = document.getElementById("certAlertBadge");
-  if (c) c.textContent = certDueCount() + (pendingSubmission ? 1 : 0);
-  let n = document.getElementById("notificationBadge");
-  if (n)
-    n.textContent =
-      (pendingSubmission ? 1 : 0) +
-      (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0) +
-      certDueCount();
+  if (agentOn()) {
+    let ac = StaffAgent.counts();
+    badge("certAlertBadge", ac.owner, ac.critical > 0);
+    badge("notificationBadge", attentionItems().length);
+  } else {
+    badge("certAlertBadge", certDueCount() + certExpiredCount() + (pendingSubmission ? 1 : 0), certExpiredCount() > 0);
+    badge("notificationBadge", (pendingSubmission ? 1 : 0) + (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0) + certDueCount());
+  }
   let fm = document.getElementById("familyMedicalBadge");
   if (fm)
     fm.textContent =
       medicalSubmission && medicalSubmission.status === "pending" ? "1" : "";
-}
-function openProfileMenu() {
-  let who = isFamily() ? PARENT_NAME : OWNER_NAME;
-  let leader = LIVE && (ME.role === "owner" || ME.role === "director");
-  let rows = LIVE
-    ? '<div class="modalMeta"><span>Signed in as</span><b>' + esc(ME.email) + '</b></div><div class="modalMeta"><span>Role</span><b style="text-transform:capitalize">' + esc(ME.role) + "</b></div>" +
-      (leader
-        ? '<div class="modalMeta"><span>Staff join code</span><b>' + esc(ME.centre.staff_code) + '</b></div><div class="modalMeta"><span>Family join code</span><b>' + esc(ME.centre.family_code) + '</b></div><div class="modalActions"><button class="button" onclick="Assistant.openConnect()">✦ Connect AI agent</button><button class="button primary" onclick="Live.signOut()">Sign out</button></div>'
-        : '<div class="modalActions"><button class="button primary" onclick="Live.signOut()">Sign out</button></div>')
-    : '<p class="helpLine">You are exploring the offline demo. Changes stay in this browser.</p><div class="modalActions"><button class="button" onclick="Live.resetOffline()">Reset demo data</button><button class="button primary" onclick="Live.showLogin()">Sign in to Beehive</button></div>';
-  openModal('<div class="modalHead"><div><div class="eyebrow">ACCOUNT</div><h2>' + esc(who) + "</h2><p>" + CN() + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' + rows);
-}
-function togglePerspective() {
-  if (LIVE) return;
-  go(isFamily() ? "overview" : "family");
-}
-function demoNote(text) {
-  return LIVE ? "" : text;
-}
-function isEducator() {
-  return LIVE && ME && ME.role === "educator";
-}
-function ownerFirst() {
-  return isEducator() ? "the centre owner" : firstName(OWNER_NAME);
-}
-function header(title, desc, actions) {
-  return (
-    '<div class="pageHeading"><div><div class="eyebrow">BEEHIVE · ' + (isEducator() ? "MY WORKSPACE" : "OWNER WORKSPACE") + '</div><h1>' +
-    title +
-    "</h1><p>" +
-    desc +
-    '</p></div><div class="buttonRow">' +
-    (actions || "") +
-    "</div></div>"
-  );
-}
-function groupRows(area, setup) {
-  let list = items.filter((x) => x.area === area);
-  if (!list.length) return "";
-  return (
-    '<section class="groupCard card"><div class="groupHeader"><div class="groupName"><span class="groupIcon">' +
-    ICONS[area] +
-    "</span><span><b>" +
-    area +
-    "</b><small>" +
-    list.length +
-    ' checklist items</small></span></div><span class="groupCount">' +
-    (setup ? "AI-SUGGESTED" : "") +
-    "</span></div>" +
-    list
-      .map(
-        (x) =>
-          '<div class="checkRow">' +
-          (setup
-            ? '<input class="includeSwitch" type="checkbox" aria-label="Include ' +
-              esc(x.title) +
-              '" checked onchange="toggleApplicable(\'' +
-              x.id +
-              "',this.checked)\">"
-            : '<span class="statusDot ' + x.status + '"></span>') +
-          '<div class="checkText"><button onclick="openItem(\'' +
-          x.id +
-          "')\">" +
-          esc(x.title) +
-          "</button><small>" +
-          esc(x.source) +
-          " · " +
-          esc(x.evidence) +
-          '</small></div><span class="status ' +
-          x.status +
-          '">' +
-          statusLabel(x.status) +
-          '</span><button class="sourceLink" onclick="openItem(\'' +
-          x.id +
-          "')\">View source ↗</button></div>",
-      )
-      .join("") +
-    "</section>"
-  );
-}
-function setupPage() {
-  let actions =
-    '<button class="button soft" onclick="selectAll(false)">Clear selections</button><button class="button" onclick="selectAll(true)">Select all</button>';
-  return (
-    header(
-      "Build your centre checklist",
-      "Review the AI-suggested baseline, remove anything that does not apply, then approve it for your centre.",
-      '<button class="button" onclick="openSourceInfo()">Source guide</button>',
-    ) +
-    '<div class="setupHero"><div class="setupHeroContent"><div class="eyebrow">✦ AI-ASSISTED BASELINE · READY FOR YOUR REVIEW</div><h2>A clearer starting point for audit readiness.</h2><p>Beehive has grouped suggested requirements from the National Regulations and NQS into practical evidence checks. Review each item, confirm its source, and tailor this checklist to your centre before approval.</p><div class="setupMeta"><span class="sparkleBadge">✦ 12 suggested items</span><span>4 checklist areas</span><span>Owner approval required</span></div></div></div><div class="notice"><span class="spark">ⓘ</span><span>These are prototype summaries, not legal advice. Check the linked official source and adapt each item to your service and jurisdiction before approval.</span></div><div class="setupToolbar"><div><div class="sectionTitle">Suggested checklist</div><div class="muted" style="margin-top:4px">Switch off any item that does not apply to your centre.</div></div><div class="buttonRow">' +
-    actions +
-    '</div></div><div class="checkGroups">' +
-    AREAS.map((a) => groupRows(a, true)).join("") +
-    '</div><div class="setupFooter"><p><b id="selectedCount">12</b> checklist items selected · You can edit this baseline later</p><button class="button primary" onclick="approveChecklist()">Approve checklist <span>→</span></button></div>'
-  );
-}
-function miniCard(number, label, caption) {
-  return (
-    '<div class="summaryTile"><span>' +
-    label +
-    "</span><b>" +
-    number +
-    "</b><small>" +
-    caption +
-    "</small></div>"
-  );
-}
-function topGaps() {
-  let gaps = items
-    .filter((x) => x.status !== "green")
-    .sort((a, b) => (a.status === "red" ? 0 : 1) - (b.status === "red" ? 0 : 1))
-    .slice(0, 4);
-  return (
-    '<aside class="card topGaps"><div class="cardHead"><h3>Top gaps to close</h3><span class="status red">' +
-    gaps.length +
-    " to review</span></div>" +
-    gaps
-      .map(
-        (x) =>
-          '<div class="gapItem ' +
-          x.status +
-          '"><span class="gapIcon">' +
-          (x.status === "red" ? "!" : "↻") +
-          "</span><div><b>" +
-          esc(x.title) +
-          "</b><small>" +
-          esc(x.risk) +
-          "</small></div><button onclick=\"openItem('" +
-          x.id +
-          "')\">Open →</button></div>",
-      )
-      .join("") +
-    '<p class="readinessFoot">Items marked red need evidence. Yellow items have evidence on file but are due for review.</p></aside>'
-  );
-}
-function overviewPage() {
-  let actions =
-    '<button class="button" onclick="go(\'audit\')">Open checklist</button><button class="button primary" onclick="exportReport()">⇩ Export audit report</button>';
-  return (
-    header(
-      greeting() + ", " + esc(firstName(OWNER_NAME)),
-      "Your centre’s evidence and review priorities, all in one place.",
-      actions,
-    ) +
-    '<div class="scoreHero card"><div class="scoreHeroText"><div class="eyebrow">WEEKLY READINESS CHECK</div><h2>' +
-    readiness() +
-    "% Audit-Ready</h2><p>" +
-    countStatus("green") +
-    " evidence items are current. " +
-    (countStatus("red") + countStatus("yellow")) +
-    ' items need attention before an assessment visit.</p><div class="buttonRow" style="margin-top:13px"><button class="button soft small" onclick="go(\'audit\')">Review top gaps →</button></div></div><div class="scoreCircle"><span>' +
-    readiness() +
-    '%</span></div></div><div class="scoreLayout"><div><div class="scoreMini">' +
-    miniCard(countStatus("green"), "Evidence on file", "current") +
-    miniCard(countStatus("yellow"), "Review due", "evidence exists") +
-    miniCard(countStatus("red"), "Evidence missing", "needs action") +
-    '</div><div class="card" style="padding:15px"><div class="cardHead"><h3>Checklist by area</h3><button class="button small" onclick="go(\'audit\')">View all →</button></div>' +
-    AREAS.map((a) => {
-      let list = items.filter((x) => x.area === a),
-        done = list.filter((x) => x.status === "green").length;
-      return (
-        '<div class="areaProgress"><div><b>' +
-        a +
-        "</b><small>" +
-        done +
-        " of " +
-        list.length +
-        ' current</small></div><div class="progressTrack"><i style="width:' +
-        Math.round((done / list.length) * 100) +
-        '%"></i></div></div>'
-      );
-    }).join("") +
-    "</div></div>" +
-    topGaps() +
-    "</div>" +
-    medicalOwnerCard() +
-    aiDraftsCard() +
-    familyInboxCard() +
-    (LIVE && (!regUpdate || regUpdate.status === "reviewed") ? "" : '<div class="guidanceBanner"><div><span class="sparkleBadge">✦ GUIDANCE UPDATE</span><h3>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance") + ' may affect your policy</h3><p>Review the update and confirm whether the affected policy needs changes.</p></div><button class="button soft" onclick="go(\'updates\')">Review update →</button></div>')
-  );
-}
-function auditPage() {
-  if (!approved) return setupPage();
-  let filterButtons = ["All areas"]
-    .concat(AREAS)
-    .map(
-      (a) =>
-        '<button class="filterButton ' +
-        (activeFilter === a ? "active" : "") +
-        '" onclick="filterArea(\'' +
-        a +
-        "')\">" +
-        a +
-        "</button>",
-    )
-    .join("");
-  let list = activeFilter === "All areas" ? AREAS : [activeFilter];
-  return (
-    header(
-      "Audit-readiness checklist",
-      "Check the latest evidence, close gaps and prepare to show records in seconds.",
-      '<button class="button" onclick="editBaseline()">Edit baseline</button><button class="button primary" onclick="exportReport()">⇩ Export audit report</button>',
-    ) +
-    '<div class="notice"><span class="spark">●</span><span>Checklist baseline approved · Last checked ' +
-    new Date().toLocaleString() +
-    '' + (LIVE ? " · Saved to your centre’s records in Beehive." : " · Evidence changes are saved in this browser demo.") + '</span></div><div class="scoreLayout"><div><div class="scoreHero card"><div class="scoreHeroText"><div class="eyebrow">CENTRE READINESS</div><h2>' +
-    readiness() +
-    "% Audit-Ready</h2><p>" +
-    countStatus("green") +
-    " of " +
-    items.length +
-    ' checklist items have current evidence. Select any item to inspect its source and close a gap.</p></div><div class="scoreCircle"><span>' +
-    readiness() +
-    '%</span></div></div><div class="scoreMini">' +
-    miniCard(countStatus("green"), "Ready", "evidence current") +
-    miniCard(countStatus("yellow"), "Review due", "check date") +
-    miniCard(countStatus("red"), "Missing", "upload or log") +
-    '</div><div class="areaFilters">' +
-    filterButtons +
-    '</div><div class="checkGroups">' +
-    list.map((a) => groupRows(a, false)).join("") +
-    "</div></div>" +
-    topGaps() +
-    "</div>"
-  );
-}
-function updatesPage() {
-  let accepted = !!saved.updateAccepted;
-  if (LIVE && !regUpdate)
-    return (
-      header("Regulation & guidance updates", "Review changes that could affect your centre’s approved checklist.", '<button class="button" onclick="go(\'audit\')">Back to checklist</button>') +
-      '<section class="card regCard"><h2>No new updates</h2><p>When a regulation or guidance change is published, it will appear here for review.</p></section>'
-    );
-  let reviewed = LIVE && regUpdate.status === "reviewed";
-  let sleepId = (findItemByKey("sleep") || {}).id || "sleep";
-  return (
-    header(
-      "Regulation & guidance updates",
-      "Review changes that could affect your centre’s approved checklist.",
-      '<button class="button" onclick="go(\'audit\')">Back to checklist</button>',
-    ) +
-    '<div class="regGrid"><section class="card regCard"><div class="eyebrow">' + (reviewed ? "REVIEWED" : "NEW GUIDANCE") + " · " + esc(regUpdate ? regUpdate.published : "18 OCT 2026") + '</div><h2>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + '</h2><p>' + esc(regUpdate ? regUpdate.summary : "New safe sleep guidance may affect the centre’s Sleep and Rest Policy.") + ' Beehive has flagged the related checklist item for owner review.</p><div class="regItem"><div><b>What changed</b><small>Review current sleep and rest procedures against the latest official guidance and your service’s approved policy.</small></div><span class="status ' +
-    (accepted ? "yellow" : "neutral") +
-    '">' +
-    (accepted ? "Review required" : "New update") +
-    '</span></div><div class="regItem"><div><b>Affected checklist item</b><small>Sleep and rest policy review · Policies & Procedures</small></div><button class="button small" onclick="openItem(\'' + sleepId + '\')">Open item</button></div><div class="regItem"><div><b>Official source</b><small>ACECQA guidance and National Regulations. Confirm current guidance for your jurisdiction.</small></div><a class="sourceLink" href="https://www.acecqa.gov.au/nqf/national-law-regulations/national-regulations" target="_blank" rel="noopener">Open ACECQA ↗</a></div><div class="regActions">' +
-    (reviewed
-      ? '<span class="status green">Review complete</span>'
-      : accepted
-      ? '<button class="button primary" onclick="markUpdateReviewed()">Mark review complete</button>'
-      : '<button class="button primary" onclick="acceptUpdate()">Accept update & flag policy</button>') +
-    '</div></section><aside class="card sourcePanel"><h3>How Beehive handles updates</h3><p>1. A guidance change is matched to an affected checklist item.</p><p>2. The owner reviews the summary and official source.</p><p>3. Accepting the update marks the item for review until the centre confirms its policy.</p><ul><li>Update summaries are suggestions.</li><li>Always verify the current official source.</li><li>Accepted changes stay visible in the checklist.</li></ul></aside></div>'
-  );
-}
-function familyHeading(title, desc, action) {
-  return (
-    '<div class="pageHeading familyHeading"><div><div class="eyebrow">BEEHIVE · FAMILY PORTAL</div><h1>' +
-    title +
-    "</h1><p>" +
-    desc +
-    '</p></div><div class="buttonRow">' +
-    (action || "") +
-    "</div></div>"
-  );
-}
-function familyStatus() {
-  if (!medicalSubmission)
-    return (
-      '<span class="familyStatus current"><i></i>Details last reviewed ' +
-      esc(familyMedical.reviewedAt) +
-      "</span>"
-    );
-  return medicalSubmission.status === "pending"
-    ? '<span class="familyStatus pending"><i></i>Update received · centre review pending</span>'
-    : '<span class="familyStatus current"><i></i>Update reviewed by the centre</span>';
-}
-function familyHomePage() {
-  let alert = medicalSubmission && medicalSubmission.status === "pending";
-  let status = alert
-    ? '<div class="familyAlert"><span class="familyAlertIcon">✚</span><div><b>Your update has been received</b><p>The centre has your changes and will review them. You can see the submitted details in your medical profile.</p></div><span class="status yellow">In review</span></div>'
-    : '<div class="familyWelcome"><div><div class="eyebrow">YOUR FAMILY SPACE</div><h2>' + greeting() + ', ' + esc(firstName(PARENT_NAME)) + '</h2><p>Stay in the loop about ' + CF() + '’s care and keep their important details up to date.</p></div><span class="familyWelcomeMark">♡</span></div>';
-  return (
-    familyHeading(
-      "Family home",
-      "A private space for your child’s important care information.",
-      '<button class="button" onclick="go(\'family-messages\')">✉ Message the centre</button>',
-    ) +
-    status +
-    '<div class="familyHomeGrid"><section class="familyChildCard card"><div class="familyChildBanner"><span class="childAvatar">' + initials(familyMedical.childName) + '</span><span><small>CHILD PROFILE</small><h2>' +
-    esc(familyMedical.childName) +
-    "</h2><p>" +
-    esc(familyMedical.room) +
-    ' · ' + CN() + '</p></span><span class="childSun">✿</span></div><div class="familyChildInfo"><div><small>MEDICAL STATUS</small>' +
-    familyStatus() +
-    "</div><div><small>LAST CENTRE REVIEW</small><b>" +
-    esc(familyMedical.reviewedAt) +
-    '</b></div></div><div class="familyCardActions"><button class="button primary" onclick="go(\'family-medical\')">View medical profile →</button><button class="textButton" onclick="go(\'family-form\')">Update details</button></div></section><section class="familySideCard card"><div class="familySectionTop"><div><span class="familyIconBubble">✚</span><h3>Medical details</h3></div><span class="status ' +
-    (alert ? "yellow" : "green") +
-    '">' +
-    (alert ? "Review pending" : "On file") +
-    "</span></div><p>" +
-    esc(familyMedical.allergies || "No allergies listed") +
-    " · " +
-    esc(familyMedical.conditions || "No conditions listed") +
-    '</p><button class="textButton" onclick="go(\'family-medical\')">See what the centre has on file →</button></section><section class="familySideCard card"><div class="familySectionTop"><div><span class="familyIconBubble lavender">✉</span><h3>Centre messages</h3></div><span class="familyUnread">' +
-    familyMessages.length +
-    '</span></div><p>Keep questions and centre replies together in one secure-style conversation.</p><button class="textButton" onclick="go(\'family-messages\')">Open conversation →</button></section></div><div class="familyPrivacy"><span>◈</span><div><b>Only your child’s family information appears here.</b><p>' + (LIVE ? "Only your child’s centre team can see these details. Pilot version: please use sample information only." : "This prototype uses sample records stored in this browser. Do not enter real medical information.") + '</p></div></div>'
-  );
-}
-function familyMedicalPage() {
-  let values =
-    medicalSubmission && medicalSubmission.status === "pending"
-      ? medicalSubmission
-      : familyMedical;
-  return (
-    familyHeading(
-      CF() + "’s medical profile",
-      "Review the information shared with " + CN() + ".",
-      '<button class="button primary" onclick="go(\'family-form\')">＋ Update details</button>',
-    ) +
-    (medicalSubmission
-      ? '<div class="familyReceipt ' +
-        (medicalSubmission.status === "pending" ? "pending" : "reviewed") +
-        '"><span class="receiptIcon">' +
-        (medicalSubmission.status === "pending" ? "↗" : "●") +
-        "</span><div><b>" +
-        (medicalSubmission.status === "pending"
-          ? "Update received"
-          : "Update reviewed") +
-        "</b><p>Submitted " +
-        esc(medicalSubmission.submittedAt) +
-        (medicalSubmission.reviewedAt
-          ? " · Reviewed " + esc(medicalSubmission.reviewedAt)
-          : " · Waiting for the centre to confirm") +
-        '</p></div><span class="status ' +
-        (medicalSubmission.status === "pending" ? "yellow" : "green") +
-        '">' +
-        (medicalSubmission.status === "pending" ? "In review" : "Reviewed") +
-        "</span></div>"
-      : "") +
-    '<section class="familyProfile card"><div class="familyProfileHead"><div><div class="eyebrow">SHARED WITH YOUR CENTRE</div><h2>Health & care information</h2><p>These details help educators care for ' + CF() + '. Contact the centre if anything changes.</p></div><span class="familyProfileMark">✚</span></div><div class="familyDataGrid">' +
-    familyData("Allergies", values.allergies) +
-    familyData("Medical conditions", values.conditions) +
-    familyData("Dietary needs", values.dietary) +
-    familyData("Medication", values.medications) +
-    familyData("Care notes", values.notes) +
-    familyData("Emergency contact", familyMedical.emergency) +
-    '</div><div class="familySignatureNote">Submitted updates are sent to the centre for review. If your child needs urgent support, contact the centre directly.</div></section><div class="familyPrivacy"><span>◈</span><div><b>Keep information current</b><p>Please submit changes as soon as a condition, allergy, medication or dietary need changes.</p></div></div>'
-  );
-}
-function familyData(label, value) {
-  return (
-    '<div class="familyData"><small>' +
-    label +
-    "</small><b>" +
-    esc(value || "Not provided") +
-    "</b></div>"
-  );
-}
-function familyFormPage() {
-  let d =
-    medicalSubmission && medicalSubmission.status === "pending"
-      ? medicalSubmission
-      : familyMedical;
-  return (
-    familyHeading(
-      "Update medical details",
-      "Tell us what has changed so " + CF() + "’s care record can be reviewed.",
-      '<button class="button" onclick="go(\'family-medical\')">← Back to profile</button>',
-    ) +
-    '<div class="familyFormLayout"><section class="familyFormCard card"><div class="familyFormIntro"><span class="familyIconBubble">✚</span><div><h2>Medical & care update</h2><p>Fields can be left blank if they do not apply. Your update will be sent to the centre for review.</p></div></div><div class="familyFormGrid"><label class="familyField"><span>Allergies</span><textarea id="familyAllergies" rows="2" placeholder="List allergies or write None">' +
-    esc(d.allergies || "") +
-    '</textarea></label><label class="familyField"><span>Medical conditions</span><textarea id="familyConditions" rows="2" placeholder="Conditions educators should know about">' +
-    esc(d.conditions || "") +
-    '</textarea></label><label class="familyField"><span>Dietary needs</span><textarea id="familyDietary" rows="2" placeholder="Dietary requirements">' +
-    esc(d.dietary || "") +
-    '</textarea></label><label class="familyField"><span>Medication / action plan</span><textarea id="familyMedications" rows="2" placeholder="Medication and care instructions">' +
-    esc(d.medications || "") +
-    '</textarea></label><label class="familyField wide"><span>Care notes for educators</span><textarea id="familyNotes" rows="3" placeholder="Anything else the educators should know">' +
-    esc(d.notes || "") +
-    '</textarea></label><div class="familyField wide"><span>Attach an updated action plan (optional)</span><label class="familyFile">＋ Choose a sample file<input type="file" accept=".pdf,image/*" onchange="familyFileSelected(this)"><small id="familyFileName">' +
-    (familyFile ? esc(familyFile) : "No file selected · demo only") +
-    '</small></label></label><label class="familyField wide"><span>Parent / guardian name for acknowledgement</span><input id="familySigner" type="text" placeholder="Type your full name" value="' + esc(PARENT_NAME) + '"></label></div><label class="familyConsent"><input type="checkbox" id="familyConsent"><span>I confirm these details are accurate to the best of my knowledge and consent to sharing them with ' + CF() + '’s care team.</span></label><div class="familyFormFooter"><p>After you submit, you’ll receive an on-screen receipt and the centre will be asked to review the update.</p><button class="button primary" onclick="submitFamilyUpdate()">Submit medical update →</button></div></section><aside class="familyFormAside card"><span class="familyAsideMark">♡</span><h3>What happens next?</h3><div class="stepLine"><span class="stepNumber">1</span><span><b>You submit</b><small>Your update is logged with a time and acknowledgement name.</small></span></div><div class="stepLine"><span class="stepNumber">2</span><span><b>The centre is notified</b><small>A medical flag appears in the owner dashboard.</small></span></div><div class="stepLine"><span class="stepNumber">3</span><span><b>The centre reviews</b><small>You can see when the update has been reviewed.</small></span></div><p class="helpLine">' + (LIVE ? "Your update and any attached plan are stored securely for the centre to review. Pilot version: please use sample information only." : "Prototype only: file selection and submission stay in this browser demo. Do not use real child health data.") + '</p></aside></div>'
-  );
-}
-function familyMessagesPage() {
-  let content = familyMessages
-    .map(
-      (m) =>
-        '<div class="messageBubble ' +
-        (m.from === "parent" ? "fromParent" : "fromCentre") +
-        '"><small>' +
-        (m.from === "parent" ? "You" : CN()) +
-        " · " +
-        esc(m.time) +
-        "</small><p>" +
-        esc(m.text) +
-        "</p></div>",
-    )
-    .join("");
-  return (
-    familyHeading(
-      "Messages",
-      "A private conversation with " + CF() + "’s centre.",
-      '<button class="button" onclick="go(\'family\')">Family home</button>',
-    ) +
-    '<section class="familyThread card"><div class="familyThreadHead"><span class="familyIconBubble lavender">✉</span><div><b>' + CN() + '</b><small>About ' + esc(familyMedical.childName) + ' · ' + esc(familyMedical.room) + '</small></div><span class="threadOnline"><i></i> Centre team</span></div><div class="familyThreadBody" id="familyThreadBody">' +
-    content +
-    '</div><div class="familyComposer"><textarea id="familyMessageInput" rows="2" placeholder="Write a message to the centre…" aria-label="Write a message to the centre"></textarea><button class="button primary" onclick="sendFamilyMessage()">Send →</button></div><p class="helpLine">' + (LIVE ? "Messages are saved to your child’s record at the centre. For anything urgent, call the centre." : "Messages are sample data in this browser prototype. Do not send urgent medical information here.") + '</p></section>'
-  );
 }
 function familyFileSelected(input) {
   familyFile = input.files && input.files.length ? input.files[0].name : "";
@@ -963,70 +556,6 @@ function sendFamilyMessage() {
   go("family-messages");
   toast("Message added to the demo conversation.");
 }
-function medicalOwnerCard() {
-  if (!medicalSubmission || medicalSubmission.status !== "pending") return "";
-  return (
-    '<section class="medicalOwnerCard"><div class="medicalFlagIcon">✚</div><div class="medicalOwnerText"><span class="eyebrow">PARENT MEDICAL UPDATE · NEEDS REVIEW</span><h3>' +
-    esc(medicalSubmission.childName) +
-    " submitted a medical update</h3><p>" +
-    esc(medicalSubmission.room) +
-    " · Submitted " +
-    esc(medicalSubmission.submittedAt) +
-    " · Parent acknowledgement: " +
-    esc(medicalSubmission.signer) +
-    '</p></div><button class="button primary" onclick="reviewFamilyUpdate()">Review update →</button></section>'
-  );
-}
-function aiDraftsCard() {
-  if (!aiDrafts.length) return "";
-  return (
-    '<section class="aiDraftsCard card"><div class="cardHead"><h3>✦ AI-drafted messages waiting for approval</h3><span class="status yellow">' +
-    aiDrafts.length +
-    " to review</span></div>" +
-    aiDrafts
-      .map(
-        (d) =>
-          '<div class="draftItem"><div class="draftBody"><small>To ' + esc(d.childName) + "’s family · " + esc(d.trigger) + '</small><textarea id="draft-' + d.id + '" rows="3" aria-label="Draft message">' + esc(d.body) + '</textarea></div><div class="draftActions"><button class="button small" onclick="Live.discardDraft(\'' + d.id + '\')">Discard</button><button class="button primary small" onclick="Live.approveDraft(\'' + d.id + '\')">Approve & send</button></div></div>',
-      )
-      .join("") +
-    '<p class="helpLine">Drafted by the Beehive AI agent. Nothing reaches a family until a staff member approves it.</p></section>'
-  );
-}
-function familyInboxCard() {
-  let latest = familyMessages[familyMessages.length - 1];
-  if (LIVE) {
-    if (!ownerThread || !ownerThread.unanswered) return "";
-    latest = { from: "parent", text: ownerThread.lastParentText };
-  }
-  if (!latest || latest.from !== "parent") return "";
-  return (
-    '<section class="familyInboxCard"><div class="familyInboxIcon">✉</div><div class="familyInboxText"><span class="eyebrow">FAMILY MESSAGE · NEW</span><h3>New message from ' + esc(firstName(ownerThread ? ownerThread.childName : familyMedical.childName)) + '’s family</h3><p>' +
-    esc(latest.text) +
-    '</p></div><button class="button primary" onclick="replyToFamilyThread()">Open & reply →</button></section>'
-  );
-}
-function replyToFamilyThread() {
-  pendingDraftId = null;
-  let content = familyMessages
-    .map(
-      (m) =>
-        '<div class="messageBubble ' +
-        (m.from === "parent" ? "fromParent" : "fromCentre") +
-        '"><small>' +
-        (m.from === "parent" ? "Parent" : CN()) +
-        " · " +
-        esc(m.time) +
-        "</small><p>" +
-        esc(m.text) +
-        "</p></div>",
-    )
-    .join("");
-  openModal(
-    '<div class="modalHead"><div><div class="eyebrow">FAMILY THREAD · ' + esc((ownerThread ? ownerThread.childName : familyMedical.childName).toUpperCase()) + '</div><h2>' + CN() + '</h2><p>Parent and centre messages in one conversation.</p></div><button class="closeButton" onclick="closeModal()">×</button></div><div class="familyThreadBody ownerThreadBody">' +
-      content +
-      '</div><div class="familyComposer"><textarea id="ownerReplyInput" rows="2" placeholder="Reply, or type a short note and tap Draft with AI…" aria-label="Reply to the family"></textarea><div class="composerButtons"><button class="button soft" onclick="Assistant.draftReply()">✦ Draft with AI</button><button class="button primary" onclick="sendOwnerReply()">Send reply →</button></div></div><p class="helpLine" id="draftNote">AI drafts are never sent automatically. You review and send.</p>',
-  );
-}
 function sendOwnerReply() {
   if (LIVE) return Live.sendOwnerReply();
   let input = document.getElementById("ownerReplyInput"),
@@ -1040,30 +569,6 @@ function sendOwnerReply() {
   closeModal();
   render();
   toast("Reply added to the family conversation.");
-}
-function reviewFamilyUpdate() {
-  if (!medicalSubmission) return;
-  openModal(
-    '<div class="modalHead"><div><div class="eyebrow">FAMILY MEDICAL UPDATE · OWNER REVIEW</div><h2>' +
-      esc(medicalSubmission.childName) +
-      "’s update</h2><p>" +
-      esc(medicalSubmission.room) +
-      " · Submitted " +
-      esc(medicalSubmission.submittedAt) +
-      '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div><div class="modalSection"><h3>Parent acknowledgement</h3><p>' +
-      esc(medicalSubmission.signer) +
-      " confirmed the submitted details.</p></div>" +
-      familyData("Allergies", medicalSubmission.allergies) +
-      familyData("Medical conditions", medicalSubmission.conditions) +
-      familyData("Dietary needs", medicalSubmission.dietary) +
-      familyData("Medication / action plan", medicalSubmission.medications) +
-      familyData("Care notes", medicalSubmission.notes) +
-      (medicalSubmission.fileName
-        ? familyData(LIVE ? "Attached plan" : "Selected attachment (demo)", medicalSubmission.fileName) +
-          (medicalSubmission.fileUrl ? '<p><a class="sourceLink" href="' + esc(medicalSubmission.fileUrl) + '" target="_blank" rel="noopener">Open the attached plan ↗</a></p>' : "")
-        : "") +
-      '<p class="helpLine">' + (LIVE ? "Approving locks this record, updates the room’s medical details and tells the family. Beehive does not give medical advice." : "Review the information with your centre’s normal process. This prototype does not verify medical advice or securely store attachments.") + '</p><div class="modalActions"><button class="button" onclick="closeModal()">Close</button><button class="button primary" onclick="acknowledgeFamilyUpdate()">Acknowledge update</button></div>',
-  );
 }
 function acknowledgeFamilyUpdate() {
   if (LIVE) return Live.acknowledgeFamilyUpdate();
@@ -1091,11 +596,638 @@ function acknowledgeFamilyUpdate() {
   render();
   toast("Update acknowledged. The parent profile now shows the review status.");
 }
+function openProfileMenu() {
+  let who = isFamily() ? PARENT_NAME : OWNER_NAME;
+  let leader = LIVE && (ME.role === "owner" || ME.role === "director");
+  let rows = LIVE
+    ? '<div class="modalMeta"><span>Signed in as</span><b>' + esc(ME.email) + '</b></div><div class="modalMeta"><span>Role</span><b style="text-transform:capitalize">' + esc(ME.role) + "</b></div>" +
+      (leader
+        ? '<div class="modalMeta"><span>Staff join code</span><b>' + esc(ME.centre.staff_code) + '</b></div><div class="modalMeta"><span>Family join code</span><b>' + esc(ME.centre.family_code) + '</b></div><div class="modalActions"><button class="button" onclick="Assistant.openConnect()">Connect AI agent</button><button class="button primary" onclick="Live.signOut()">Sign out</button></div>'
+        : '<div class="modalActions"><button class="button primary" onclick="Live.signOut()">Sign out</button></div>')
+    : '<p class="modalSection">You’re using the offline demo. Changes stay in this browser.</p><div class="modalActions"><button class="button" onclick="Live.resetOffline()">Reset demo data</button><button class="button primary" onclick="Live.showLogin()">Sign in to beehive</button></div>';
+  openModal('<div class="modalHead"><div><h2>' + esc(who) + "</h2><p>" + CN() + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' + rows);
+}
+function togglePerspective() {
+  if (LIVE) return;
+  go(isFamily() ? "overview" : "family");
+}
+function demoNote(text) {
+  return LIVE ? "" : text;
+}
+function isEducator() {
+  return LIVE && ME && ME.role === "educator";
+}
+function ownerFirst() {
+  return isEducator() ? "the centre owner" : firstName(OWNER_NAME);
+}
+function ico(name) {
+  return typeof ICON !== "undefined" && ICON[name] ? ICON[name] : "";
+}
+function relTime(iso) {
+  if (!iso) return "";
+  let d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  let mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return mins + " min ago";
+  let hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + " h ago";
+  let days = Math.round(hrs / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return days + " days ago";
+  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+function header(title, desc, actions) {
+  return (
+    '<div class="pageHead"><div><h1>' + title + "</h1>" + (desc ? '<p class="lede">' + desc + "</p>" : "") +
+    '</div><div class="pageActions">' + (actions || "") + "</div></div>"
+  );
+}
+function statusTag(s, label) {
+  return '<span class="status ' + s + '">' + esc(label || statusLabel(s)) + "</span>";
+}
+function groupRows(area, setup) {
+  let list = items.filter((x) => x.area === area);
+  if (!list.length) return "";
+  return (
+    '<section class="areaBlock"><h3>' + area + '<span class="count">' + list.length + "</span></h3>" +
+    list
+      .map((x) =>
+        setup
+          ? '<div class="checkRow"><input class="includeSwitch" type="checkbox" aria-label="Include ' + esc(x.title) + '" checked onchange="toggleApplicable(\'' + x.id + "',this.checked);this.closest('.checkRow').classList.toggle('off',!this.checked)\">" +
+            '<button onclick="openItem(\'' + x.id + '\')"><span class="rowMain"><b>' + esc(x.title) + "</b><small>" + esc(x.source) + "</small></span>" + '<span class="chev">' + ico("chevron") + "</span></button></div>"
+          : '<div class="checkRow"><button onclick="openItem(\'' + x.id + '\')"><span class="rowMain"><b>' + esc(x.title) + "</b><small>" + esc(x.evidence) + '</small></span><span class="rowEnd">' + statusTag(x.status) + '<span class="chev">' + ico("chevron") + "</span></span></button></div>",
+      )
+      .join("") +
+    "</section>"
+  );
+}
+function setupPage() {
+  return (
+    header(
+      "Review your checklist",
+      "beehive drafted these checks from the National Regulations and the NQS. Untick anything that doesn’t apply to your centre, then approve.",
+      '<button class="button" onclick="openSourceInfo()">Official sources</button>',
+    ) +
+    '<p class="notice">Plain-English summaries, not legal advice. Check the linked source before you approve.</p>' +
+    '<div class="tableTools"><span class="muted">' + items.length + ' suggested checks in 4 areas</span><span class="buttonRow"><button class="textButton" onclick="selectAll(true)">Select all</button><button class="textButton" onclick="selectAll(false)">Clear</button></span></div>' +
+    AREAS.map((a) => groupRows(a, true)).join("") +
+    '<div class="stickyBar"><p><b id="selectedCount">' + items.length + "</b> of " + items.length + ' checks selected. You can change this later.</p><button class="button primary" onclick="approveChecklist()">Approve checklist</button></div>'
+  );
+}
+function miniCard(number, label, caption) {
+  return '<div class="summaryTile"><span>' + label + "</span><b>" + number + "</b><small>" + caption + "</small></div>";
+}
+function stat(n, label, cls) {
+  return '<span class="stat ' + (cls || "") + '"><b>' + n + "</b><span>" + label + "</span></span>";
+}
+function topGaps() {
+  let gaps = items
+    .filter((x) => x.status !== "green")
+    .sort((a, b) => (a.status === "red" ? 0 : 1) - (b.status === "red" ? 0 : 1))
+    .slice(0, 4);
+  return (
+    '<section class="gapList"><div class="sectionHead"><h2>Top gaps<span class="count">' + gaps.length + "</span></h2></div>" +
+    (gaps.length
+      ? gaps.map((x) => '<button class="row" onclick="openItem(\'' + x.id + '\')"><span class="rowMain"><b>' + esc(x.title) + "</b><small>" + esc(x.risk) + "</small></span>" + statusTag(x.status) + "</button>").join("")
+      : '<p class="empty">No gaps. Every item has current evidence.</p>') +
+    "</section>"
+  );
+}
+function readinessSummary() {
+  let g = countStatus("green"), y = countStatus("yellow"), r = countStatus("red"), t = items.length || 1;
+  return (
+    '<div><div class="readinessFigure"><b>' + readiness() + '%</b><span>audit-ready</span></div>' +
+    '<div class="segBar" role="img" aria-label="' + g + " current, " + y + " due for review, " + r + ' missing"><i class="green" style="width:' + (g / t) * 100 + '%"></i><i class="yellow" style="width:' + (y / t) * 100 + '%"></i><i class="red" style="width:' + (r / t) * 100 + '%"></i></div>' +
+    '<div class="summaryLine" style="border:0;margin:0;padding:12px 0 0">' + stat(g, "evidence on file", "green") + stat(y, "due for review", "yellow") + stat(r, "missing", "red") + "</div></div>"
+  );
+}
+
+// ---------- Overview: what needs Sara, what is happening, what beehive is watching ----------
+function certRows() {
+  let out = [];
+  educators.forEach((e) => e.certs.forEach((c) => { if (c.days <= 60) out.push({ e, c }); }));
+  return out.sort((a, b) => a.c.days - b.c.days);
+}
+// Everything that needs the owner, from both agents and the rest of beehive: decisions first, then the to-dos
+// beehive proposed. The Overview list, its count, the summary strip and the bell all use this one list.
+function attentionItems() {
+  return decisionItems().concat(auditOn() && approved ? AuditAgent.todoItems() : []);
+}
+function decisionItems() {
+  let d = (agentOn() ? StaffAgent.decisions() : []).concat(auditOn() && approved ? AuditAgent.decisions() : []);
+  if (pendingSubmission && !agentOn())
+    d.push({ kind: "Verify certificate", who: pendingSubmission.staffName, detail: pendingSubmission.type + ", uploaded " + (pendingSubmission.submittedAt || ""), act: "reviewSubmission()", btn: "Review" });
+  if (medicalSubmission && medicalSubmission.status === "pending")
+    d.push({ kind: "Approve medical update", who: medicalSubmission.childName, detail: medicalSubmission.room + ", from " + (medicalSubmission.signer || "parent"), act: "reviewFamilyUpdate()", btn: "Review", urgent: true });
+  if (!agentOn()) certRows().filter((x) => x.c.days < 0).forEach((x) =>
+    d.push({ kind: "Expired credential", who: x.e.name, detail: x.c.type + " expired " + x.c.expiry + ". Decide on rostering.", act: "openStaffDetail('" + x.e.id + "')", btn: "Open", urgent: true }));
+  let regPending = LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
+  if (regPending && !(auditOn() && approved))
+    d.push({ kind: (LIVE ? regUpdate.status === "accepted" : saved.updateAccepted) ? "Finish policy review" : "Review regulation change", who: regUpdate ? regUpdate.title : "Safe sleep guidance review", detail: "May affect your Sleep and rest policy", act: "go('updates')", btn: "Review" });
+  if (aiDrafts.length)
+    d.push({ kind: "Approve family messages", who: aiDrafts.length + " draft" + (aiDrafts.length === 1 ? "" : "s"), detail: "Written by the AI agent", act: "openDraftsDrawer()", btn: "Review" });
+  let agentDrafts = typeof Library !== "undefined" ? Library.agentDraftCount() : 0;
+  if (agentDrafts)
+    d.push({ kind: "Approve renewal reminders", who: agentDrafts + " item" + (agentDrafts === 1 ? "" : "s"), detail: "Drafted by the compliance agent", act: "go('compliance')", btn: "Open" });
+  let inbox = familyInboxItem();
+  if (inbox) d.push(inbox);
+  return d;
+}
+function familyInboxItem() {
+  let latest = familyMessages[familyMessages.length - 1];
+  if (LIVE) {
+    if (!ownerThread || !ownerThread.unanswered) return null;
+    latest = { from: "parent", text: ownerThread.lastParentText };
+  }
+  if (!latest || latest.from !== "parent") return null;
+  let child = firstName(ownerThread ? ownerThread.childName : familyMedical.childName);
+  return { kind: "Reply to family", who: child + "’s family", detail: latest.text, act: "replyToFamilyThread()", btn: "Reply" };
+}
+function decisionRow(x) {
+  return (
+    '<button class="row" onclick="' + x.act + '"><span class="decisionKind' + (x.urgent ? " urgent" : "") + '"><span class="hx"></span>' + esc(x.kind) + "</span>" +
+    '<span class="rowMain"><b>' + esc(x.who) + "</b><small>" + esc(x.detail) + '</small></span><span class="rowEnd"><span class="button small">' + x.btn + "</span></span></button>"
+  );
+}
+const AUDIT_LABELS = {
+  "certificate.approved": "Certificate verified",
+  "certificate.submitted": "Certificate uploaded",
+  "certificate.rejected": "Certificate returned",
+  "reminders.expiry_check": "Expiry check ran",
+  "staff_reminder.sent": "Renewal reminder sent",
+  "agent.reminder_drafted": "Reminder drafted by agent",
+  "agent.escalated": "Escalated to you",
+  "evidence.added": "Evidence added",
+  "checklist.approved": "Checklist approved",
+  "checklist.generated": "Checklist drafted",
+  "medical_update.submitted": "Medical update received",
+  "medical_update.approved": "Medical update approved",
+  "regulation_update.accepted": "Regulation change accepted",
+  "regulation_update.reviewed": "Policy review completed",
+  "regulation_update.ai_added": "Regulation change found",
+  "compliance_record.completed": "Compliance task completed",
+  "parent_message.approved_and_sent": "Message sent to family",
+  "parent_message.ai_drafted": "Message drafted by agent",
+  "parent_message.auto_sent": "Receipt sent to family",
+  "incident.logged": "Incident logged",
+  "incident.parent_notified": "Parent notified of incident",
+};
+function staffName(id) {
+  let e = educators.find((x) => x.id === id);
+  return e ? e.name : "";
+}
+function certOwner(certId) {
+  for (let e of educators) for (let c of e.certs) if (c.certId === certId) return { e, c };
+  return null;
+}
+function auditEntry(a) {
+  let label = AUDIT_LABELS[a.action];
+  if (!label) return null;
+  let d = a.detail || {}, who = "", act = "";
+  if (a.action === "certificate.approved") { let o = certOwner(d.staff_certificate_id); if (o) { who = o.e.name + ", " + o.c.type; act = "openStaffDetail('" + o.e.id + "')"; } }
+  else if (d.staff_id) { who = staffName(d.staff_id) + (d.certificate || d.type ? ", " + String(d.certificate || d.type).replace("_", " ") : ""); act = "openStaffDetail('" + d.staff_id + "')"; }
+  else if (d.child_id) who = childIndex[d.child_id] || "";
+  else if (d.checklist_item_id) { let it = items.find((x) => x.id === d.checklist_item_id); if (it) { who = it.title; act = "openItem('" + it.id + "')"; } }
+  else if (d.title) { who = d.title; act = "go('updates')"; }
+  if (a.action === "reminders.expiry_check") who = (d.sent || 0) + " reminders to " + (d.staff || 0) + " staff";
+  if (a.action === "checklist.approved" && d.items) who = d.items + " checks in your baseline";
+  if (a.action.indexOf("compliance_record") === 0) act = "go('compliance')";
+  return { state: "done", label, who, time: relTime(a.created_at), act };
+}
+function hiveActivity() {
+  let out = [];
+  let agent = agentOn();
+  // in progress: reminders sent, waiting for a renewed certificate
+  if (!agent) educators.forEach((e) => {
+    let due = e.certs.filter((c) => c.days <= 60).sort((a, b) => a.days - b.days)[0];
+    if (!due) return;
+    let st = (e.alertState || "").toLowerCase();
+    if (st.indexOf("awaiting approval") >= 0) return;
+    if (st.indexOf("prompt sent") >= 0 || st.indexOf("follow up") >= 0)
+      out.push({ state: "progress", label: st.indexOf("follow up") >= 0 ? "Follow-up needed" : "Awaiting certificate", who: e.name + ", " + due.type, sub: due.days < 0 ? "Expired " + due.expiry : "Expires in " + due.days + " days", act: "openStaffDetail('" + e.id + "')" });
+    else if (due.days >= 0)
+      out.push({ state: "watch", label: "Watching expiry", who: e.name + ", " + due.type, sub: "Expires in " + due.days + " days", act: "openStaffDetail('" + e.id + "')" });
+  });
+  if (typeof Library !== "undefined")
+    Library.taskList().filter((t) => t.state === "due_soon").slice(0, 2).forEach((t) =>
+      out.push({ state: "watch", label: "Task due soon", who: t.title, sub: t.days === 0 ? "Due today" : "Due in " + t.days + " days", act: "go('compliance')" }));
+  // completed
+  if (LIVE) auditFeed.filter((a) => !agent || !/^(agent\.|certificate\.|reminders\.)/.test(a.action)).map(auditEntry).filter(Boolean).slice(0, 8).forEach((x) => out.push(x));
+  else {
+    if (approved) out.push({ state: "done", label: "Checklist approved", who: items.length + " checks in your baseline", time: "This week", act: "go('audit')" });
+    items.filter((x) => /^Logged|^Uploaded|^Reviewed/.test(x.updated || "")).forEach((x) => out.push({ state: "done", label: "Evidence added", who: x.title, time: "Today", act: "openItem('" + x.id + "')" }));
+    if (!agent) educators.forEach((e) => e.certs.filter((c) => c.approvedAt).forEach((c) => out.push({ state: "done", label: "Certificate verified", who: e.name + ", " + c.type, time: c.approvedAt, act: "openStaffDetail('" + e.id + "')" })));
+    if (!agent) educators.filter((e) => /prompt sent/i.test(e.alertState || "")).forEach((e) => out.push({ state: "done", label: "Renewal reminder sent", who: e.name, sub: e.alertState.replace(/^Renewal prompt sent · /, "") + " before expiry", time: "This week", act: "openStaffDetail('" + e.id + "')" }));
+  }
+  return out;
+}
+let activityExpanded = false;
+function timelineHtml() {
+  let all = hiveActivity();
+  let order = { progress: 0, watch: 1, done: 2 };
+  all.sort((a, b) => order[a.state] - order[b.state]);
+  let shown = activityExpanded ? all : all.slice(0, 8);
+  return (
+    '<ol class="timeline">' +
+    (shown.length
+      ? shown.map((x) =>
+          '<li class="tlItem ' + x.state + (x.act ? " link" : "") + '"' + (x.act ? ' tabindex="0" role="button" onclick="' + x.act + '" onkeydown="if(event.key===\'Enter\')this.click()"' : "") + '><span class="tlMark"></span><span class="tlText"><b>' + esc(x.label) + "</b>" +
+          (x.who ? " <span>" + esc(x.who) + "</span>" : "") + (x.sub ? "<small>" + esc(x.sub) + "</small>" : "") + "</span><time>" + esc(x.time || "") + "</time></li>").join("")
+      : '<li class="empty">No activity yet.</li>') +
+    "</ol>" +
+    (all.length > 8 ? '<button class="textButton" onclick="activityExpanded=!activityExpanded;render()">' + (activityExpanded ? "Show less" : "Show all " + all.length) + "</button>" : "") +
+    '<div class="tlLegend"><span><i class="hx" style="color:var(--green)"></i>Done</span><span><i class="hx" style="color:#d9a54a"></i>In progress</span><span><i class="hx" style="color:var(--line-2)"></i>Monitoring</span></div>'
+  );
+}
+function overviewPage() {
+  let decisions = decisionItems();
+  let creds = certRows();
+  let expired = creds.filter((x) => x.c.days < 0), soon = creds.filter((x) => x.c.days >= 0 && x.c.days <= 14), later = creds.filter((x) => x.c.days > 14);
+  let credRow = (x) =>
+    '<button class="row" onclick="openStaffDetail(\'' + x.e.id + '\')"><span class="rowMain"><b>' + esc(x.e.name) + "</b><small>" + esc(x.c.type) + ", " + esc(x.e.room) + '</small></span><span class="rowMeta num">' + (x.c.days < 0 ? "Expired " + esc(x.c.expiry) : x.c.days + " days") + "</span>" + statusTag(certStatus(x.c), x.c.days < 0 ? "Expired" : x.e.alertState && /prompt sent/i.test(x.e.alertState) ? "Reminder sent" : "No reminder yet") + "</button>";
+  let group = (title, list, max) => (list.length ? '<div class="credGroup"><p class="subhead"><span>' + title + '</span><span class="muted num">' + list.length + "</span></p>" + list.slice(0, max).map(credRow).join("") + (list.length > max ? '<button class="textButton moreLink" onclick="go(\'staff\')">' + (list.length - max) + " more in Staff certifications</button>" : "") + "</div>" : "");
+  let regPending = LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
+  let tasks = typeof Library !== "undefined" ? Library.taskList() : [];
+  let overdue = tasks.filter((t) => t.state === "overdue").length, dueSoon = tasks.filter((t) => t.state === "due_soon").length;
+  let today = new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
+  if (agentOn()) {
+    let att = attentionItems(), dec = att.filter((x) => !x.todo), todo = att.filter((x) => x.todo);
+    let auditReady = auditOn() && approved;
+    return (
+      header(
+        greeting() + ", " + esc(firstName(OWNER_NAME)),
+        today + ". " + (att.length ? att.length + (att.length === 1 ? " thing needs" : " things need") + " you; beehive is handling the rest." : "Nothing needs you right now; beehive is handling the rest."),
+        '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>',
+      ) +
+      StaffAgent.overviewSummary() +
+      '<section class="section decisions" id="attention"><div class="sectionHead"><h2>Needs your attention<span class="count">' + att.length + "</span></h2><p>Decisions first, then to-dos beehive proposed</p></div>" +
+      (dec.length ? dec.map(decisionRow).join("") : "") +
+      (todo.length ? '<p class="subhead">Your to-do, proposed by beehive</p>' + todo.map(decisionRow).join("") : "") +
+      (att.length ? "" : '<p class="empty">You’re all caught up. beehive will bring you anything that needs your judgement.</p>') +
+      "</section>" +
+      '<div class="twoCol"><div>' + StaffAgent.detectedHtml(7) + "</div><div>" +
+      '<section class="section"><div class="sectionHead"><h2>Audit readiness</h2><button class="textButton" onclick="go(\'audit\')">Open</button></div>' +
+      (auditReady ? AuditAgent.overviewRow()
+        : '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Approve your checklist</b><small>Once approved, beehive checks every requirement against its evidence.</small></span><span class="rowMeta">Draft</span></button>') +
+      '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
+      (regPending && !auditReady ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
+      "</section>" + StaffAgent.waitingHtml() + "</div></div>" +
+      '<section class="section" id="agentActivity"><div class="sectionHead"><h2>Agent activity</h2><p>Everything beehive did, in order, with what happens next</p></div>' + StaffAgent.feedHtml() + "</section>"
+    );
+  }
+  return (
+    header(
+      greeting() + ", " + esc(firstName(OWNER_NAME)),
+      today + ". " + (decisions.length ? decisions.length + (decisions.length === 1 ? " decision is" : " decisions are") + " waiting for you." : "Nothing needs your decision right now."),
+      '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>',
+    ) +
+    '<section class="section decisions"><div class="sectionHead"><h2>Needs your decision<span class="count">' + decisions.length + "</span></h2></div>" +
+    (decisions.length ? decisions.map(decisionRow).join("") : '<p class="empty">You’re all caught up. beehive will flag anything that needs you.</p>') +
+    "</section>" +
+    ('<div class="twoCol"><div>' +
+        '<section class="section"><div class="sectionHead"><h2>Staff credentials<span class="count">' + creds.length + '</span></h2><button class="textButton" onclick="go(\'staff\')">All staff</button></div>' +
+        (creds.length ? group("Expired", expired, 4) + group("Due within 14 days", soon, 4) + group("Due within 60 days", later, 3) : '<p class="empty">Every credential is current for at least 60 days.</p>') +
+        "</section>" +
+        '<section class="section"><div class="sectionHead"><h2>Regulations and compliance</h2><button class="textButton" onclick="go(\'compliance\')">Compliance</button></div>' +
+        (regPending ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
+        '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
+        '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Audit readiness</b><small>' + (approved ? countStatus("red") + " missing, " + countStatus("yellow") + " due for review" : "Checklist waiting for your approval") + '</small></span><span class="rowMeta num">' + (approved ? readiness() + "%" : "Draft") + "</span></button>" +
+        "</section></div>" +
+        '<section class="section"><div class="sectionHead"><h2>Hive activity</h2></div>' + timelineHtml() + "</section></div>")
+  );
+}
+function openDraftsDrawer() {
+  openModal('<div class="modalHead"><div><h2>Family messages to approve</h2><p>Drafted by the AI agent. Nothing reaches a family until you approve it.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' + aiDraftsCard(), "wide");
+}
+
+function auditPage() {
+  if (!approved) return setupPage();
+  if (auditOn()) return AuditAgent.auditPageHtml();
+  if (LIVE && typeof AuditAgent !== "undefined" && AuditAgent.data().error === "setup") return AuditAgent.setupNote() + auditPageClassic();
+  return auditPageClassic();
+}
+function auditPageClassic() {
+  let tabs = ["All areas"].concat(AREAS).map((a) => '<button class="filterButton ' + (activeFilter === a ? "active" : "") + '" onclick="filterArea(\'' + a + "')\">" + (a === "All areas" ? "All" : a) + "</button>").join("");
+  let list = activeFilter === "All areas" ? AREAS : [activeFilter];
+  return (
+    header("Audit readiness", "", '<button class="button" onclick="editBaseline()">Edit checklist</button><button class="button primary" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>') +
+    '<div class="auditTop">' + readinessSummary() + topGaps() + "</div>" +
+    '<div class="areaFilters" role="tablist">' + tabs + "</div>" +
+    list.map((a) => groupRows(a, false)).join("") +
+    '<p class="footnote">Checked ' + new Date().toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" }) + (LIVE ? ". Saved to your centre’s records." : ". Offline demo: changes stay in this browser.") + "</p>"
+  );
+}
+function updatesPage() {
+  if (auditOn() && approved) return AuditAgent.updatesPageHtml();
+  let accepted = !!saved.updateAccepted;
+  if (LIVE && !regUpdate)
+    return header("Regulation updates", "Changes that may affect your approved checklist.") + '<p class="empty">No new updates. When guidance changes, beehive will match it to your checklist and list it here.</p>';
+  let reviewed = LIVE ? regUpdate.status === "reviewed" : !!saved.updateReviewed;
+  if (LIVE) accepted = regUpdate.status === "accepted";
+  let sleepId = (findItemByKey("sleep") || {}).id || "sleep";
+  let state = reviewed ? statusTag("green", "Reviewed") : accepted ? statusTag("yellow", "Review required") : statusTag("neutral", "New");
+  return (
+    header("Regulation updates", "Changes that may affect your approved checklist.") +
+    '<article class="update"><p class="updateMeta">' + state + "<span>Published " + esc(regUpdate ? regUpdate.published : "18 Oct 2026") + "</span></p>" +
+    "<h2>" + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</h2><p>" + esc(regUpdate ? regUpdate.summary : "New safe sleep guidance may affect the centre’s Sleep and Rest Policy.") + "</p>" +
+    '<dl class="kv"><dt>What to do</dt><dd>Check your sleep and rest procedures against the latest guidance and your approved policy.</dd>' +
+    '<dt>Affected item</dt><dd><button class="textButton" onclick="openItem(\'' + sleepId + '\')">Sleep and rest policy review</button></dd>' +
+    '<dt>Source</dt><dd><a href="https://www.acecqa.gov.au/QA2-information-sheet-sleep-and-rest-legislative-requirements" target="_blank" rel="noopener">ACECQA: Sleep and rest legislative requirements</a></dd></dl>' +
+    '<div class="formActions" style="justify-content:flex-start">' +
+    (reviewed ? statusTag("green", "Review complete. Your checklist reflects this guidance.") : accepted ? '<button class="button primary" onclick="markUpdateReviewed()">Mark review complete</button>' : '<button class="button primary" onclick="acceptUpdate()">Accept update & flag policy</button>') +
+    "</div></article>" +
+    '<p class="footnote">Accepting flags the affected checklist item for review until you confirm the policy. Summaries are guidance, not legal advice.</p>'
+  );
+}
+
+// ---------- family (parent-facing) ----------
+function familyHeading(title, desc, action) {
+  return header(title, desc, action);
+}
+function familyStatus() {
+  if (!medicalSubmission) return statusTag("green", "Reviewed " + familyMedical.reviewedAt);
+  return medicalSubmission.status === "pending" ? statusTag("yellow", "Update in review") : statusTag("green", "Update reviewed");
+}
+function familyHomePage() {
+  let pending = medicalSubmission && medicalSubmission.status === "pending";
+  return (
+    familyHeading(greeting() + ", " + esc(firstName(PARENT_NAME)), CF() + "’s care information and messages from " + CN() + ".", '<button class="button primary" onclick="go(\'family-messages\')">Message the centre</button>') +
+    (pending ? '<div class="callout quiet"><span class="hx lg"></span><div><b>Your update has been received</b><p>The centre is reviewing it. You’ll get a message when it’s done.</p></div></div>' : "") +
+    '<div class="childLine"><span class="avatar">' + initials(familyMedical.childName) + '</span><div><b>' + esc(familyMedical.childName) + "</b><small>" + esc(familyMedical.room) + '</small></div><span style="margin-left:auto">' + familyStatus() + "</span></div>" +
+    '<button class="row" onclick="go(\'family-medical\')"><span class="rowMain"><b>Medical profile</b><small>' + esc(familyMedical.allergies || "No allergies listed") + ", " + esc(familyMedical.conditions || "no conditions listed") + '</small></span><span class="chev">' + ico("chevron") + "</span></button>" +
+    '<button class="row" onclick="go(\'family-form\')"><span class="rowMain"><b>Update medical details</b><small>Tell the centre about a new allergy, medication or action plan</small></span><span class="chev">' + ico("chevron") + "</span></button>" +
+    '<button class="row" onclick="go(\'family-messages\')"><span class="rowMain"><b>Messages</b><small>' + familyMessages.length + " in your conversation with the centre</small></span>" + '<span class="chev">' + ico("chevron") + "</span></button>" +
+    '<p class="footnote">' + (LIVE ? "Only your child’s centre team can see these details. Pilot: please use sample information only." : "Offline demo: sample records stored in this browser. Don’t enter real medical information.") + "</p>"
+  );
+}
+function familyMedicalPage() {
+  let values = medicalSubmission && medicalSubmission.status === "pending" ? medicalSubmission : familyMedical;
+  return (
+    familyHeading(CF() + "’s medical profile", "Shared with " + CN() + ".", '<button class="button primary" onclick="go(\'family-form\')">Update details</button>') +
+    (medicalSubmission
+      ? '<div class="callout ' + (medicalSubmission.status === "pending" ? "" : "quiet") + '"><span class="hx lg"></span><div><b>' + (medicalSubmission.status === "pending" ? "Update received" : "Update reviewed") + "</b><p>Submitted " + esc(medicalSubmission.submittedAt) + (medicalSubmission.reviewedAt ? ". Reviewed " + esc(medicalSubmission.reviewedAt) + "." : ". Waiting for the centre to review.") + "</p></div>" + (medicalSubmission.status === "pending" ? statusTag("yellow", "In review") : statusTag("green", "Reviewed")) + "</div>"
+      : "") +
+    '<div class="familyDataGrid">' +
+    familyData("Allergies", values.allergies) +
+    familyData("Medical conditions", values.conditions) +
+    familyData("Dietary needs", values.dietary) +
+    familyData("Medication", values.medications) +
+    familyData("Care notes", values.notes) +
+    familyData("Emergency contact", familyMedical.emergency) +
+    '</div><p class="footnote">Updates go to the centre for review. If your child needs urgent support, call the centre.</p>'
+  );
+}
+function familyData(label, value) {
+  return '<div class="familyData"><small>' + label + "</small><b>" + esc(value || "Not provided") + "</b></div>";
+}
+function familyFormPage() {
+  let d = medicalSubmission && medicalSubmission.status === "pending" ? medicalSubmission : familyMedical;
+  let field = (id, label, value, ph, wide) => '<label class="field' + (wide ? " wide" : "") + '"><span>' + label + '</span><textarea id="' + id + '" rows="2" placeholder="' + ph + '">' + esc(value || "") + "</textarea></label>";
+  return (
+    familyHeading("Update medical details", "Tell us what has changed. Leave a field blank if it doesn’t apply.", '<button class="button" onclick="go(\'family-medical\')">Back to profile</button>') +
+    '<div class="uploadLayout"><div><div class="familyFormGrid">' +
+    field("familyAllergies", "Allergies", d.allergies, "List allergies, or write None") +
+    field("familyConditions", "Medical conditions", d.conditions, "Conditions educators should know about") +
+    field("familyDietary", "Dietary needs", d.dietary, "Dietary requirements") +
+    field("familyMedications", "Medication or action plan", d.medications, "Medication, dose and instructions") +
+    field("familyNotes", "Care notes for educators", d.notes, "Anything else educators should know", true) +
+    '</div><label class="familyFile"><b>Attach an updated action plan</b>Optional. A photo or PDF from your doctor.<input type="file" accept=".pdf,image/*" onchange="familyFileSelected(this)"><small id="familyFileName">' + (familyFile ? esc(familyFile) : "No file selected") + "</small></label>" +
+    '<label class="field"><span>Your name, to confirm this update</span><input id="familySigner" type="text" placeholder="Full name" value="' + esc(PARENT_NAME) + '"></label>' +
+    '<label class="familyConsent"><input type="checkbox" id="familyConsent"><span>I confirm these details are accurate and I consent to sharing them with ' + CF() + "’s care team.</span></label>" +
+    '<div class="formActions" style="justify-content:flex-start"><button class="button primary" onclick="submitFamilyUpdate()">Submit medical update</button></div></div>' +
+    '<aside><h3 style="margin-bottom:12px">What happens next</h3><ol class="steps"><li><b>You submit</b>You get a receipt straight away.</li><li><b>The centre reviews</b>It checks the details against your plan.</li><li><b>Educators are updated</b>Once approved, the room team sees the new details.</li></ol></aside></div>'
+  );
+}
+function familyMessagesPage() {
+  let content = familyMessages
+    .map((m) => '<div class="messageBubble ' + (m.from === "parent" ? "fromParent" : "fromCentre") + '"><small>' + (m.from === "parent" ? "You" : CN()) + (m.time ? ", " + esc(m.time) : "") + "</small><p>" + esc(m.text) + "</p></div>")
+    .join("");
+  return (
+    familyHeading("Messages", "Your conversation with " + CN() + " about " + CF() + ".") +
+    '<div class="thread familyThreadBody" id="familyThreadBody">' + content + "</div>" +
+    '<div class="familyComposer"><textarea id="familyMessageInput" rows="2" placeholder="Write a message" aria-label="Write a message to the centre"></textarea><button class="button primary" onclick="sendFamilyMessage()">Send message</button></div>' +
+    '<p class="footnote">' + (LIVE ? "Saved to your child’s record. For anything urgent, call the centre." : "Offline demo: messages stay in this browser.") + "</p>"
+  );
+}
+function medicalOwnerCard() {
+  return "";
+}
+function aiDraftsCard() {
+  if (!aiDrafts.length) return '<p class="empty">No drafts waiting.</p>';
+  return (
+    aiDrafts
+      .map((d) => '<div class="agentItem"><small>To ' + esc(d.childName) + "’s family, " + esc(d.trigger) + '</small><textarea id="draft-' + d.id + '" rows="3" aria-label="Draft message">' + esc(d.body) + '</textarea><div class="draftActions"><button class="button small" onclick="Live.discardDraft(\'' + d.id + '\')">Discard</button><button class="button primary small" onclick="Live.approveDraft(\'' + d.id + '\')">Approve & send</button></div></div>')
+      .join("")
+  );
+}
+function familyInboxCard() {
+  return "";
+}
+function replyToFamilyThread() {
+  pendingDraftId = null;
+  let content = familyMessages
+    .map((m) => '<div class="messageBubble ' + (m.from === "parent" ? "fromParent" : "fromCentre") + '"><small>' + (m.from === "parent" ? "Parent" : CN()) + (m.time ? ", " + esc(m.time) : "") + "</small><p>" + esc(m.text) + "</p></div>")
+    .join("");
+  openModal(
+    '<div class="modalHead"><div><h2>' + esc(ownerThread ? ownerThread.childName : familyMedical.childName) + "’s family</h2><p>" + CN() + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div><div class="thread familyThreadBody ownerThreadBody">' +
+      content +
+      '</div><div class="familyComposer"><textarea id="ownerReplyInput" rows="3" placeholder="Reply, or type a short note and choose Draft with AI" aria-label="Reply to the family"></textarea></div><div class="formActions"><button class="button" onclick="Assistant.draftReply()"><span data-icon="spark"></span>Draft with AI</button><button class="button primary" onclick="sendOwnerReply()">Send reply</button></div><p class="footnote" id="draftNote">AI drafts are never sent automatically. You review and send.</p>',
+    "wide",
+  );
+}
+function reviewFamilyUpdate() {
+  if (!medicalSubmission) return;
+  openModal(
+    '<div class="modalHead"><div><h2>' + esc(medicalSubmission.childName) + "’s medical update</h2><p>" + esc(medicalSubmission.room) + ", submitted " + esc(medicalSubmission.submittedAt) + " by " + esc(medicalSubmission.signer) +
+      '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      (medicalSubmission.fileName
+        ? '<div class="reviewFile"><span class="hx lg" style="color:var(--honey)"></span><span><b>' + esc(medicalSubmission.fileName) + "</b><small>" + (LIVE ? "Attached plan" : "Selected attachment (demo)") + "</small>" +
+          (medicalSubmission.fileUrl ? '<br><a href="' + esc(medicalSubmission.fileUrl) + '" target="_blank" rel="noopener">Open the attached plan</a>' : "") + "</span></div>"
+        : "") +
+      familyData("Allergies", medicalSubmission.allergies) +
+      familyData("Medical conditions", medicalSubmission.conditions) +
+      familyData("Dietary needs", medicalSubmission.dietary) +
+      familyData("Medication or action plan", medicalSubmission.medications) +
+      familyData("Care notes", medicalSubmission.notes) +
+      '<p class="footnote">' + (LIVE ? "Acknowledging locks this record, updates the room’s medical details and tells the family. beehive doesn’t give medical advice." : "Check the details with your usual process. The offline demo doesn’t store attachments.") +
+      '</p><div class="modalActions"><button class="button" onclick="closeModal()">Close</button><button class="button primary" onclick="acknowledgeFamilyUpdate()">Acknowledge update</button></div>',
+  );
+}
+
+// ---------- staff certifications ----------
+function certificateCell(c, label) {
+  let s = certStatus(c);
+  return (
+    '<td data-label="' + (label || c.type) + '"><div class="certCell"><span class="certState ' + PRIO_CLASS[certPrio(c)] + '">' + certPrioLabel(c) + '</span><small class="num">' + esc(c.expiry) +
+    (c.days >= 0 && c.days <= 60 ? ' <span class="days">' + c.days + " days</span>" : "") + "</small>" +
+    (c.approvedAt ? '<small class="days">Verified ' + esc(c.approvedAt) + "</small>" : "") + "</div></td>"
+  );
+}
+function staffRows() {
+  return (
+    filteredEducators()
+      .map((e) =>
+        '<tr onclick="staffDetail(\'' + e.id + '\')"><td><div class="staffPerson"><b>' + esc(e.name) + "</b><small>" + esc(e.room) + ", " + esc(e.role) + "</small></div></td>" +
+        e.certs.map((c) => certificateCell(c)).join("") +
+        '<td data-label="Renewal">' + (agentOn() ? StaffAgent.staffState(e.id) || '<span class="alertState">Nothing due</span>' : '<span class="alertState ' + (e.alertState ? "sent" : "") + '">' + (e.alertState ? esc(e.alertState) : "No prompt sent") + "</span>") + "</td></tr>")
+      .join("") || '<tr><td colspan="6"><p class="empty">No educators match that search.</p></td></tr>'
+  );
+}
+function staffPortalPage() {
+  let due = certDueCount(),
+    expired = certExpiredCount(),
+    reminderTotal = educators.filter((e) => e.alertState && /prompt/i.test(e.alertState)).length;
+  if (agentOn() || (LIVE && typeof StaffAgent !== "undefined" && StaffAgent.data().error))
+    return (
+      header("Staff certifications", "beehive watches every credential, chases renewals and brings you only the decisions.", '<button class="button" onclick="StaffAgent.runNow()"><span data-icon="refresh"></span>Check now</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
+      StaffAgent.staffSection() +
+      '<section class="section"><div class="sectionHead"><h2>All educators<span class="count">' + educators.length + "</span></h2></div>" +
+      '<div class="tableTools"><div class="legend"><span class="certState crit">Critical: expired or missing</span><span class="certState high">High: 7 days</span><span class="certState medium">Medium: 30 days</span><span class="certState monitor">Monitor: 60 days</span><span class="certState current">Current</span></div>' +
+      '<input id="staffSearch" class="staffSearch" type="search" placeholder="Search educators or credentials" aria-label="Search staff certifications" oninput="searchStaff(this.value)"></div>' +
+      '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Renewal</th></tr></thead><tbody id="staffRows">' +
+      staffRows() + "</tbody></table></div></section>" +
+      '<p class="footnote">' + (LIVE ? "The agent checks every credential when you open beehive and each morning. " : "Offline demo: the agent runs in this browser with sample educators. ") + "Email and SMS are simulated: messages are recorded with recipient and time but not delivered.</p>"
+    );
+  return (
+    header("Staff certifications", "", '<button class="button" onclick="runExpiryCheck()"><span data-icon="refresh"></span>Run expiry check</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
+    (pendingSubmission
+      ? '<div class="callout"><span class="hx lg"></span><div><b>1 new staff certificate submitted</b><p>' + esc(pendingSubmission.staffName) + ", " + esc(pendingSubmission.type) + ". Check the file and confirm the expiry date.</p></div>" +
+        '<span class="rowEnd"><button class="button primary" onclick="reviewSubmission()">Review submission</button></span></div>'
+      : "") +
+    '<div class="summaryLine">' + stat(educators.length, "educators") + stat(expired, "expired", expired ? "red" : "") + stat(due, "due within 60 days", due ? "yellow" : "") + stat(reminderTotal, "reminders sent") + "</div>" +
+    '<div class="tableTools"><div class="legend"><span class="certState green">Active</span><span class="certState yellow">Due within 60 days</span><span class="certState red">Expired</span></div>' +
+    '<input id="staffSearch" class="staffSearch" type="search" placeholder="Search educators or credentials" aria-label="Search staff certifications" oninput="searchStaff(this.value)"></div>' +
+    '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Renewal</th></tr></thead><tbody id="staffRows">' +
+    staffRows() +
+    "</tbody></table></div>" +
+    '<p class="footnote">' + (LIVE ? "Reminders go out 60, 30 and 7 days before expiry. Email and SMS are simulated in this pilot; certificates are stored in your centre’s private storage." : "Offline demo: expiry checks and reminders are simulated. Files stay in this browser.") + "</p>"
+  );
+}
+function staffUploadPage() {
+  let options = educators.map((e) => '<option value="' + e.id + '" ' + (e.id === defaultUploadStaff() ? "selected" : "") + ">" + esc(e.name) + ", " + esc(e.room) + "</option>").join("");
+  let types = ["First Aid", "CPR", "WWCC", "Anaphylaxis"];
+  return (
+    header(isEducator() ? "My certificates" : "Upload a certificate", isEducator() ? "Upload a renewed certificate. " + esc(ownerFirst().replace(/^the/, "The")) + " checks it before it counts." : "Upload on an educator’s behalf. This is the same page educators open from their reminder.", '<button class="button ownerBack" onclick="go(\'staff\')">Back to staff</button>') +
+    (typeof Library !== "undefined" ? Library.educatorReminders() : "") +
+    (agentOn() ? StaffAgent.educatorRequests() : "") +
+    (auditOn() ? AuditAgent.educatorRequests() : "") +
+    '<div class="uploadLayout"><div><h2>Submit a renewed certificate</h2>' +
+    '<div class="ownerField"><label class="formLabel" for="uploadStaff">Educator</label><select class="formControl" id="uploadStaff">' + options + "</select></div>" +
+    '<label class="formLabel" for="uploadCertType">Certificate</label><select class="formControl" id="uploadCertType">' + types.map((t) => "<option>" + t + "</option>").join("") + "</select>" +
+    (agentOn()
+      ? StaffAgent.uploadWidget() + '<div class="formActions" style="justify-content:flex-start"><button class="button primary" id="submitUpload" onclick="StaffAgent.submitUpload()">Submit for owner approval</button></div>'
+      : '<label class="fileDrop"><b>Add a photo or PDF</b>Take a photo of the certificate or choose a file.<input id="certFile" type="file" accept=".pdf,image/*" onchange="uploadFileSelected(this)"><small id="uploadFileName">No file selected</small></label>' +
+        '<div class="extracted"><div><b>Suggested date</b><small id="extractPreview">Add a file and beehive suggests the expiry date.</small></div>' + statusTag("yellow", "Check before submitting") + "</div>" +
+        '<label class="formLabel" for="uploadExpiry">Expiry date on the certificate</label><input class="formControl" type="date" id="uploadExpiry">' +
+        '<div class="formActions" style="justify-content:flex-start"><button class="button primary" onclick="submitCertificate()">Submit for owner approval</button></div>') +
+    '<p class="footnote">' + (LIVE ? "Your file goes to the centre’s private storage." : "Offline demo: the file stays in this browser and the date is simulated.") + "</p></div>" +
+    '<aside><h3 style="margin-bottom:12px">What happens next</h3><ol class="steps"><li><b>You submit</b>beehive reads the name, credential and dates, and flags anything that doesn’t match the record.</li><li><b>' + esc(ownerFirst().replace(/^the/, "The")) + ' checks it</b>Nothing changes until the file is verified.</li><li><b>You’re up to date</b>Your record turns green and your next reminder is set.</li></ol></aside></div>'
+  );
+}
+function openStaffDetail(id) {
+  let e = educators.find((x) => x.id === id);
+  if (!e) return;
+  let rows = e.certs
+    .map((c) => '<div class="modalMeta"><span>' + esc(c.type) + '</span><span class="rowEnd"><span class="num">' + esc(c.expiry) + (c.days >= 0 && c.days <= 60 ? ", " + c.days + " days" : "") + "</span>" + statusTag(PRIO_CLASS[certPrio(c)], certPrioLabel(c)) + "</span></div>")
+    .join("");
+  let pending = agentOn() ? StaffAgent.staffDetailHtml(id) :
+    pendingSubmission && pendingSubmission.staffId === id
+      ? '<div class="callout" style="margin-top:16px"><span class="hx lg"></span><div><b>Certificate waiting for you</b><p>' + esc(pendingSubmission.type) + ", " + esc(pendingSubmission.fileName) + '</p></div><span class="rowEnd"><button class="button primary small" onclick="reviewSubmission()">Review</button></span></div>'
+      : "";
+  openModal(
+    '<div class="modalHead"><div><h2>' + esc(e.name) + "</h2><p>" + esc(e.room) + ", " + esc(e.role) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<p class="modalSection">' + statusTag(staffStatus(e), staffStatus(e) === "green" ? "All credentials current" : staffStatus(e) === "yellow" ? "Renewal coming up" : "Expired or missing credential") + (agentOn() ? "" : '<span class="muted" style="margin-left:12px">' + esc(e.alertState || "No reminder sent") + "</span>") + "</p>" +
+      rows + pending +
+      '<div class="modalActions"><button class="button" onclick="closeModal()">Close</button></div>',
+  );
+}
+function reviewSubmission() {
+  if (!pendingSubmission) return;
+  openModal(
+    '<div class="modalHead"><div><h2>Review certificate</h2><p>' + esc(pendingSubmission.staffName) + ", " + esc(pendingSubmission.type) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="reviewFile"><span class="hx lg" style="color:var(--honey)"></span><span><b>' + esc(pendingSubmission.fileName) + "</b><small>Submitted " + esc(pendingSubmission.submittedAt) + "</small>" +
+      (pendingSubmission.fileUrl ? '<br><a href="' + esc(pendingSubmission.fileUrl) + '" target="_blank" rel="noopener">Open the uploaded certificate</a>' : "") + "</span></div>" +
+      '<div class="modalSection"><h3>Expiry date</h3><p>Suggested: <b>' + esc(pendingSubmission.expiry) + "</b>. Check it against the certificate before approving.</p>" +
+      (LIVE ? '<label class="formLabel" for="reviewExpiry">Confirmed expiry date</label><input class="formControl" type="date" id="reviewExpiry" value="' + esc(pendingSubmission.expiryISO || "") + '">' : "") +
+      '</div><div class="modalMeta"><span>Next reminder</span><b>60 days before the new expiry</b></div>' +
+      '<p class="footnote">' + (LIVE ? "Approving updates the staff register, records an audit timestamp and schedules the next reminders." : "Offline demo: the file isn’t stored.") + '</p><div class="modalActions"><button class="button" onclick="closeModal()">Back</button><button class="button primary" onclick="approveCertificate()">Approve certificate</button></div>',
+  );
+}
+function openItem(id) {
+  if (auditOn() && approved) return AuditAgent.openItem(id);
+  let x = findItem(id);
+  if (!x) return;
+  let action =
+    (x.key || x.id) === "evacuation"
+      ? '<button class="button primary" onclick="logDrill(\'' + x.id + "')\">Log evacuation drill</button>"
+      : '<label class="button primary uploadAction"><span data-icon="upload"></span>Upload evidence<input type="file" accept=".pdf,image/*" onchange="uploadEvidence(\'' + x.id + "',this)\" hidden></label>";
+  let modal =
+    '<div class="modalHead"><div><p style="margin:0 0 4px">' + esc(x.area) + "</p><h2>" + esc(x.title) + '</h2></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+    '<p class="modalSection">' + statusTag(x.status) + '<span class="muted" style="margin-left:12px">' + esc(x.updated) + "</span></p>" +
+    '<div class="modalSection"><h3>What needs attention</h3><p>' + esc(x.risk) + "</p></div>" +
+    '<div class="modalSection"><h3>What the regulation requires</h3><p>' + esc(x.summary) + "</p></div>" +
+    '<div class="modalMeta"><span>Source</span><b><a href="https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653" target="_blank" rel="noopener">' + esc(x.source) + '</a></b></div><div class="modalMeta"><span>Evidence</span><b>' + esc(x.evidence) + "</b></div>" +
+    '<details class="more"><summary>How to comply</summary>' + Library.itemSection(x.key || x.id) + "</details>" +
+    '<div class="modalActions"><button class="button" onclick="closeModal()">Close</button>' + action + "</div>";
+  openModal(modal);
+}
+function openHelp() {
+  let step = (who, title, text) => '<li class="' + who + '"><span class="hx"></span><span><b>' + title + "</b><small>" + text + '</small></span><span class="who ' + who + '">' + (who === "auto" ? "beehive" : "You") + "</span></li>";
+  openModal(
+    '<div class="modalHead"><div><h2>Your hive guide</h2><p>How beehive keeps your centre compliant, and when it needs you.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<section class="guideFlow"><h3>Staff compliance</h3><p>Every educator’s WWCC, first aid, CPR and anaphylaxis.</p><ol class="guideSteps2">' +
+      step("auto", "Detected and prioritised", "Every credential, every day. Critical: expired or missing. High: 7 days. Medium: 30 days. Monitor: later.") +
+      step("auto", "Educator asked to renew", "A personal request with the deadline and a secure upload link (simulated email or SMS).") +
+      step("auto", "Followed up", "If nothing arrives by the follow-up date, beehive asks again. Critical or ignored requests are escalated to you with a recommended action.") +
+      step("auto", "Upload checked", "beehive reads the name, credential and dates and flags anything that doesn’t match.") +
+      step("you", "Verified", "You approve or reject. Nothing counts until you do.") +
+      step("auto", "Record updated", "The credential, verification date and compliance status update and the task closes.") +
+      "</ol></section>" +
+      '<section class="guideFlow"><h3>Audit readiness</h3><p>Your approved checklist, mapped to the regulations.</p><ol class="guideSteps2">' +
+      step("auto", "Requirement monitored", "Each requirement is checked against its verified evidence, due dates and compliance tasks.") +
+      step("auto", "Gap explained", "Missing, out-of-date or unverified evidence is prioritised, with why it matters and the next action.") +
+      step("auto", "Evidence requested", "beehive asks whoever holds it, with an upload link, and follows up (simulated). Credential gaps go to the staff agent.") +
+      step("auto", "Regulation changes assessed", "Possibly affected requirements are flagged Review required, with a task for you.") +
+      step("you", "Verified or decided", "You verify the evidence and record regulation decisions. Uploading alone never makes anything compliant.") +
+      step("auto", "Readiness updated", "Status, verification date and readiness update, and every step is in the activity feed.") +
+      "</ol></section>" +
+      '<div class="guideKey"><span><i class="hx" style="color:var(--honey)"></i>beehive does this</span><span><i class="hx" style="color:var(--ink)"></i>You decide</span></div>' +
+      '<div class="modalActions"><button class="button" onclick="closeModal();go(\'staff\')">Staff certifications</button><button class="button primary" onclick="closeModal();go(\'audit\')">Audit readiness</button></div>',
+  );
+}
+function openSourceInfo() {
+  openModal(
+    '<div class="modalHead"><div><h2>Official sources</h2><p>Check these before you approve your checklist.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalSection"><h3>Education and Care Services National Regulations</h3><p>The legal requirements behind every check. <a href="https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653" target="_blank" rel="noopener">Open the current version</a></p></div>' +
+      '<div class="modalSection"><h3>National Quality Standard</h3><p>The 7 quality areas services are assessed against. <a href="https://www.acecqa.gov.au/nqf/national-quality-standard" target="_blank" rel="noopener">Open ACECQA</a></p></div>' +
+      '<p class="footnote">Checklist wording is a plain-English summary. Check amendments and NSW-specific rules in the Compliance library.</p><div class="modalActions"><button class="button" onclick="closeModal();go(\'compliance\');Library.setTab(\'guidance\')">Compliance library</button><button class="button primary" onclick="closeModal()">Done</button></div>',
+  );
+}
+
+function auditOn() {
+  return typeof AuditAgent !== "undefined" && AuditAgent.active();
+}
+function agentOn() {
+  return typeof StaffAgent !== "undefined" && StaffAgent.active();
+}
+// One priority scale everywhere: Critical = expired or missing, High = 7 days or less, Medium = 30 days or less,
+// Monitor = within 60 days (the agent is watching), Current = later.
+function certPrio(c) {
+  if (!c || c.missing || c.days < 0) return "critical";
+  return c.days <= 7 ? "high" : c.days <= 30 ? "medium" : c.days <= 60 ? "monitor" : "current";
+}
+const PRIO_CLASS = { critical: "crit", high: "high", medium: "medium", monitor: "monitor", current: "current" };
+function certPrioLabel(c) {
+  let p = certPrio(c);
+  return p === "critical" ? (c.missing ? "Critical · missing" : "Critical · expired") : p === "current" ? "Current" : p.charAt(0).toUpperCase() + p.slice(1);
+}
 function certStatus(c) {
-  return c.days < 0 ? "red" : c.days <= 60 ? "yellow" : "green";
+  let p = certPrio(c);
+  return p === "critical" ? "red" : p === "current" ? "green" : "yellow";
 }
 function certStatusLabel(s) {
-  return s === "green" ? "Active" : s === "yellow" ? "Expiring" : "Expired";
+  return s === "green" ? "Current" : s === "yellow" ? "Expiring" : "Expired";
 }
 function certDueCount() {
   return educators.reduce(
@@ -1112,23 +1244,6 @@ function certExpiredCount() {
 function staffStatus(e) {
   let s = e.certs.map(certStatus);
   return s.includes("red") ? "red" : s.includes("yellow") ? "yellow" : "green";
-}
-function certificateCell(c) {
-  let s = certStatus(c);
-  return (
-    '<td><div class="certCell"><span class="certState ' +
-    s +
-    '">' +
-    certStatusLabel(s) +
-    "</span><small>" +
-    esc(c.expiry) +
-    (c.days >= 0 && c.days <= 60 ? " · " + c.days + " days" : "") +
-    "</small>" +
-    (c.approvedAt
-      ? '<small class="auditStamp">Verified ' + esc(c.approvedAt) + "</small>"
-      : "") +
-    "</div></td>"
-  );
 }
 function filteredEducators() {
   let q = staffQuery.trim().toLowerCase();
@@ -1153,107 +1268,13 @@ function filteredEducators() {
         .includes(q),
   );
 }
-function staffRows() {
-  return (
-    filteredEducators()
-      .map(
-        (e) =>
-          '<tr><td><div class="staffPerson"><span class="staffInitial">' +
-          esc(e.initials) +
-          "</span><span><b>" +
-          esc(e.name) +
-          "</b><small>" +
-          esc(e.room) +
-          " · " +
-          esc(e.role) +
-          "</small></span></div></td>" +
-          e.certs.map((c) => certificateCell(c)).join("") +
-          '<td><span class="alertState ' +
-          (e.alertState ? "sent" : "") +
-          '">' +
-          (e.alertState ? esc(e.alertState) : "No prompt sent") +
-          '</span></td><td><button class="button small" onclick="staffDetail(\'' +
-          e.id +
-          "')\">View</button></td></tr>",
-      )
-      .join("") ||
-    '<tr><td colspan="7"><div class="emptyState">No educators match that search.</div></td></tr>'
-  );
-}
-function staffPortalPage() {
-  let due = certDueCount(),
-    expired = certExpiredCount(),
-    reminderTotal = educators.filter(
-      (e) => e.alertState && e.alertState.toLowerCase().includes("prompt"),
-    ).length;
-  let action =
-    '<button class="button soft" onclick="runExpiryCheck()">◷ Run expiry check</button><button class="button primary" onclick="go(\'staff-upload\')">＋ Open staff upload view</button>';
-  let pending = pendingSubmission
-    ? '<div class="pendingCard"><div class="pendingLeft"><span class="pendingIcon">↥</span><div><h3>1 new staff certificate submitted</h3><p>' +
-      esc(pendingSubmission.staffName) +
-      " submitted " +
-      esc(pendingSubmission.type) +
-      " · " +
-      esc(pendingSubmission.fileName) +
-      '</p></div></div><button class="button primary small" onclick="reviewSubmission()">Review submission →</button></div>'
-    : "";
-  return (
-    header(
-      "Central Certification Portal",
-      "Track WWCC, First Aid, CPR and Anaphylaxis credentials across your educators.",
-      action,
-    ) +
-    '<div class="staffHero"><div class="staffHeroText"><div class="eyebrow">STAFF COMPLIANCE · LIVE REGISTER</div><h2>Every educator. Every credential.</h2><p>One clear view of certificate status, upcoming expiry windows and renewal prompts. Review a staff member’s full record or launch the mobile upload preview.</p><div class="buttonRow"><span class="sparkleBadge">10 educators in centre</span><span class="muted">Alert windows · 60 / 30 / 7 days</span></div></div><div class="staffEmblem">♙</div></div><div class="staffMetrics"><div class="staffMetric"><strong>' +
-    educators.length +
-    '</strong><span>Educators in centre</span></div><div class="staffMetric"><strong>' +
-    due +
-    '</strong><span><i class="metricDot yellow"></i>Credentials due within 60 days</span></div><div class="staffMetric"><strong>' +
-    expired +
-    '</strong><span><i class="metricDot red"></i>Expired credentials</span></div><div class="staffMetric"><strong>' +
-    reminderTotal +
-    '</strong><span><i class="metricDot green"></i>Renewal prompts sent</span></div></div>' +
-    pending +
-    '<section class="card staffPanel"><div class="staffPanelHead"><div><h3>Educator certification register</h3><p>Green · active &nbsp; Yellow · upcoming expiry &nbsp; Red · expired</p></div><div class="staffTools"><input id="staffSearch" class="staffSearch" type="search" placeholder="Search educator or credential…" aria-label="Search staff certifications" oninput="searchStaff(this.value)"></div></div><div class="staffTableScroller"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Alert state</th><th></th></tr></thead><tbody id="staffRows">' +
-    staffRows() +
-    '</tbody></table></div></section><div class="infoStrip">' + (LIVE ? "Reminders are scheduled automatically for the 60, 30 and 7 day windows. Email/SMS delivery is simulated in this pilot. Certificate files are stored in your centre’s private storage." : "Prototype mode: expiry scans and SMS/email prompts are simulated. Certificate files stay in this browser demo and are not securely uploaded.") + '</div>'
-  );
-}
 function defaultUploadStaff() {
   if (!LIVE) return "mia";
+  if (isEducator()) { let me = educators.find((e) => e.userId === ME.id); if (me) return me.id; }
   // the educator whose next certificate expires soonest (still current)
   let best = null, bestDays = 1e9;
   educators.forEach((e) => e.certs.forEach((c) => { if (c.days >= 0 && c.days < bestDays) { bestDays = c.days; best = e.id; } }));
   return best || (educators[0] && educators[0].id);
-}
-function staffUploadPage() {
-  let options = educators
-    .map(
-      (e) =>
-        '<option value="' +
-        e.id +
-        '" ' +
-        (e.id === defaultUploadStaff() ? "selected" : "") +
-        ">" +
-        esc(e.name) +
-        " · " +
-        esc(e.room) +
-        "</option>",
-    )
-    .join("");
-  let types = ["First Aid", "CPR", "WWCC", "Anaphylaxis"];
-  return (
-    header(
-      "Staff certificate upload",
-      "Mobile-friendly self-service preview for an educator renewing a credential.",
-      '<button class="button ownerBack" onclick="go(\'staff\')">← Back to portal</button>',
-    ) +
-    (typeof Library !== "undefined" ? Library.educatorReminders() : "") +
-    '<div class="staffUploadLayout"><section class="card uploadPanel"><div class="eyebrow">SECURE UPLOAD LINK · STAFF VIEW</div><h2>Submit a renewed certificate</h2><p>' + (LIVE ? "Choose the certificate type, add a photo or PDF and check the expiry date. It goes to " + esc(ownerFirst()) + " to verify." : "Choose the staff record and certificate type, then select a photo or PDF. This prototype simulates date extraction and sends the submission to " + esc(ownerFirst()) + " for approval.") + '</p><label class="formLabel" for="uploadStaff">Staff member</label><select class="formControl" id="uploadStaff">' +
-    options +
-    '</select><label class="formLabel" for="uploadCertType">Certificate type</label><select class="formControl" id="uploadCertType">' +
-    types.map((t) => "<option>" + t + "</option>").join("") +
-    '</select><label class="fileDrop">＋ Add certificate photo or PDF<input id="certFile" type="file" accept=".pdf,image/*" onchange="uploadFileSelected(this)"><small id="uploadFileName">No file selected</small></label><div class="extractionCard"><div><b>Expiry date detected</b><small id="extractPreview">Select a file to simulate certificate reading.</small></div><span class="status yellow">Needs review</span></div><label class="formLabel" for="uploadExpiry">Expiry date on the certificate (check before submitting)</label><input class="formControl" type="date" id="uploadExpiry"><div class="modalActions"><button class="button primary" onclick="submitCertificate()">Submit for owner approval →</button></div><p class="helpLine" style="margin-top:12px">' + (LIVE ? "The file goes to the centre’s private storage. The suggested expiry is a starting point: check it against the certificate." : "In a production version, a signed upload link would send this file to encrypted storage. This demo only reads the selected filename locally.") + '</p></section><aside class="card sideSteps"><h3>What happens next</h3><div class="stepLine"><span class="stepNumber">1</span><span><b>Educator submits</b><small>The renewed certificate is attached to the selected staff record.</small></span></div><div class="stepLine"><span class="stepNumber">2</span><span><b>Expiry is extracted</b><small>The suggested date is shown for ' + esc(ownerFirst()) + ' to verify.</small></span></div><div class="stepLine"><span class="stepNumber">3</span><span><b>Owner approves</b><small>The record turns green and the audit timestamp is logged.</small></span></div></aside></div>'
-  );
 }
 function searchStaff(value) {
   staffQuery = value;
@@ -1280,49 +1301,6 @@ function runExpiryCheck() {
     "Daily expiry scan complete · " +
       targets.size +
       " staff targeted; SMS/email reminders are simulated for the 60, 30 and 7 day windows.",
-  );
-}
-function openStaffDetail(id) {
-  let e = educators.find((x) => x.id === id);
-  if (!e) return;
-  let rows = e.certs
-    .map(
-      (c) =>
-        '<div class="modalMeta"><span>' +
-        esc(c.type) +
-        "</span><span><b>" +
-        esc(certStatusLabel(certStatus(c))) +
-        "</b> · " +
-        esc(c.expiry) +
-        (c.days >= 0 && c.days <= 60 ? " · " + c.days + " days" : "") +
-        "</span></div>",
-    )
-    .join("");
-  let pending =
-    pendingSubmission && pendingSubmission.staffId === id
-      ? '<div class="modalSection"><h3>Certificate waiting for approval</h3><p>' +
-        esc(pendingSubmission.type) +
-        " · " +
-        esc(pendingSubmission.fileName) +
-        " · Detected expiry " +
-        esc(pendingSubmission.expiry) +
-        '</p><div class="modalActions"><button class="button primary" onclick="reviewSubmission()">Review certificate</button></div></div>'
-      : "";
-  openModal(
-    '<div class="modalHead"><div><div class="eyebrow">EDUCATOR CERTIFICATE PROFILE</div><h2>' +
-      esc(e.name) +
-      "</h2><p>" +
-      esc(e.room) +
-      " · " +
-      esc(e.role) +
-      '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div><div class="modalSection"><h3>Credential status</h3><p>Overall status: <b>' +
-      certStatusLabel(staffStatus(e)) +
-      "</b> · Alert state: " +
-      esc(e.alertState || "No reminder sent") +
-      "</p></div>" +
-      rows +
-      pending +
-      '<div class="modalActions"><button class="button" onclick="closeModal()">Close</button></div>',
   );
 }
 function staffDetail(id) {
@@ -1377,31 +1355,6 @@ function submitCertificate() {
   render();
   toast("Certificate submitted. " + firstName(OWNER_NAME) + " has been notified in the demo portal.");
 }
-function reviewSubmission() {
-  if (!pendingSubmission) return;
-  let cadence =
-    pendingSubmission.type === "First Aid" || pendingSubmission.type === "CPR"
-      ? "12–36 months"
-      : "12–36 months";
-  openModal(
-    '<div class="modalHead"><div><div class="eyebrow">OWNER VERIFICATION · NEW SUBMISSION</div><h2>Review certificate</h2><p>Check the file and confirm the detected expiry before approval.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div><div class="reviewFile"><span class="fileIcon">▧</span><span><b>' +
-      esc(pendingSubmission.fileName) +
-      "</b><small>" +
-      esc(pendingSubmission.staffName) +
-      " · " +
-      esc(pendingSubmission.type) +
-      " · Submitted " +
-      esc(pendingSubmission.submittedAt) +
-      '</small></span></div><div class="modalSection"><h3>Detected certificate details</h3><p>Suggested expiry date: <b>' +
-      esc(pendingSubmission.expiry) +
-      '</b>. Verify this date against the certificate image before approving.</p>' +
-      (LIVE ? '<label class="formLabel" for="reviewExpiry">Confirmed expiry date</label><input class="formControl" type="date" id="reviewExpiry" value="' + esc(pendingSubmission.expiryISO || "") + '">' : "") +
-      (pendingSubmission.fileUrl ? '<p style="margin-top:8px"><a class="sourceLink" href="' + esc(pendingSubmission.fileUrl) + '" target="_blank" rel="noopener">Open the uploaded certificate ↗</a></p>' : "") +
-      '</div><div class="modalMeta"><span>Next renewal reminder</span><b>60 days before expiry · typical cycle ' +
-      cadence +
-      '</b></div><p class="helpLine">' + (LIVE ? "Approving updates the staff register, records an audit timestamp and schedules the next reminders." : "Sample file review only. The selected certificate is not stored on a secure server.") + '</p><div class="modalActions"><button class="button" onclick="closeModal()">Back</button><button class="button primary" onclick="approveCertificate()">Approve certificate</button></div>',
-  );
-}
 function approveCertificate() {
   if (LIVE) return Live.approveCertificate();
   if (!pendingSubmission) return;
@@ -1426,6 +1379,13 @@ function approveCertificate() {
   );
 }
 function handleNotifications() {
+  if (agentOn()) {
+    let first = attentionItems()[0];
+    if (!first) return go("overview");
+    if (current !== "overview") go("overview");
+    new Function(first.act)();
+    return;
+  }
   if (pendingSubmission) {
     current = "staff";
     render();
@@ -1468,8 +1428,7 @@ function render() {
                   : current === "family-messages"
                     ? familyMessagesPage()
                     : auditPage();
-  document.getElementById("gapBadge").textContent =
-    countStatus("red") + countStatus("yellow");
+  if (typeof fillIcons === "function") fillIcons(document);
   if (typeof Assistant !== "undefined") Assistant.refresh();
   if (document.getElementById("selectedCount"))
     document.getElementById("selectedCount").textContent =
@@ -1520,8 +1479,10 @@ function approveChecklist() {
   approved = true;
   persist();
   current = "audit";
+  let r = typeof AuditAgent !== "undefined" ? AuditAgent.onApproved() : null;
   render();
-  toast("Checklist approved. Your centre baseline is ready.");
+  if (r && typeof StaffAgent !== "undefined") StaffAgent.announce(null, r);
+  else toast("Checklist approved. Your centre baseline is ready.");
 }
 function editBaseline() {
   if (LIVE) return Live.editBaseline();
@@ -1534,44 +1495,12 @@ function filterArea(a) {
   activeFilter = a;
   render();
 }
-function openItem(id) {
-  let x = findItem(id);
-  if (!x) return;
-  let modal =
-    '<div class="modalHead"><div><div class="eyebrow">' +
-    esc(x.area) +
-    " · CHECKLIST ITEM</div><h2>" +
-    esc(x.title) +
-    '</h2><p>Evidence and source details for your centre baseline</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div><div class="modalSection"><h3>Plain-English requirement summary</h3><p>' +
-    esc(x.summary) +
-    '</p></div><div class="modalMeta"><span>Source regulation</span><b><a href="https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653" target="_blank" rel="noopener">' +
-    esc(x.source) +
-    ' ↗</a></b></div><div class="modalMeta"><span>Evidence source</span><b>' +
-    esc(x.evidence) +
-    '</b></div><div class="modalMeta"><span>Last updated</span><b>' +
-    esc(x.updated) +
-    '</b></div><div class="modalMeta"><span>Current status</span><span class="status ' +
-    x.status +
-    '">' +
-    statusLabel(x.status) +
-    '</span></div><div class="modalSection"><h3>What needs attention</h3><p>' +
-    esc(x.risk) +
-    '</p></div>' + Library.itemSection(x.key || x.id) + '<div class="modalActions"><button class="button" onclick="closeModal()">Close</button>' +
-    ((x.key || x.id) === "evacuation"
-      ? '<button class="button primary" onclick="logDrill(\'' +
-        x.id +
-        "')\">Log evacuation drill</button>"
-      : '<label class="button primary uploadAction">Upload evidence<input type="file" accept=".pdf,image/*" onchange="uploadEvidence(\'' +
-        x.id +
-        "',this)\" hidden></label>") +
-    "</div>";
-  openModal(modal);
-}
-function openModal(html) {
-  document.getElementById("modalRoot").innerHTML =
-    '<div class="modalShade" onclick="if(event.target===this)closeModal()"><div class="modal">' +
-    html +
-    "</div></div>";
+function openModal(html, size) {
+  let root = document.getElementById("modalRoot");
+  root.innerHTML = '<div class="modalShade" onclick="if(event.target===this)closeModal()"><div class="modal' + (size ? " " + size : "") + '" role="dialog" aria-modal="true">' + html + "</div></div>";
+  if (typeof fillIcons === "function") fillIcons(root);
+  let first = root.querySelector(".closeButton");
+  if (first) first.focus({ preventScroll: true });
 }
 function closeModal() {
   document.getElementById("modalRoot").innerHTML = "";
@@ -1628,6 +1557,7 @@ function markUpdateReviewed() {
     x.risk = "No outstanding review flagged.";
   }
   saved.updateAccepted = false;
+  saved.updateReviewed = true;
   persist();
   render();
   toast("Policy review recorded. Checklist status is current.");
@@ -1724,16 +1654,6 @@ function submitSearch(value) {
 function searchOpen(id) {
   document.getElementById("searchResults").classList.add("hidden");
   openItem(id);
-}
-function openHelp() {
-  openModal(
-    '<div class="modalHead"><div><div class="eyebrow">BEEHIVE QUICK GUIDE</div><h2>Using your owner workspace</h2><p>A quick guide for your centre workflows</p></div><button class="closeButton" onclick="closeModal()">×</button></div><div class="modalSection"><h3>1 · Build your baseline</h3><p>Review AI-suggested checklist items, remove anything that does not apply, then approve your centre baseline.</p></div><div class="modalSection"><h3>2 · Close evidence gaps</h3><p>Open any red or yellow item to see its source and what needs attention. Upload evidence or log a drill to update the status.</p></div><div class="modalSection"><h3>3 · Staff certifications</h3><p>Review certificates, run the demo expiry scan, open the self-service upload preview and approve a submitted renewal.</p></div><div class="modalSection"><h3>4 · Search and export</h3><p>Search for a regulation, record or evidence source from the top bar. Export opens the browser print dialog, where you can save a PDF.</p></div><p class="helpLine">' + (LIVE ? "Signed in to your centre: changes are saved to Beehive and visible to your team." : "Prototype uses local browser storage and sample records. File selection is not uploaded to a secure backend.") + '</p><div class="modalActions"><button class="button primary" onclick="closeModal()">Got it</button></div>',
-  );
-}
-function openSourceInfo() {
-  openModal(
-    '<div class="modalHead"><div><div class="eyebrow">SOURCE & REVIEW</div><h2>Review the official requirements</h2><p>AI suggestions are a starting point for the owner.</p></div><button class="closeButton" onclick="closeModal()">×</button></div><div class="modalSection"><h3>National Regulations</h3><p>Check the current Education and Care Services National Regulations and any state or territory variations before approving checklist items.</p><p style="margin-top:9px"><a href="https://www.acecqa.gov.au/nqf/national-law-regulations/national-regulations" target="_blank" rel="noopener">Open ACECQA National Regulations ↗</a></p></div><div class="modalSection"><h3>National Quality Standard</h3><p>Review the NQS and the quality areas that apply to your service.</p><p style="margin-top:9px"><a href="https://www.acecqa.gov.au/nqf/national-quality-standard" target="_blank" rel="noopener">Open ACECQA NQS ↗</a></p></div><p class="helpLine">This prototype’s checklist wording and regulation references are examples only. Verify the current source text, amendments and jurisdiction-specific rules.</p><div class="modalActions"><button class="button primary" onclick="closeModal()">Close</button></div>',
-  );
 }
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape") {

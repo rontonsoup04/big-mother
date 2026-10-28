@@ -1,4 +1,4 @@
-// Beehive live mode: connects the screens in app.js to Supabase.
+// beehive live mode: connects the screens in app.js to Supabase.
 // app.js keeps working on its own as the offline demo; when someone signs in, LIVE = true
 // and the functions below load real records and save every action to the database.
 const Live = (() => {
@@ -14,9 +14,9 @@ const Live = (() => {
   const CERT_ORDER = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS"];
   const TRIGGER_LABEL = { manual: "Message", incident: "Incident", daily_summary: "Daily summary", medical: "Medical", document_request: "Document request" };
   const DEMO_LOGINS = [
-    { email: "sara@beehive.demo", label: "Sara · owner" },
-    { email: "priya@beehive.demo", label: "Priya · parent" },
-    { email: "mia@beehive.demo", label: "Mia · educator" },
+    { email: "sara@beehive.demo", label: "Sara, owner" },
+    { email: "priya@beehive.demo", label: "Priya, parent" },
+    { email: "mia@beehive.demo", label: "Mia, educator" },
   ];
   let sb = null;
   let children = [];
@@ -83,6 +83,9 @@ const Live = (() => {
 
   // ---------- boot, login, logout ----------
   async function boot() {
+    // An educator's secure upload link works without signing in.
+    if (typeof StaffAgent !== "undefined" && StaffAgent.linkToken()) { client(); StaffAgent.showUploadPage(StaffAgent.linkToken()); return; }
+    if (typeof AuditAgent !== "undefined" && AuditAgent.linkToken()) { client(); AuditAgent.showLinkPage(AuditAgent.linkToken()); return; }
     if (!client()) { offline(); return; }
     let session = null;
     try { session = (await sb.auth.getSession()).data.session; } catch (e) {}
@@ -99,6 +102,8 @@ const Live = (() => {
     LIVE = false;
     hideLogin();
     document.body.classList.remove("educatorMode", "liveMode");
+    if (typeof StaffAgent !== "undefined") StaffAgent.loadOffline();
+    if (typeof AuditAgent !== "undefined") AuditAgent.loadOffline();
     render();
     typeof Assistant !== "undefined" && Assistant.refresh();
   }
@@ -108,17 +113,17 @@ const Live = (() => {
     let root = document.getElementById("authRoot");
     root.innerHTML =
       '<div class="authShade"><div class="authCard">' +
-      '<div class="authBrand"><span class="brandMark">b</span><span><strong>BEEHIVE</strong><small>Audit readiness & family updates</small></span></div>' +
-      "<h1>Sign in</h1><p class=\"muted\">Use your centre account, or one of the demo logins.</p>" +
+      '<div class="authBrand"><span class="brandMark">' + (typeof ICON !== "undefined" ? ICON.brand : "") + '</span><strong>beehive</strong></div>' +
+      "<h1>Sign in</h1><p class=\"muted\">Use your centre account or a demo login.</p>" +
       '<form id="authForm" onsubmit="event.preventDefault();Live.signIn()">' +
       '<label class="formLabel" for="authEmail">Email</label><input class="formControl" id="authEmail" type="email" autocomplete="email" required>' +
       '<label class="formLabel" for="authPassword">Password</label><input class="formControl" id="authPassword" type="password" autocomplete="current-password" required>' +
       '<p class="authError" id="authError">' + (message ? esc(message) : "") + "</p>" +
-      '<button class="button primary authSubmit" id="authSubmit">Sign in →</button></form>' +
-      '<div class="authDemo"><small>DEMO LOGINS · password Beehive2026!</small><div>' +
+      '<button class="button primary authSubmit" id="authSubmit">Sign in</button></form>' +
+      '<div class="authDemo"><small>Demo logins. The password is Beehive2026!</small><div>' +
       DEMO_LOGINS.map((d) => '<button class="button small" onclick="Live.fillDemo(\'' + d.email + "')\">" + d.label + "</button>").join("") +
       "</div></div>" +
-      '<button class="textButton authOffline" onclick="Live.goOffline()">Explore the offline demo instead →</button>' +
+      '<button class="textButton authOffline" onclick="Live.goOffline()">Explore the offline demo instead</button>' +
       "</div></div>";
     root.classList.remove("hidden");
   }
@@ -144,7 +149,7 @@ const Live = (() => {
       await startLive();
     } catch (e) {
       err.textContent = e.message;
-      btn.disabled = false; btn.textContent = "Sign in →";
+      btn.disabled = false; btn.textContent = "Sign in";
     }
   }
   async function signOut() {
@@ -155,6 +160,8 @@ const Live = (() => {
   function goOffline() { offline(); }
   function resetOffline() {
     if (typeof Library !== "undefined") Library.resetOffline();
+    if (typeof StaffAgent !== "undefined") StaffAgent.reset();
+    if (typeof AuditAgent !== "undefined") AuditAgent.reset();
     set("beehive-audit-flow-v2", null);
     location.reload();
   }
@@ -173,7 +180,7 @@ const Live = (() => {
     document.body.classList.toggle("educatorMode", me.role === "educator");
     if (me.role === "parent") { PARENT_NAME = me.full_name || me.email; current = "family"; }
     else { OWNER_NAME = me.full_name || me.email; }
-    await load();
+    await load({ runAgent: true });
     if (me.role === "educator") current = "staff-upload";
     else if (me.role !== "parent") current = approved ? "overview" : "audit";
     if (location.hash === "#upload" && me.role !== "parent") current = "staff-upload";
@@ -183,11 +190,25 @@ const Live = (() => {
     typeof Assistant !== "undefined" && Assistant.refresh();
   }
 
-  async function load() {
+  async function load(opts) {
     if (ME.role === "parent") return loadParent();
+    // The agents: the owner's first load runs both loops (staff first, so the audit agent sees current credentials),
+    // then every load reads their records.
+    let staffRun = null, auditRun = null;
+    if (opts && opts.runAgent && isLeader()) {
+      try { const r = await sb.rpc("run_staff_agent"); staffRun = r.error ? null : r.data; } catch (e) {}
+      if (typeof AuditAgent !== "undefined") auditRun = await AuditAgent.runRemote(true);
+    }
+    const agentP = typeof StaffAgent !== "undefined" ? StaffAgent.loadLive(sb, { staffRun, auditRun, announce: !!staffRun || !!auditRun }) : Promise.resolve();
+    const auditP = typeof AuditAgent !== "undefined" ? AuditAgent.loadLive(sb) : Promise.resolve();
     if (!libraryRequested && typeof Library !== "undefined") { libraryRequested = true; Library.loadFrom(sb); }
     const tasksP = typeof Library !== "undefined" ? Library.loadTasks(sb) : null;
     const leader = isLeader();
+    // Recent activity for the Overview timeline (owner/director can read the audit log).
+    const feedP = leader
+      ? sb.from("audit_log").select("action, entity_id, detail, created_at").order("created_at", { ascending: false }).limit(30)
+          .then((r) => (r.error ? [] : r.data || []), () => [])
+      : Promise.resolve([]);
     const [rows, kids, staffRows, certRows, subs, meds, thread, regs, drafts] = await Promise.all([
       q(sb.from("v_checklist_status").select("*")),
       q(sb.from("children").select("id, first_name, last_name, room, emergency_contact").eq("is_active", true).order("first_name")),
@@ -201,6 +222,7 @@ const Live = (() => {
       q(sb.from("parent_messages").select("*, children(first_name, last_name)").eq("status", "draft").order("created_at")),
     ]);
     children = kids;
+    childIndex = Object.fromEntries(kids.map((k) => [k.id, `${k.first_name} ${k.last_name}`.trim()]));
     const kidName = (id) => { const k = kids.find((x) => x.id === id); return k ? `${k.first_name} ${k.last_name}`.trim() : "Child"; };
 
     // Checklist (approved baseline, or the AI-suggested draft waiting for approval)
@@ -221,6 +243,14 @@ const Live = (() => {
         risk: shorten(r.reason),
         icon: r.icon,
         file: r.evidence_file,
+        hint: r.evidence_hint,
+        kind: r.evidence_kind,
+        months: r.review_months,
+        req: r.req_status ? {
+          status: r.req_status, flags: r.flags || [], priority: r.priority, priorityReason: r.priority_reason, why: r.why, nextAction: r.next_action,
+          reason: r.reason, currentEvidence: r.evidence_text, lastReviewed: r.last_updated, evidenceDate: r.evidence_date, evidenceExpires: r.evidence_expires,
+          pendingEvidenceId: r.pending_evidence_id, openTaskId: r.open_task_id,
+        } : null,
       }));
 
     // Staff certification register
@@ -230,13 +260,13 @@ const Live = (() => {
         const mine = certRows.filter((c) => c.staff_id === s.id);
         const certs = CERT_ORDER.map((code) => {
           const c = mine.find((x) => x.code === code);
-          if (!c) return { type: CERT_LABEL[code], code, expiry: "Not on file", days: -1 };
-          return { type: CERT_LABEL[code], code, certId: c.id, expiry: fmtDate(c.expiry_date), days: c.days_until_expiry, approvedAt: c.verified_at ? fmtDT(c.verified_at) : "" };
+          if (!c) return { type: CERT_LABEL[code], code, expiry: "Not on file", days: -1, missing: true };
+          return { type: CERT_LABEL[code], code, certId: c.id, expiry: fmtDate(c.expiry_date), expiryISO: String(c.expiry_date).slice(0, 10), days: c.days_until_expiry, approvedAt: c.verified_at ? fmtDT(c.verified_at) : "" };
         });
         const states = mine.map((c) => c.alert_state).filter(Boolean);
         const pick = states.find((x) => x.startsWith("Renewal submitted")) || states.find((x) => x.startsWith("Follow up")) ||
           states.find((x) => x.startsWith("Renewal prompt")) || states.find((x) => x.startsWith("Approved")) || "";
-        return { id: s.id, name: s.full_name, initials: initials(s.full_name), role: s.position, room: s.room || "—", alertState: pick, certs };
+        return { id: s.id, userId: s.user_id, name: s.full_name, initials: initials(s.full_name), role: s.position, room: s.room || "—", alertState: pick, certs };
       });
 
     // Certificate waiting for approval
@@ -296,7 +326,7 @@ const Live = (() => {
 
     // Regulation update and AI drafts
     const reg = regs.find((r) => r.status !== "reviewed") || regs[0];
-    regUpdate = reg ? { id: reg.id, title: reg.title, summary: reg.summary, published: fmtDate(reg.published_on).toUpperCase(), status: reg.status, terms: reg.match_terms || [] } : null;
+    regUpdate = reg ? { id: reg.id, title: reg.title, summary: reg.summary, published: fmtDate(reg.published_on), status: reg.status, terms: reg.match_terms || [] } : null;
     saved.updateAccepted = !!(reg && reg.status === "accepted");
     aiDrafts = drafts.map((d) => ({
       id: d.id,
@@ -305,6 +335,10 @@ const Live = (() => {
       body: d.body,
     }));
     if (tasksP) await tasksP;
+    auditFeed = await feedP;
+    await agentP;
+    await auditP;
+    if (typeof StaffAgent !== "undefined" && StaffAgent.active()) pendingSubmission = null;
   }
 
   async function loadParent() {
@@ -312,7 +346,7 @@ const Live = (() => {
     children = kids;
     if (!kids.length) {
       familyMedical = { childName: "your child", room: "Not linked yet", allergies: "", conditions: "", dietary: "", medications: "", notes: "", emergency: "", reviewedAt: "Not yet linked" };
-      familyMessages = [{ from: "centre", text: "Welcome to Beehive. The centre will link your account to your child shortly.", time: "" }];
+      familyMessages = [{ from: "centre", text: "Welcome to beehive. The centre will link your account to your child shortly.", time: "" }];
       medicalSubmission = null;
       return;
     }
@@ -358,6 +392,10 @@ const Live = (() => {
   }
 
   // ---------- realtime: owner sees parent updates, parent sees replies, without refreshing ----------
+  // Coming back to the tab (for example after opening an educator's upload link) refreshes the agent's view.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && LIVE && ME && isLeader() && !document.querySelector(".modalShade")) reload().catch(() => {});
+  });
   function startRealtime() {
     stopRealtime();
     const bump = () => {
@@ -376,8 +414,10 @@ const Live = (() => {
     const titles = [...document.querySelectorAll('.checkRow input[type="checkbox"]:checked')].map((x) => x.getAttribute("aria-label").replace(/^Include /, ""));
     if (titles.length < 4) return toast("Keep at least four items in your centre baseline.");
     const ids = items.filter((x) => titles.includes(x.title)).map((x) => x.id);
-    await busy(() => q(sb.rpc("approve_checklist_selection", { p_keep: ids })), "Checklist approved. Your centre baseline is ready.");
-    await reload("audit");
+    await busy(() => q(sb.rpc("approve_checklist_selection", { p_keep: ids })), "Checklist approved. beehive is checking every requirement now.");
+    await load({ runAgent: true });
+    current = "audit";
+    render();
   }
   async function editBaseline() {
     await busy(() => q(sb.rpc("reopen_checklist")), "Edit the selected items, then approve the baseline again.");
@@ -385,6 +425,7 @@ const Live = (() => {
   }
   async function uploadEvidence(id, input) {
     if (!input.files || !input.files.length) return;
+    if (typeof AuditAgent !== "undefined" && AuditAgent.active()) return AuditAgent.fileChosen(input.files[0], id);
     const file = input.files[0];
     await busy(async () => {
       const path = await upload("evidence", file);
@@ -394,6 +435,7 @@ const Live = (() => {
     await reload();
   }
   async function logDrill(id) {
+    if (typeof AuditAgent !== "undefined" && AuditAgent.active()) return AuditAgent.openDrillForm(id);
     await busy(() => q(sb.from("evidence").insert({ centre_id: ME.centre.id, checklist_item_id: id, title: "Evacuation drill logged", recorded_on: todayISO(), uploaded_by: ME.id })),
       "Drill logged. The readiness score updated and a timestamp was recorded.");
     closeModal();
@@ -421,7 +463,7 @@ const Live = (() => {
   }
   async function runExpiryCheck() {
     const r = await busy(() => q(sb.rpc("run_expiry_check")),
-      (r) => `Expiry check complete · ${r.sent} reminder${r.sent === 1 ? "" : "s"} sent to ${r.staff} staff for the 60, 30 and 7 day windows. (Email/SMS delivery is simulated.)`);
+      (r) => `Expiry check complete. ${r.sent} reminder${r.sent === 1 ? "" : "s"} sent to ${r.staff} staff (email and SMS are simulated).`);
     await reload();
     return r;
   }
@@ -506,10 +548,18 @@ const Live = (() => {
     if (!text) return toast("The message is empty.");
     await busy(() => q(sb.rpc("approve_parent_message", { p_message: id, p_body: text, p_channel: null })), "Approved and sent to the family.");
     await reload();
+    refreshDraftsDrawer();
+  }
+  // Keep the drafts panel in step: show what's left, or close it when nothing is.
+  function refreshDraftsDrawer() {
+    if (!document.querySelector("#modalRoot .modal")) return;
+    closeModal();
+    if (aiDrafts.length && typeof openDraftsDrawer === "function") openDraftsDrawer();
   }
   async function discardDraft(id) {
     await busy(() => q(sb.from("parent_messages").update({ status: "cancelled" }).eq("id", id)), "Draft discarded.");
     await reload();
+    refreshDraftsDrawer();
   }
   async function createDraft(childId, body, note, trigger) {
     const row = await q(sb.from("parent_messages").insert({
@@ -535,8 +585,8 @@ const Live = (() => {
         '<button class="resultClose" aria-label="Close search results" onclick="event.stopPropagation();document.getElementById(\'searchResults\').classList.add(\'hidden\')">×</button></div>' +
         (lastResults.length
           ? lastResults.slice(0, 8).map((r, i) =>
-              '<button class="searchResult" onclick="Live.openResult(' + i + ')"><b>' + esc(r.title) + "</b><small>" + esc(label[r.kind] || r.kind) + " · " + esc(status(r.status)) +
-              " · " + esc(r.detail || "") + (r.last_updated ? " · updated " + esc(fmtDate(r.last_updated)) : "") + "</small></button>").join("")
+              '<button class="searchResult" onclick="Live.openResult(' + i + ')"><b>' + esc(r.title) + "</b><small>" + esc(label[r.kind] || r.kind) + ", " + esc(status(r.status)) +
+              ", " + esc(r.detail || "") + (r.last_updated ? ", updated " + esc(fmtDate(r.last_updated)) : "") + "</small></button>").join("")
           : '<div class="emptyState">Try “WWCC”, “incident records”, “first aid” or “policy”.</div>') +
         (typeof Library !== "undefined" ? Library.searchHtml(text) : "");
       box.classList.remove("hidden");
@@ -548,8 +598,8 @@ const Live = (() => {
     if (!r) return;
     if (r.kind === "checklist") return openItem(r.ref_id);
     openModal(
-      '<div class="modalHead"><div><div class="eyebrow">SPOT CHECK · ' + esc(r.kind.toUpperCase()) + "</div><h2>" + esc(r.title) +
-      '</h2><p>Ready to show an authorised officer</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalHead"><div><h2>' + esc(r.title) +
+      '</h2><p>Spot check record, ready to show an authorised officer</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<div class="modalMeta"><span>Details</span><b>' + esc(r.detail || "") + '</b></div><div class="modalMeta"><span>Status</span><b>' + esc(r.status) +
       '</b></div><div class="modalMeta"><span>Last updated</span><b>' + esc(r.last_updated ? fmtDT(r.last_updated) : "—") + "</b></div>" +
       '<div class="modalActions"><button class="button" onclick="closeModal()">Close</button>' +
@@ -562,6 +612,6 @@ const Live = (() => {
     completeTask, approveChecklist, editBaseline, uploadEvidence, logDrill, acceptUpdate, markUpdateReviewed, runExpiryCheck,
     submitCertificate, approveCertificate, submitFamilyUpdate, sendFamilyMessage, sendOwnerReply, acknowledgeFamilyUpdate,
     approveDraft, discardDraft, createDraft, searchEvidence, openResult,
-    client: () => sb, config: cfg, q, explain, todayISO,
+    client: () => client(), config: cfg, q, explain, todayISO, signedUrl,
   };
 })();

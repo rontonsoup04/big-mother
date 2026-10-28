@@ -1,5 +1,5 @@
-// Beehive AI assistant.
-// - If config.copilotTokenEndpoint is set, "Ask Beehive" opens the Copilot Studio agent
+// beehive AI assistant.
+// - If config.copilotTokenEndpoint is set, "Ask beehive" opens the Copilot Studio agent
 //   (Beehive Audit Assistant) inside the app, and "Draft with AI" asks the agent to write
 //   parent messages over Direct Line.
 // - Otherwise a built-in assistant answers from the centre's own records (no AI model),
@@ -32,8 +32,8 @@ const Assistant = (() => {
   function renderPanel() {
     const panel = document.getElementById("assistantPanel");
     const head =
-      '<div class="assistantHead"><span class="assistantMark">✦</span><div><b>Ask Beehive</b><small>' +
-      (connected() ? "Beehive Audit Assistant · Copilot Studio" : "Built-in assistant · answers from your records") +
+      '<div class="assistantHead"><span class="assistantMark">✦</span><div><b>Ask beehive</b><small>' +
+      (connected() ? "Audit assistant in Copilot Studio" : "Answers from your centre’s records") +
       '</small></div><button class="closeButton" aria-label="Close assistant" onclick="Assistant.toggle(false)">×</button></div>';
     if (connected()) {
       panel.innerHTML = head + '<div id="webchat" class="webchat" role="log"><div class="assistantLoading">Connecting to your agent…</div></div>';
@@ -44,7 +44,7 @@ const Assistant = (() => {
       });
       return;
     }
-    const chips = ["What should I fix first?", "What compliance is overdue?", "What does the law say about sleep?", "Show the WWCC register", "Which certificates expire soon?", "Draft a message to a family"];
+    const chips = ["What is stopping us from being audit ready?", "What should I fix first?", "What compliance is overdue?", "What does the law say about sleep?", "Show the WWCC register", "Which certificates expire soon?", "Draft a message to a family"];
     panel.innerHTML =
       head +
       '<div class="assistantBody" id="assistantBody">' +
@@ -54,8 +54,8 @@ const Assistant = (() => {
       '</div><div class="assistantChips">' +
       chips.map((c) => '<button class="chip" onclick="Assistant.ask(\'' + c.replace(/'/g, "\\'") + "')\">" + c + "</button>").join("") +
       '</div><form class="assistantInput" onsubmit="event.preventDefault();Assistant.ask(document.getElementById(\'assistantText\').value)">' +
-      '<input id="assistantText" type="text" placeholder="Ask about readiness, staff or a record…" autocomplete="off" aria-label="Ask Beehive"><button class="button primary small">Ask</button></form>' +
-      '<p class="assistantFoot">' + (LIVE ? "" : "Offline demo data. ") + "Connect your Copilot Studio agent in Account → Connect AI agent.</p>";
+      '<input id="assistantText" type="text" placeholder="Ask about readiness, staff or a record…" autocomplete="off" aria-label="Ask beehive"><button class="button primary small">Ask</button></form>' +
+      '<p class="assistantFoot">' + (LIVE ? "" : "Offline demo data. ") + "To use your Copilot Studio agent, open your account menu and choose Connect AI agent.</p>";
     const body = document.getElementById("assistantBody");
     body.scrollTop = body.scrollHeight;
   }
@@ -104,7 +104,7 @@ const Assistant = (() => {
       convId = conv.conversationId;
     }
     const sent = await (await fetch(`${base}/${convId}/activities`, {
-      method: "POST", headers: auth, body: JSON.stringify({ type: "message", from: { id: "beehive-app", name: "Beehive app" }, text, locale: "en-AU" }),
+      method: "POST", headers: auth, body: JSON.stringify({ type: "message", from: { id: "beehive-app", name: "beehive app" }, text, locale: "en-AU" }),
     })).json();
     let watermark = "";
     const started = Date.now();
@@ -184,18 +184,21 @@ const Assistant = (() => {
     const ql = qtext.toLowerCase();
     try {
       const guide = /law|regulat|requir|comply|complian|guidance|official|what does|how do (i|we)|rule/.test(ql) ? findGuide(ql) : null;
-      if (guide) {
+      const blockerQ = /stopping|blocking|holding .*back|audit.?ready|not ready|fix first|gap|priorit|readiness/.test(ql);
+      if (blockerQ && typeof AuditAgent !== "undefined" && AuditAgent.active() && approved) {
+        answer = AuditAgent.blockersAnswer();
+      } else if (guide) {
         answer = "<b>" + esc(guide.title) + "</b> <small>(" + esc(guide.source_ref) + ")</small><br>" + esc(guide.summary) +
           "<ul>" + guide.directions.slice(0, 3).map((d) => "<li>" + esc(d) + "</li>").join("") + "</ul>" +
           "Official source: " + (guide.documents || []).slice(0, 2).map((d) => '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.title) + " ↗</a>").join(" · ") +
-          '<br><button class="textButton" onclick="Assistant.toggle(false);Library.focus(\'' + guide.item_key + '\')">All steps in the compliance library →</button>' +
+          '<br><button class="textButton" onclick="Assistant.toggle(false);Library.focus(\'' + guide.item_key + '\')">All steps in the compliance library</button>' +
           "<br><small>Guidance only, not legal advice. Confirm with ACECQA or the NSW Early Learning Commission.</small>";
       } else if (/overdue|compliance|due (this|soon|next)|policy review|drill/.test(ql) && typeof Library !== "undefined") {
         const ts = Library.taskList().filter((t) => t.state === "overdue" || t.state === "due_soon");
         answer = ts.length
           ? "These compliance tasks need attention:<ul>" + ts.map((t) => "<li><b>" + esc(t.title) + "</b> <span class=\"status " + (t.state === "overdue" ? "red" : "yellow") + "\">" +
               (t.state === "overdue" ? "Overdue by " + -t.days + " days" : t.days === 0 ? "Due today" : "Due in " + t.days + " days") + "</span><br><small>" + esc(t.regulation_reference || "") + "</small></li>").join("") +
-            '</ul><button class="textButton" onclick="Assistant.toggle(false);go(\'compliance\')">Open the compliance register →</button>'
+            '</ul><button class="textButton" onclick="Assistant.toggle(false);go(\'compliance\')">Open the compliance register</button>'
           : "No compliance tasks are overdue or due in the next 14 days.";
       } else if (/fix|first|gap|priorit|ready|readiness|score/.test(ql)) {
         const gaps = items.filter((x) => x.status !== "green").sort((a, b) => (a.status === "red" ? 0 : 1) - (b.status === "red" ? 0 : 1));
@@ -203,7 +206,7 @@ const Assistant = (() => {
           ? "You’re <b>" + readinessScore() + "% audit-ready</b>. " + (gaps.length ? "Start with these:<ul>" + gaps.slice(0, 4).map(itemLine).join("") + "</ul>" : "Nothing needs attention right now.")
           : "Your checklist is still a draft. Review it in <b>Audit readiness</b> and approve it, then I can score your readiness.";
       } else if (/draft|message|write|tell .*(parent|family)/.test(ql)) {
-        answer = "Open a family conversation from <b>Overview → Open & reply</b>, type a short note (e.g. “ate all lunch, loved painting”) and tap <b>✦ Draft with AI</b>. You review the draft before it’s sent.";
+        answer = "On the Overview, choose <b>Reply</b> next to a family message, type a short note (for example “ate all lunch, loved painting”) and choose <b>Draft with AI</b>. You review the draft before it’s sent.";
         if (LIVE && aiDrafts.length) answer += "<br><br>There " + (aiDrafts.length === 1 ? "is 1 AI draft" : "are " + aiDrafts.length + " AI drafts") + " waiting for your approval on the Overview page.";
       } else if (/expir|certif|first aid|cpr|anaphyl|renew/.test(ql) && !/wwcc|register/.test(ql)) {
         const due = [];
@@ -237,11 +240,11 @@ const Assistant = (() => {
   function openConnect() {
     const url = (cfg.supabaseUrl || "").replace(/\/$/, "");
     openModal(
-      '<div class="modalHead"><div><div class="eyebrow">✦ AI AGENT</div><h2>Connect your Copilot Studio agent</h2><p>Lets the Beehive Audit Assistant read your readiness, search records and draft parent messages for approval.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<div class="modalSection"><h3>1 · Create an agent key</h3><p>The key lets the agent read this centre’s records. It’s shown once. Creating a new key stops the old one working.</p>' +
+      '<div class="modalHead"><div><h2>Connect your Copilot Studio agent</h2><p>Lets the agent read your readiness, search records and draft parent messages for you to approve.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalSection"><h3>1. Create an agent key</h3><p>The key lets the agent read this centre’s records. It’s shown once. Creating a new key stops the old one working.</p>' +
       '<div class="modalActions" style="justify-content:flex-start"><button class="button primary" onclick="Assistant.createKey()">Create agent key</button></div><div id="agentKeyOut"></div></div>' +
-      '<div class="modalSection"><h3>2 · Add the Beehive tool in Copilot Studio</h3><p>In your agent: <b>Tools → Add a tool → REST API</b>, upload <code>docs/copilot-studio/beehive-agent-openapi.json</code> from the repo (paste your key where it says PASTE_AGENT_KEY_HERE). Authentication: <b>API key</b>, header <code>apikey</code>, value:</p><p><code class="copyable">' + esc(cfg.supabaseKey || "") + "</code></p><p>Server: <code>" + esc(url) + "</code></p></div>" +
-      '<div class="modalSection"><h3>3 · Show the agent inside Beehive</h3><p>Publish the agent, then <b>Channels → Mobile app</b> → copy the <b>Token endpoint</b> into <code>beehive-demo/config.js</code> as <code>copilotTokenEndpoint</code>. “Ask Beehive” and “Draft with AI” will then use your agent.</p>' +
+      '<div class="modalSection"><h3>2. Add the beehive tool in Copilot Studio</h3><p>In your agent, go to <b>Tools</b>, <b>Add a tool</b>, <b>REST API</b>, upload <code>docs/copilot-studio/beehive-agent-openapi.json</code> from the repo (paste your key where it says PASTE_AGENT_KEY_HERE). Authentication: <b>API key</b>, header <code>apikey</code>, value:</p><p><code class="copyable">' + esc(cfg.supabaseKey || "") + "</code></p><p>Server: <code>" + esc(url) + "</code></p></div>" +
+      '<div class="modalSection"><h3>3. Show the agent inside beehive</h3><p>Publish the agent, then open <b>Channels</b>, <b>Mobile app</b> and copy the <b>Token endpoint</b> into <code>beehive-demo/config.js</code> as <code>copilotTokenEndpoint</code>. “Ask beehive” and “Draft with AI” will then use your agent.</p>' +
       '<p>Status: <b>' + (connected() ? "Connected to Copilot Studio" : "Not connected yet (using the built-in assistant)") + "</b></p></div>" +
       '<div class="modalActions"><button class="button" onclick="closeModal()">Done</button></div>'
     );
