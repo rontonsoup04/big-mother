@@ -59,7 +59,7 @@ begin
     ('Fire equipment service',                       array[140],       40, 'Extinguishers and blankets serviced by contractor'),
     ('Medical conditions policy review',             array[300],       65, 'Reviewed with families of children with action plans'),
     ('Sun protection policy review',                 array[355],       10, 'Checked against ACECQA guidelines'),
-    ('Sleep and rest policy review',                 array[380],      -15, 'Annual review'),
+    ('Sleep and rest policy review',                 array[210],      155, 'Annual review and risk assessment'),
     ('Quality Improvement Plan review',              array[200],      165, 'QA2 and QA7 goals updated'),
     ('Staff record and responsible person register', array[26, 57],     4, 'Register checked against roster'),
     ('Excursion risk assessments up to date',        array[]::int[],   21, '')
@@ -194,6 +194,22 @@ begin
 
   -- ---------- AI-suggested checklist, waiting for Sara to approve ----------
   perform public._generate_checklist(c_centre);
+
+  -- ---------- audit evidence already on file (verified by Sara) ----------
+  -- Evacuation drill is out of date (quarterly, last one 100 days ago) and authorisation records are missing:
+  -- the audit agent picks both up once Sara approves the checklist. Sun protection policy is due for renewal soon.
+  alter table public.evidence disable trigger evidence_completes_rehearsal;
+  insert into public.evidence (centre_id, checklist_item_id, title, recorded_on, uploaded_by, status, verified_by, verified_at, source, note, created_at)
+  select c_centre, ci.id, e.title, current_date - e.days, u_sara, 'verified', u_sara, now() - make_interval(days => e.days - 1), 'seed', 'Demo record', now() - make_interval(days => e.days)
+  from (values
+    ('evacuation', 'Evacuation drill: all rooms, 4 min 10 s', 100),
+    ('premises',   'Weekly premises and playground safety checklist', 5),
+    ('emergency',  'Emergency procedures, contacts and floor plan (displayed)', 150),
+    ('sun',        'Sun Protection Policy (reviewed)', 345),
+    ('sleep',      'Sleep and Rest Policy and risk assessment', 210)
+  ) as e(item_key, title, days)
+  join public.checklist_items ci on ci.centre_id = c_centre and ci.item_key = e.item_key and ci.is_active;
+  alter table public.evidence enable trigger evidence_completes_rehearsal;
 
   -- ---------- AI agent key for Copilot Studio ----------
   insert into public.agent_keys (centre_id, key_hash, created_by)

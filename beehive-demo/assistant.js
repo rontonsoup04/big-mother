@@ -44,7 +44,7 @@ const Assistant = (() => {
       });
       return;
     }
-    const chips = ["What should I fix first?", "What compliance is overdue?", "What does the law say about sleep?", "Show the WWCC register", "Which certificates expire soon?", "Draft a message to a family"];
+    const chips = ["What is stopping us from being audit ready?", "What should I fix first?", "What compliance is overdue?", "What does the law say about sleep?", "Show the WWCC register", "Which certificates expire soon?", "Draft a message to a family"];
     panel.innerHTML =
       head +
       '<div class="assistantBody" id="assistantBody">' +
@@ -184,7 +184,10 @@ const Assistant = (() => {
     const ql = qtext.toLowerCase();
     try {
       const guide = /law|regulat|requir|comply|complian|guidance|official|what does|how do (i|we)|rule/.test(ql) ? findGuide(ql) : null;
-      if (guide) {
+      const blockerQ = /stopping|blocking|holding .*back|audit.?ready|not ready|fix first|gap|priorit|readiness/.test(ql);
+      if (blockerQ && typeof AuditAgent !== "undefined" && AuditAgent.active() && approved) {
+        answer = AuditAgent.blockersAnswer();
+      } else if (guide) {
         answer = "<b>" + esc(guide.title) + "</b> <small>(" + esc(guide.source_ref) + ")</small><br>" + esc(guide.summary) +
           "<ul>" + guide.directions.slice(0, 3).map((d) => "<li>" + esc(d) + "</li>").join("") + "</ul>" +
           "Official source: " + (guide.documents || []).slice(0, 2).map((d) => '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.title) + " ↗</a>").join(" · ") +

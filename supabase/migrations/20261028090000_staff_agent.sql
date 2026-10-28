@@ -180,13 +180,13 @@ begin
                            else 'Please upload your ' || ct.name || ' again' end;
   v_body := 'Hi ' || v_first || ', ' ||
     case p_kind
-      when 'request' then case when t.expiry_date is null then 'we don''t have a ' || ct.name || ' on file for you.'
+      when 'request' then case when t.expiry_date is null then 'we don’t have a ' || ct.name || ' on file for you.'
                                when t.expiry_date < current_date then 'your ' || ct.name || ' expired on ' || _fmt_date(t.expiry_date) || '.'
                                else 'your ' || ct.name || ' expires on ' || _fmt_date(t.expiry_date) || '.' end ||
                           ' Please upload your renewed certificate ' ||
                           case when t.expiry_date >= current_date then 'before it expires' else v_deadline end || ' using your secure link.'
-      when 'follow_up' then 'we haven''t received your renewed ' || ct.name || ' yet. Please upload it ' || v_deadline || ' using your secure link.'
-      else 'we couldn''t accept the certificate you uploaded' || case when p_note <> '' then ' (' || p_note || ')' else '' end ||
+      when 'follow_up' then 'we haven’t received your renewed ' || ct.name || ' yet. Please upload it ' || v_deadline || ' using your secure link.'
+      else 'we couldn’t accept the certificate you uploaded' || case when p_note <> '' then ' (' || p_note || ')' else '' end ||
            '. Please upload a clear copy of your current ' || ct.name || ' using your secure link.'
     end || ' Thanks, ' || split_part(v_owner, ' ', 1) || ', ' || c.name || '.';
   v_next := current_date + _follow_up_days(t.priority);
@@ -292,7 +292,7 @@ begin
       n_requests := n_requests + 1;
       select * into t from credential_tasks where id = t.id;
       if coalesce(r.email, '') = '' and coalesce(r.phone, '') = '' and t.escalated_at is null then
-        perform _escalate(t.id, 'No email or mobile number on file, so ' || split_part(r.full_name, ' ', 1) || ' can''t be contacted.',
+        perform _escalate(t.id, 'No email or mobile number on file, so ' || split_part(r.full_name, ' ', 1) || ' can’t be contacted.',
           'Add contact details to the staff record, or give ' || split_part(r.full_name, ' ', 1) || ' the upload link in person.');
         n_escalated := n_escalated + 1;
       end if;
@@ -310,13 +310,13 @@ begin
           case when r.cert_id is null then split_part(r.full_name, ' ', 1) || ' has no ' || r.type_name || ' on file.'
                else split_part(r.full_name, ' ', 1) || '''s ' || r.type_name || ' expired on ' || _fmt_date(r.expiry_date) || '.' end,
           case r.code
-            when 'WWCC' then 'Stop ' || split_part(r.full_name, ' ', 1) || ' working with children until a current Check is verified with the Office of the Children''s Guardian.'
-            when 'FIRST_AID' then 'Don''t count ' || split_part(r.full_name, ' ', 1) || ' towards first aid cover (Reg. 136). Check the roster has another qualified educator on every shift.'
-            when 'CPR' then 'Don''t count ' || split_part(r.full_name, ' ', 1) || ' towards first aid cover until CPR is renewed. Check the roster.'
+            when 'WWCC' then 'Stop ' || split_part(r.full_name, ' ', 1) || ' working with children until a current Check is verified with the Office of the Children’s Guardian.'
+            when 'FIRST_AID' then 'Don’t count ' || split_part(r.full_name, ' ', 1) || ' towards first aid cover (Reg. 136). Check the roster has another qualified educator on every shift.'
+            when 'CPR' then 'Don’t count ' || split_part(r.full_name, ' ', 1) || ' towards first aid cover until CPR is renewed. Check the roster.'
             else 'Make sure another educator with current anaphylaxis training is on every shift until ' || split_part(r.full_name, ' ', 1) || ' renews.' end);
         n_escalated := n_escalated + 1;
       elsif t.requests_sent >= 3 then
-        perform _escalate(t.id, split_part(r.full_name, ' ', 1) || ' hasn''t responded to ' || t.requests_sent || ' requests.',
+        perform _escalate(t.id, split_part(r.full_name, ' ', 1) || ' hasn’t responded to ' || t.requests_sent || ' requests.',
           'Speak to ' || split_part(r.full_name, ' ', 1) || ' directly and agree a date to renew.');
         n_escalated := n_escalated + 1;
       end if;
@@ -392,7 +392,7 @@ begin
 
   if not v_readable then
     v_checks := v_checks || jsonb_build_object('field', 'document', 'issue', 'unreadable',
-      'message', 'beehive couldn''t read any text on this file. Check it’s a clear photo or PDF of the right certificate.');
+      'message', 'beehive couldn’t read any text on this file. Check it’s a clear photo or PDF of the right certificate.');
   else
     if v_ex_name is null then
       v_checks := v_checks || jsonb_build_object('field', 'name', 'issue', 'missing', 'message', 'No name found on the certificate.');
@@ -403,11 +403,11 @@ begin
       end loop;
       if not v_ok then
         v_checks := v_checks || jsonb_build_object('field', 'name', 'issue', 'mismatch',
-          'message', 'The name on the certificate (' || v_ex_name || ') doesn''t match ' || p_staff.full_name || '.');
+          'message', 'The name on the certificate (' || v_ex_name || ') doesn’t match ' || p_staff.full_name || '.');
       end if;
     end if;
     if v_ex_type is null then
-      v_checks := v_checks || jsonb_build_object('field', 'type', 'issue', 'missing', 'message', 'Couldn''t tell which credential this is.');
+      v_checks := v_checks || jsonb_build_object('field', 'type', 'issue', 'missing', 'message', 'Couldn’t tell which credential this is.');
     elsif v_ex_type <> p_type.code then
       v_checks := v_checks || jsonb_build_object('field', 'type', 'issue', 'mismatch',
         'message', 'This looks like a ' || coalesce((select name from certificate_types where code = v_ex_type), v_ex_type) || ', not a ' || p_type.name || '.');
@@ -419,14 +419,14 @@ begin
         v_checks := v_checks || jsonb_build_object('field', 'expiry_date', 'issue', 'expired', 'message', 'The certificate expired on ' || _fmt_date(v_ex_expiry) || '.');
       elsif v_cur is not null and v_ex_expiry <= v_cur then
         v_checks := v_checks || jsonb_build_object('field', 'expiry_date', 'issue', 'not_newer',
-          'message', 'The expiry date (' || _fmt_date(v_ex_expiry) || ') isn''t later than the one on file (' || _fmt_date(v_cur) || '). This may be the old certificate.');
+          'message', 'The expiry date (' || _fmt_date(v_ex_expiry) || ') isn’t later than the one on file (' || _fmt_date(v_cur) || '). This may be the old certificate.');
       end if;
       if p_expiry is not null and p_expiry <> v_ex_expiry then
         v_checks := v_checks || jsonb_build_object('field', 'expiry_date', 'issue', 'differs',
           'message', 'The date entered (' || _fmt_date(p_expiry) || ') differs from the date read from the certificate (' || _fmt_date(v_ex_expiry) || ').');
       end if;
     end if;
-    if v_ex_issue is not null and v_ex_issue > current_date then
+    if v_ex_issue is not null and v_ex_issue > (now() at time zone 'Australia/Sydney')::date then
       v_checks := v_checks || jsonb_build_object('field', 'issue_date', 'issue', 'future', 'message', 'The issue date is in the future.');
     end if;
   end if;
@@ -539,7 +539,7 @@ begin
   if p_approve then
     v_expiry := coalesce(p_expiry, v_sub.expiry_date);
     if v_expiry is null then raise exception 'Enter the expiry date before approving.'; end if;
-    if v_expiry < current_date then raise exception 'That expiry date has already passed, so the certificate can''t be approved.'; end if;
+    if v_expiry < current_date then raise exception 'That expiry date has already passed, so the certificate can’t be approved.'; end if;
     select id into v_cert from staff_certificates where staff_id = v_sub.staff_id and certificate_type_id = v_sub.certificate_type_id
       order by expiry_date desc nulls last limit 1;
     if v_cert is null then
@@ -592,7 +592,7 @@ begin
   if not is_leader() then raise exception 'Only the owner or director can do this'; end if;
   select * into t from credential_tasks where id = p_task and centre_id = my_centre_id();
   if not found then raise exception 'Task not found'; end if;
-  if t.escalated_at is null or t.escalation_ack_at is not null then raise exception 'There''s nothing to acknowledge on this task.'; end if;
+  if t.escalated_at is null or t.escalation_ack_at is not null then raise exception 'There’s nothing to acknowledge on this task.'; end if;
   update credential_tasks set escalation_ack_at = now(),
     state = case when exists (select 1 from certificate_submissions cs where cs.task_id = t.id and cs.status = 'pending') then 'owner_review'
                  when requests_sent > 0 then 'waiting' else 'monitoring' end,

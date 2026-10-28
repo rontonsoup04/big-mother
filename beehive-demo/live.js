@@ -85,6 +85,7 @@ const Live = (() => {
   async function boot() {
     // An educator's secure upload link works without signing in.
     if (typeof StaffAgent !== "undefined" && StaffAgent.linkToken()) { client(); StaffAgent.showUploadPage(StaffAgent.linkToken()); return; }
+    if (typeof AuditAgent !== "undefined" && AuditAgent.linkToken()) { client(); AuditAgent.showLinkPage(AuditAgent.linkToken()); return; }
     if (!client()) { offline(); return; }
     let session = null;
     try { session = (await sb.auth.getSession()).data.session; } catch (e) {}
@@ -102,6 +103,7 @@ const Live = (() => {
     hideLogin();
     document.body.classList.remove("educatorMode", "liveMode");
     if (typeof StaffAgent !== "undefined") StaffAgent.loadOffline();
+    if (typeof AuditAgent !== "undefined") AuditAgent.loadOffline();
     render();
     typeof Assistant !== "undefined" && Assistant.refresh();
   }
@@ -159,6 +161,7 @@ const Live = (() => {
   function resetOffline() {
     if (typeof Library !== "undefined") Library.resetOffline();
     if (typeof StaffAgent !== "undefined") StaffAgent.reset();
+    if (typeof AuditAgent !== "undefined") AuditAgent.reset();
     set("beehive-audit-flow-v2", null);
     location.reload();
   }
@@ -189,8 +192,15 @@ const Live = (() => {
 
   async function load(opts) {
     if (ME.role === "parent") return loadParent();
-    // The staff compliance agent: the owner's first load runs the loop, every load reads its records.
-    const agentP = typeof StaffAgent !== "undefined" ? StaffAgent.loadLive(sb, { run: !!(opts && opts.runAgent), announce: !!(opts && opts.runAgent) }) : Promise.resolve();
+    // The agents: the owner's first load runs both loops (staff first, so the audit agent sees current credentials),
+    // then every load reads their records.
+    let staffRun = null, auditRun = null;
+    if (opts && opts.runAgent && isLeader()) {
+      try { const r = await sb.rpc("run_staff_agent"); staffRun = r.error ? null : r.data; } catch (e) {}
+      if (typeof AuditAgent !== "undefined") auditRun = await AuditAgent.runRemote(true);
+    }
+    const agentP = typeof StaffAgent !== "undefined" ? StaffAgent.loadLive(sb, { staffRun, auditRun, announce: !!staffRun || !!auditRun }) : Promise.resolve();
+    const auditP = typeof AuditAgent !== "undefined" ? AuditAgent.loadLive(sb) : Promise.resolve();
     if (!libraryRequested && typeof Library !== "undefined") { libraryRequested = true; Library.loadFrom(sb); }
     const tasksP = typeof Library !== "undefined" ? Library.loadTasks(sb) : null;
     const leader = isLeader();
@@ -233,6 +243,14 @@ const Live = (() => {
         risk: shorten(r.reason),
         icon: r.icon,
         file: r.evidence_file,
+        hint: r.evidence_hint,
+        kind: r.evidence_kind,
+        months: r.review_months,
+        req: r.req_status ? {
+          status: r.req_status, flags: r.flags || [], priority: r.priority, priorityReason: r.priority_reason, why: r.why, nextAction: r.next_action,
+          reason: r.reason, currentEvidence: r.evidence_text, lastReviewed: r.last_updated, evidenceDate: r.evidence_date, evidenceExpires: r.evidence_expires,
+          pendingEvidenceId: r.pending_evidence_id, openTaskId: r.open_task_id,
+        } : null,
       }));
 
     // Staff certification register
@@ -319,6 +337,7 @@ const Live = (() => {
     if (tasksP) await tasksP;
     auditFeed = await feedP;
     await agentP;
+    await auditP;
     if (typeof StaffAgent !== "undefined" && StaffAgent.active()) pendingSubmission = null;
   }
 
@@ -395,8 +414,10 @@ const Live = (() => {
     const titles = [...document.querySelectorAll('.checkRow input[type="checkbox"]:checked')].map((x) => x.getAttribute("aria-label").replace(/^Include /, ""));
     if (titles.length < 4) return toast("Keep at least four items in your centre baseline.");
     const ids = items.filter((x) => titles.includes(x.title)).map((x) => x.id);
-    await busy(() => q(sb.rpc("approve_checklist_selection", { p_keep: ids })), "Checklist approved. Your centre baseline is ready.");
-    await reload("audit");
+    await busy(() => q(sb.rpc("approve_checklist_selection", { p_keep: ids })), "Checklist approved. beehive is checking every requirement now.");
+    await load({ runAgent: true });
+    current = "audit";
+    render();
   }
   async function editBaseline() {
     await busy(() => q(sb.rpc("reopen_checklist")), "Edit the selected items, then approve the baseline again.");
@@ -404,6 +425,7 @@ const Live = (() => {
   }
   async function uploadEvidence(id, input) {
     if (!input.files || !input.files.length) return;
+    if (typeof AuditAgent !== "undefined" && AuditAgent.active()) return AuditAgent.fileChosen(input.files[0], id);
     const file = input.files[0];
     await busy(async () => {
       const path = await upload("evidence", file);
@@ -413,6 +435,7 @@ const Live = (() => {
     await reload();
   }
   async function logDrill(id) {
+    if (typeof AuditAgent !== "undefined" && AuditAgent.active()) return AuditAgent.openDrillForm(id);
     await busy(() => q(sb.from("evidence").insert({ centre_id: ME.centre.id, checklist_item_id: id, title: "Evacuation drill logged", recorded_on: todayISO(), uploaded_by: ME.id })),
       "Drill logged. The readiness score updated and a timestamp was recorded.");
     closeModal();

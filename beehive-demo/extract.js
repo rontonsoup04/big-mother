@@ -193,7 +193,7 @@ const Extract = (() => {
     if (r.error) { fields.readable = false; fields.uncertain.push(r.error); }
     fields.excerpt = String(r.text || "").replace(/\s+/g, " ").trim().slice(0, 400);
     if (file.__demo) fields.demo = true;
-    return { hash, dataUrl, fields };
+    return { hash, dataUrl, fields, text: r.text || "" };
   }
 
   // ---------- sample certificates for the demo (clearly marked as not real) ----------
@@ -238,5 +238,5 @@ const Extract = (() => {
     return file;
   }
 
-  return { analyse, parse, sample, read, TYPE_NAMES };
+  return { analyse, parse, sample, read, TYPE_NAMES, dates: findDates, labelled };
 })();

@@ -412,7 +412,7 @@ function statusLabel(s) {
 function readiness() {
   if (!items.length) return 0;
   let score = items.reduce(
-    (n, x) => n + (x.status === "green" ? 1 : x.status === "yellow" ? 0.8 : 0),
+    (n, x) => n + (x.status === "green" ? 1 : x.status === "yellow" ? 0.5 : 0),
     0,
   );
   return Math.round((score / items.length) * 100);
@@ -478,8 +478,8 @@ function setNav() {
   document.getElementById("pageCrumb").textContent =
     crumb[current] || "Audit readiness";
   let badge = (id, n, alert) => { let el = typeof id === "string" ? document.getElementById(id) : id; if (!el) return; el.textContent = n ? n : ""; el.classList.toggle("alert", !!alert); };
-  badge("gapBadge", approved ? countStatus("red") + countStatus("yellow") : "");
-  let regOpen = LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
+  badge("gapBadge", approved ? countStatus("red") + countStatus("yellow") : "", auditOn() && items.some((x) => x.req && x.req.priority === "critical"));
+  let regOpen = auditOn() ? AuditAgent.data().updates.filter((u) => u.status !== "reviewed").length : LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
   document.querySelectorAll(".updateBadge").forEach((el) => badge(el, regOpen ? 1 : 0));
   let cb = document.getElementById("complianceBadge");
   if (cb && typeof Library !== "undefined") {
@@ -490,7 +490,7 @@ function setNav() {
   if (agentOn()) {
     let ac = StaffAgent.counts();
     badge("certAlertBadge", ac.owner, ac.critical > 0);
-    badge("notificationBadge", StaffAgent.decisions().length + (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0));
+    badge("notificationBadge", StaffAgent.decisions().length + (auditOn() ? AuditAgent.decisions().length : 0) + (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0));
   } else {
     badge("certAlertBadge", certDueCount() + certExpiredCount() + (pendingSubmission ? 1 : 0), certExpiredCount() > 0);
     badge("notificationBadge", (pendingSubmission ? 1 : 0) + (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0) + certDueCount());
@@ -710,7 +710,7 @@ function certRows() {
   return out.sort((a, b) => a.c.days - b.c.days);
 }
 function decisionItems() {
-  let d = agentOn() ? StaffAgent.decisions() : [];
+  let d = (agentOn() ? StaffAgent.decisions() : []).concat(auditOn() && approved ? AuditAgent.decisions() : []);
   if (pendingSubmission && !agentOn())
     d.push({ kind: "Verify certificate", who: pendingSubmission.staffName, detail: pendingSubmission.type + ", uploaded " + (pendingSubmission.submittedAt || ""), act: "reviewSubmission()", btn: "Review" });
   if (medicalSubmission && medicalSubmission.status === "pending")
@@ -718,7 +718,7 @@ function decisionItems() {
   if (!agentOn()) certRows().filter((x) => x.c.days < 0).forEach((x) =>
     d.push({ kind: "Expired credential", who: x.e.name, detail: x.c.type + " expired " + x.c.expiry + ". Decide on rostering.", act: "openStaffDetail('" + x.e.id + "')", btn: "Open", urgent: true }));
   let regPending = LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
-  if (regPending)
+  if (regPending && !(auditOn() && approved))
     d.push({ kind: (LIVE ? regUpdate.status === "accepted" : saved.updateAccepted) ? "Finish policy review" : "Review regulation change", who: regUpdate ? regUpdate.title : "Safe sleep guidance review", detail: "May affect your Sleep and rest policy", act: "go('updates')", btn: "Review" });
   if (aiDrafts.length)
     d.push({ kind: "Approve family messages", who: aiDrafts.length + " draft" + (aiDrafts.length === 1 ? "" : "s"), detail: "Written by the AI agent", act: "openDraftsDrawer()", btn: "Review" });
@@ -859,9 +859,11 @@ function overviewPage() {
     (agentOn()
       ? '<div class="twoCol"><div><section class="section"><div class="sectionHead"><h2>Staff renewals<span class="count">' + (StaffAgent.counts().critical + StaffAgent.counts().high + StaffAgent.counts().medium + StaffAgent.counts().monitor) + '</span></h2><button class="textButton" onclick="go(\'staff\')">All staff</button></div>' + StaffAgent.renewalsCompact(3) + "</section></div><div>" +
         '<section class="section"><div class="sectionHead"><h2>Regulations and compliance</h2><button class="textButton" onclick="go(\'compliance\')">Compliance</button></div>' +
-        (regPending ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
+        (auditOn() && approved ? AuditAgent.overviewRow() : "") +
+        (auditOn() && approved && AuditAgent.data().updates.some((u) => u.status !== "reviewed") ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(AuditAgent.data().updates.find((u) => u.status !== "reviewed").title) + "</b><small>beehive flagged what it may affect. Your decision is needed.</small></span>" + statusTag("crit", "Review required") + "</button>" : "") +
+        (regPending && !(auditOn() && approved) ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
         '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
-        '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Audit readiness</b><small>' + (approved ? countStatus("red") + " missing, " + countStatus("yellow") + " due for review" : "Checklist waiting for your approval") + '</small></span><span class="rowMeta num">' + (approved ? readiness() + "%" : "Draft") + "</span></button>" +
+        (auditOn() && approved ? "" : '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Audit readiness</b><small>' + (approved ? countStatus("red") + " missing, " + countStatus("yellow") + " due for review" : "Checklist waiting for your approval") + '</small></span><span class="rowMeta num">' + (approved ? readiness() + "%" : "Draft") + "</span></button>") +
         "</section></div></div>" +
         '<section class="section" id="agentActivity"><div class="sectionHead"><h2>Agent activity</h2><p>What beehive did, what it’s waiting for and what needs you</p></div>' + StaffAgent.feedHtml() + "</section>"
       : '<div class="twoCol"><div>' +
@@ -882,6 +884,11 @@ function openDraftsDrawer() {
 
 function auditPage() {
   if (!approved) return setupPage();
+  if (auditOn()) return AuditAgent.auditPageHtml();
+  if (LIVE && typeof AuditAgent !== "undefined" && AuditAgent.data().error === "setup") return AuditAgent.setupNote() + auditPageClassic();
+  return auditPageClassic();
+}
+function auditPageClassic() {
   let tabs = ["All areas"].concat(AREAS).map((a) => '<button class="filterButton ' + (activeFilter === a ? "active" : "") + '" onclick="filterArea(\'' + a + "')\">" + (a === "All areas" ? "All" : a) + "</button>").join("");
   let list = activeFilter === "All areas" ? AREAS : [activeFilter];
   return (
@@ -893,6 +900,7 @@ function auditPage() {
   );
 }
 function updatesPage() {
+  if (auditOn() && approved) return AuditAgent.updatesPageHtml();
   let accepted = !!saved.updateAccepted;
   if (LIVE && !regUpdate)
     return header("Regulation updates", "Changes that may affect your approved checklist.") + '<p class="empty">No new updates. When guidance changes, beehive will match it to your checklist and list it here.</p>';
@@ -1084,6 +1092,7 @@ function staffUploadPage() {
     header(isEducator() ? "My certificates" : "Upload a certificate", isEducator() ? "Upload a renewed certificate. " + esc(ownerFirst().replace(/^the/, "The")) + " checks it before it counts." : "Upload on an educator’s behalf. This is the same page educators open from their reminder.", '<button class="button ownerBack" onclick="go(\'staff\')">Back to staff</button>') +
     (typeof Library !== "undefined" ? Library.educatorReminders() : "") +
     (agentOn() ? StaffAgent.educatorRequests() : "") +
+    (auditOn() ? AuditAgent.educatorRequests() : "") +
     '<div class="uploadLayout"><div><h2>Submit a renewed certificate</h2>' +
     '<div class="ownerField"><label class="formLabel" for="uploadStaff">Educator</label><select class="formControl" id="uploadStaff">' + options + "</select></div>" +
     '<label class="formLabel" for="uploadCertType">Certificate</label><select class="formControl" id="uploadCertType">' + types.map((t) => "<option>" + t + "</option>").join("") + "</select>" +
@@ -1127,6 +1136,7 @@ function reviewSubmission() {
   );
 }
 function openItem(id) {
+  if (auditOn() && approved) return AuditAgent.openItem(id);
   let x = findItem(id);
   if (!x) return;
   let action =
@@ -1156,11 +1166,12 @@ function openHelp() {
       step("auto", "Record updated", "The credential, verification date and compliance status update and the task closes.") +
       "</ol></section>" +
       '<section class="guideFlow"><h3>Audit readiness</h3><p>Your approved checklist, mapped to the regulations.</p><ol class="guideSteps2">' +
-      step("auto", "Requirement monitored", "Each check is matched to its evidence in beehive.") +
-      step("auto", "Gap detected", "Missing or out-of-date evidence turns the item red or yellow.") +
-      step("auto", "Action identified", "beehive shows what the regulation needs and the official guidance.") +
-      step("you", "Evidence resolved", "You upload the policy or log the drill.") +
-      step("auto", "Readiness updated", "Your score updates and the change is timestamped.") +
+      step("auto", "Requirement monitored", "Each requirement is checked against its verified evidence, due dates and compliance tasks.") +
+      step("auto", "Gap explained", "Missing, out-of-date or unverified evidence is prioritised, with why it matters and the next action.") +
+      step("auto", "Evidence requested", "beehive asks whoever holds it, with an upload link, and follows up (simulated). Credential gaps go to the staff agent.") +
+      step("auto", "Regulation changes assessed", "Possibly affected requirements are flagged Review required, with a task for you.") +
+      step("you", "Verified or decided", "You verify the evidence and record regulation decisions. Uploading alone never makes anything compliant.") +
+      step("auto", "Readiness updated", "Status, verification date and readiness update, and every step is in the activity feed.") +
       "</ol></section>" +
       '<div class="guideKey"><span><i class="hx" style="color:var(--honey)"></i>beehive does this</span><span><i class="hx" style="color:var(--ink)"></i>You decide</span></div>' +
       '<div class="modalActions"><button class="button" onclick="closeModal();go(\'staff\')">Staff certifications</button><button class="button primary" onclick="closeModal();go(\'audit\')">Audit readiness</button></div>',
@@ -1175,6 +1186,9 @@ function openSourceInfo() {
   );
 }
 
+function auditOn() {
+  return typeof AuditAgent !== "undefined" && AuditAgent.active();
+}
 function agentOn() {
   return typeof StaffAgent !== "undefined" && StaffAgent.active();
 }
@@ -1348,6 +1362,7 @@ function approveCertificate() {
 function handleNotifications() {
   if (agentOn()) {
     if (StaffAgent.decisions().length) { if (current !== "overview") go("overview"); StaffAgent.nextDecision(); return; }
+    if (auditOn() && AuditAgent.decisions().length) { if (current !== "overview") go("overview"); new Function(AuditAgent.decisions()[0].act)(); return; }
     if (medicalSubmission && medicalSubmission.status === "pending") return reviewFamilyUpdate();
     return go("staff");
   }
@@ -1444,8 +1459,10 @@ function approveChecklist() {
   approved = true;
   persist();
   current = "audit";
+  let r = typeof AuditAgent !== "undefined" ? AuditAgent.onApproved() : null;
   render();
-  toast("Checklist approved. Your centre baseline is ready.");
+  if (r && typeof StaffAgent !== "undefined") StaffAgent.announce(null, r);
+  else toast("Checklist approved. Your centre baseline is ready.");
 }
 function editBaseline() {
   if (LIVE) return Live.editBaseline();

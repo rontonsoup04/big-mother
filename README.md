@@ -56,6 +56,7 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
    6. `supabase/migrations/20261026100000_compliance_register.sql` (the compliance register: recurring tasks with due dates)
    7. `supabase/migrations/20261026110000_compliance_agent.sql` (the Beehive Compliance Agent's tools and reminder drafts)
    8. `supabase/migrations/20261028090000_staff_agent.sql` (the staff compliance agent: renewal tasks, simulated messages, checked uploads, activity feed, daily schedule)
+   9. `supabase/migrations/20261029090000_audit_agent.sql` (the audit-readiness agent: requirement status, verified evidence, audit tasks, regulation reviews)
 2. **Demo data.** Run `supabase/seed_demo.sql`. It creates the three logins, Beehive Early Learning, 10 educators with certificates, 12 children with medical profiles, incidents, a regulation update and a draft checklist. No compliance documents or evidence files are included; you add those during the demo. The last row it returns is the AI agent key. Re-run it any time to reset the demo.
 3. **Auth.** **Authentication → URL Configuration** → Site URL = your Vercel address (and `http://localhost:3000` for local). **Providers → Email** → turn off **Confirm email** if you want new sign-ups to work immediately.
 
@@ -66,6 +67,7 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
 | Audit readiness | `checklist_items`, `evidence`, `v_checklist_status`, `v_readiness`, `regulation_updates` |
 | Staff certificates | `staff`, `staff_certificates`, `certificate_types`, `certificate_submissions`, `reminders`, `v_certificate_reminders` |
 | Staff compliance agent | `credential_tasks`, `agent_messages`, `agent_events`, `agent_runs`, `v_credential_tasks`, `v_agent_feed` |
+| Audit-readiness agent | `checklist_items`, `evidence` (now with verification state), `audit_tasks`, `regulation_reviews`, `v_audit_tasks`, `v_checklist_status`, `v_readiness` |
 | Spot-check search | `spot_check_search()` over certificates, incidents, checklist and medical profiles |
 | Family messages | `messages`, `parent_messages`, `v_family_thread` |
 | Medical updates | `medical_updates`, `children`, `child_parents`, `v_child_medical_profile` |
@@ -103,6 +105,20 @@ beehive manages staff credential renewals on the owner's behalf. Every educator'
 Everything the agent does is in **Agent activity** on the Overview (filter by Monitoring, Action taken, Waiting, Owner review, Resolved) and in the **Renewals** section of Staff certifications, each linked to the staff record with a direct action. It runs when the owner opens beehive, from **Check now**, and every morning at 7:00 Sydney time through `pg_cron` where the project has it enabled. In the offline demo the same rules run in the browser.
 
 **Demo scenario:** Oliver King's First Aid moves from 33 to 30 days, so beehive raises it to Medium and sends the request. Open his task, then *Open Oliver's upload link (demo)*, pick the *Renewed* sample certificate and send it. Back on the Overview, verify it: his record, the task and the staff table update. The seed also has Luca's expired First Aid and Jack's missing anaphylaxis training (escalated), Amara's old WWCC upload (flagged; reject it to see the correction request), overdue follow-ups for Noah, Mia and Luca, and Leo with no email (SMS). Seeded history is labelled *Demo history*, and the sample certificates say *SAMPLE ONLY*.
+
+## Audit-readiness agent
+
+The audit-readiness agent works over the checklist Sara approves (Staff Records, Children's Records, Safety & Premises, Policies & Procedures). It doesn't keep a second copy of anything: staff-record requirements read the same certificates the staff agent manages, and the agent's work goes into the same activity feed.
+
+- **Every requirement shows** its description, regulatory source, required evidence, current evidence, status, priority, last-reviewed date and next action.
+- **Status is Missing, Under review or Compliant**, with indicators for Overdue, Renewal due soon, Review required, Awaiting verification, Credentials expiring and Scheduled task overdue. Uploading a document never makes a requirement compliant: new evidence is *pending* until the owner verifies it, and uncertain evidence stays under review.
+- **Monitoring.** On each run the agent checks for missing or out-of-date evidence, upcoming renewals, overdue compliance tasks, outstanding verifications and regulation updates. For each gap it records the affected requirement, what evidence is there or missing, the priority and why, and the next action.
+- **Coordinated follow-up.** Where someone else holds the evidence (for example the lead educator for the evacuation drill), the agent assigns a task and sends a request with a secure upload link, then follows up. Delivery is simulated, as for the staff agent. Credential gaps link to the staff agent's renewals instead of sending competing reminders.
+- **Evidence checks.** Uploads are read in the browser and assessed against the requirement: topic, date, whether it is recent enough to close the gap, and duplicates. The owner then verifies or rejects. Verifying updates the status, verification date and outstanding tasks; rejecting keeps the record and asks for a corrected upload.
+- **Regulation updates.** A new update is assessed against the checklist. Possibly affected requirements are flagged *Review required*, each with an owner task giving the reason and the recommended next step. The agent never rewrites a policy or marks anything non-compliant on its own, and says when the impact is uncertain. The owner records one decision per requirement: *no change needed*, *update needed* (the requirement stays under review until the updated policy is uploaded and verified) or *doesn't apply*.
+- **Readiness** = (compliant + ½ × under review) ÷ approved requirements, shown with the breakdown. **"What is stopping us from being audit ready?"** (on the Audit readiness page and in Ask beehive) answers from the live data: the highest-priority gaps, why they matter and what to do next, each linked to the requirement or task.
+
+**Demo scenario:** approve the checklist. The agent finds the evacuation drill out of date (last one 100 days ago, critical), asks Mia for the new drill record, and flags the missing authorisation records. Open Mia's upload link from the requirement, upload the *Out of date* sample to see it flagged and rejected, then the *Current* sample and verify it: the requirement turns Compliant, the overdue rehearsal task completes and readiness rises. For regulations, the safe sleep update flags *Sleep and rest policy* as Review required; record *update needed*, upload the updated policy and verify it to close the review.
 
 ## Beehive Compliance Agent
 
@@ -157,6 +173,7 @@ beehive-demo/          The web app
   library.js           Compliance library page, item guidance, search
   library-data.js      Offline copy of the library (generated)
   agent.js             Staff compliance agent: renewals, activity feed, review, upload link (plus the offline engine)
+  audit.js             Audit-readiness agent: requirements, gaps, evidence review, regulation reviews (plus the offline engine)
   extract.js           Reads certificates in the browser (pdf.js, Tesseract) and makes demo sample certificates
   config.js            Supabase URL + publishable key + Copilot token endpoint
   api/agent.js         Beehive Compliance Agent (Vercel function, Gemini via the AI SDK)

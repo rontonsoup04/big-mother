@@ -191,7 +191,7 @@ const Library = (() => {
     ["Fire equipment service", "Reg 97, 103", "six-monthly", [140], 40, "Extinguishers and blankets serviced by contractor"],
     ["Medical conditions policy review", "Reg 90, 91", "annual", [300], 65, "Reviewed with families of children with action plans"],
     ["Sun protection policy review", "Reg 114, 168", "annual", [355], 10, "Checked against ACECQA guidelines"],
-    ["Sleep and rest policy review", "Reg 84A–84C", "annual", [380], -15, "Annual review"],
+    ["Sleep and rest policy review", "Reg 84A–84C", "annual", [210], 155, "Annual review and risk assessment"],
     ["Quality Improvement Plan review", "Reg 55, 56", "annual", [200], 165, "QA2 and QA7 goals updated"],
     ["Staff record and responsible person register", "Reg 145, 150", "monthly", [26, 57], 4, "Register checked against roster"],
     ["Excursion risk assessments up to date", "Reg 100–102", "once", [], 21, ""],
@@ -254,6 +254,12 @@ const Library = (() => {
     if (note) t.last_notes = note;
     t.due_date = FREQ_DAYS[t.frequency] ? isoDay(FREQ_DAYS[t.frequency]) : null;
     saveOffline();
+  }
+  // Offline: verified evidence completes the linked recurring task (same rule as the database).
+  function completeMatching(re, note) {
+    if (LIVE) return;
+    if (!tasks) tasks = offlineTasks();
+    tasks.filter((x) => re.test(x.title) && x.due_date).forEach((t) => completeOffline(t, note));
   }
   // Offline: logging a drill on the checklist also completes the rehearsal task.
   function drillLogged() {
@@ -362,7 +368,7 @@ const Library = (() => {
         esc(g.title) + "</b><small>Official guidance, " + esc(g.source_ref) + ", " + (g.documents || []).length + " documents</small></button>").join("");
   }
 
-  return { page, itemSection, focus, setFilter, setTab, searchHtml, loadFrom, guide, loadTasks, complete, drillLogged, resetOffline, taskList,
+  return { page, itemSection, focus, setFilter, setTab, searchHtml, loadFrom, guide, loadTasks, complete, drillLogged, completeMatching, resetOffline, taskList,
            runAgent, approveReminder, decide, educatorReminders, agentDraftCount: () => agentQueue.filter((d) => d.status === "draft").length,
            get source() { return source; } };
 })();

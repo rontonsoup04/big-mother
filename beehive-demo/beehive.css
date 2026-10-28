@@ -646,6 +646,43 @@ details.more[open] > summary::after { content: "–"; }
 .linkPage .authBrand { margin-bottom: var(--s5); }
 .linkCentre { color: var(--ink-3); font-size: var(--t-sm); }
 
+/* ---------- audit-readiness agent (audit.js) ---------- */
+.readinessBlock .method { margin-top: var(--s3); color: var(--ink-3); font-size: var(--t-xs); line-height: 1.5; }
+.blockersPanel .blockerLead { font-size: var(--t-sm); margin: var(--s2) 0; }
+.blocker { padding: var(--s3) 0; border-bottom: 1px solid var(--line); font-size: var(--t-sm); }
+.blocker p { margin: 4px 0; color: var(--ink-2); }
+.blocker .why, .blocker .next { color: var(--ink-2); }
+.blocker .next b, .blocker .why b { color: var(--ink); font-weight: 600; }
+.blockerHead { display: flex; flex-wrap: wrap; gap: 6px var(--s2); align-items: center; }
+.blockerTitle { display: block; font-weight: 600; margin-bottom: 4px; }
+.readinessBlock { margin-bottom: var(--s6); }
+.blocker .buttonRow { margin-top: 6px; }
+.flagChip { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 10px; background: var(--amber-tint); color: var(--amber); font-size: 11px; font-weight: 500; white-space: nowrap; }
+.flagChip.bad { background: var(--red-tint); color: var(--red); }
+.reqRow .rowEnd { gap: var(--s2); flex-wrap: wrap; justify-content: flex-end; }
+.reqRow .rowMain small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.reqMeta .modalMeta { display: grid; grid-template-columns: 140px minmax(0, 1fr); }
+.reqMeta .modalMeta b { text-align: left; }
+.nextBox { margin: var(--s3) 0; padding: var(--s3) var(--s4); background: var(--honey-tint); border-radius: var(--r-md); font-size: var(--t-sm); }
+.nextBox b { display: block; font-weight: 600; margin-bottom: 2px; }
+.nextBox p { color: var(--ink); }
+.evRow { display: flex; gap: var(--s3); align-items: center; padding: var(--s2) 0; border-bottom: 1px solid var(--line); font-size: var(--t-sm); }
+.evRow > div { flex: 1; min-width: 0; }
+.evRow b { display: block; font-weight: 500; }
+.evRow small { color: var(--ink-3); }
+.assignLine { display: flex; gap: var(--s2); }
+.assignLine .formControl { flex: 1; }
+.reviewItem { margin-top: var(--s4); padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); font-size: var(--t-sm); }
+.reviewItem p { margin: 6px 0 0; color: var(--ink-2); }
+.reviewHead { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s3); align-items: center; }
+.reviewHead b { font-weight: 600; }
+.decisionBtns { margin-top: var(--s3); }
+.decisionDone { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.proposedTag { font-size: 11px; font-weight: 600; color: var(--honey-ink); border: 1px dashed var(--honey); border-radius: var(--r-sm); padding: 0 5px; }
+p.small, .small { font-size: var(--t-sm); }
+.muted.small { font-size: var(--t-xs); }
+.update + .update { margin-top: var(--s6); padding-top: var(--s5); border-top: 1px solid var(--line); }
+
 /* ---------- print ---------- */
 .printReport { display: none; }
 @media print {
@@ -734,6 +771,10 @@ details.more[open] > summary::after { content: "–"; }
   .agentRow .rowMeta { min-width: 0; }
   .agentRow .rowEnd { min-width: 0; margin-left: auto; }
   .compareTable thead th:last-child, .compareTable td:last-child { display: none; }
+  .reqRow > button { flex-wrap: wrap; }
+  .reqRow .rowMain { flex-basis: 100%; }
+  .reqRow .rowEnd { justify-content: flex-start; }
+  .assignLine { flex-direction: column; }
 }
 
 .moreLink { display: block; padding: 10px 0 0; }

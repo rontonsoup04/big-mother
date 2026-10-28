@@ -338,13 +338,14 @@ const StaffAgent = (() => {
     let run = null;
     try {
       if (isLead && opts && opts.run) run = (await sb.rpc("run_staff_agent")).data || null;
+      else if (opts && opts.staffRun) run = opts.staffRun;
       const sel = (p) => p.then((r) => { if (r.error) throw r.error; return r.data || []; });
       const [tasks, feed, msgs, subs, runs] = await Promise.all([
         sel(sb.from("v_credential_tasks").select("*").order("opened_at", { ascending: false }).limit(400)),
-        isLead ? sel(sb.from("v_agent_feed").select("*").order("id", { ascending: false }).limit(150)) : Promise.resolve([]),
-        sel(sb.from("agent_messages").select("*").order("sent_at", { ascending: false }).limit(300)),
+        isLead ? sel(sb.from("v_agent_feed").select("*").order("id", { ascending: false }).limit(300)).then((r) => r.filter((e) => (e.agent || "staff") === "staff").slice(0, 150)) : Promise.resolve([]),
+        sel(sb.from("agent_messages").select("*").order("sent_at", { ascending: false }).limit(300)).then((r) => r.filter((m) => m.task_id)),
         sel(sb.from("certificate_submissions").select("*, staff(full_name), certificate_types(code)").eq("status", "pending").order("submitted_at")),
-        isLead ? sel(sb.from("agent_runs").select("*").order("ran_at", { ascending: false }).limit(1)) : Promise.resolve([]),
+        isLead ? sel(sb.from("agent_runs").select("*").order("ran_at", { ascending: false }).limit(10)).then((r) => r.filter((x) => (x.agent || "staff") === "staff")) : Promise.resolve([]),
       ]);
       data = {
         available: true, mode: "live", error: "",
@@ -365,7 +366,7 @@ const StaffAgent = (() => {
           flag: x.review_flag || "needs_check", source: x.source, submittedAt: x.submitted_at })),
         lastRun: runs[0] ? { at: runs[0].ran_at, trigger: runs[0].trigger, summary: runs[0].summary } : run ? { at: run.ran_at, summary: run } : null,
       };
-      if (run && opts && opts.announce) announce(run);
+      if (run && opts && opts.announce) announce(run, opts.auditRun);
     } catch (e) {
       const m = (e && e.message) || String(e);
       data = { available: false, mode: "live", error: /does not exist|Could not find|schema cache/i.test(m) ? "setup" : m, tasks: [], feed: [], messages: [], subs: [], lastRun: null };
@@ -373,22 +374,37 @@ const StaffAgent = (() => {
     return run;
   }
 
-  function announce(r) {
-    if (!r) return;
+  function announce(r, ra) {
+    if (!r && !ra) return;
+    r = r || {};
     const parts = [];
     if (r.requests) parts.push(r.requests + " renewal request" + (r.requests === 1 ? "" : "s"));
     if (r.follow_ups) parts.push(r.follow_ups + " follow-up" + (r.follow_ups === 1 ? "" : "s"));
     if (r.escalated) parts.push(r.escalated + " escalation" + (r.escalated === 1 ? "" : "s"));
     if (r.resolved) parts.push(r.resolved + " resolved");
-    toast(parts.length ? "beehive checked every credential: " + parts.join(", ") + ". Messages are simulated." : "beehive checked every credential. Nothing new needed action.");
+    if (ra && !ra.skipped) {
+      if (ra.gaps) parts.push(ra.gaps + " requirement gap" + (ra.gaps === 1 ? "" : "s") + " found");
+      if (ra.requests) parts.push(ra.requests + " evidence request" + (ra.requests === 1 ? "" : "s"));
+      if (ra.follow_ups) parts.push(ra.follow_ups + " evidence follow-up" + (ra.follow_ups === 1 ? "" : "s"));
+      if (ra.regulation_updates) parts.push(ra.regulation_updates + " regulation update assessed");
+      if (ra.resolved) parts.push(ra.resolved + " audit action" + (ra.resolved === 1 ? "" : "s") + " closed");
+    }
+    toast(parts.length ? "beehive checked every credential and requirement: " + parts.join(", ") + ". Messages are simulated." : "beehive checked every credential and requirement. Nothing new needed action.");
   }
 
   // =====================================================================================
   // Actions
   // =====================================================================================
   async function refresh(page) {
-    if (isLive()) await Live.reload(page);
-    else { data = Object.assign({ available: true, mode: "offline", error: "" }, Engine.view()); syncEducators(); if (page) current = page; render(); }
+    if (isLive()) {
+      if (typeof AuditAgent !== "undefined" && AuditAgent.active()) await AuditAgent.runRemote();
+      await Live.reload(page);
+    } else {
+      data = Object.assign({ available: true, mode: "offline", error: "" }, Engine.view()); syncEducators();
+      if (typeof AuditAgent !== "undefined" && AuditAgent.active()) AuditAgent.runOffline();
+      if (page) current = page;
+      render();
+    }
   }
   async function guard(fn, ok) {
     try { const r = await fn(); if (ok) toast(typeof ok === "function" ? ok(r) : ok); return r; }
@@ -401,9 +417,17 @@ const StaffAgent = (() => {
     running = true;
     try {
       let r;
-      if (isLive()) { r = await guard(() => rpc("run_staff_agent")); await Live.reload(); }
-      else { r = Engine.run("app"); await refresh(); }
-      announce(r);
+      let ra = null;
+      if (isLive()) {
+        r = await guard(() => rpc("run_staff_agent"));
+        if (typeof AuditAgent !== "undefined") ra = await AuditAgent.runRemote();
+        await Live.reload();
+      } else {
+        r = Engine.run("app");
+        if (typeof AuditAgent !== "undefined") ra = AuditAgent.runOffline();
+        await refresh();
+      }
+      announce(r, ra);
     } finally { running = false; }
   }
   async function sendNow(taskId) {
@@ -497,14 +521,17 @@ const StaffAgent = (() => {
   // ---------- Overview: what the agent has done, is waiting for and needs ----------
   function overviewSummary() {
     const c = counts();
+    const a = typeof AuditAgent !== "undefined" && AuditAgent.active() ? AuditAgent.counts() : { handled: 0, waitingOthers: 0, decisions: 0, yours: 0, monitoring: 0 };
+    const last = [data.lastRun && data.lastRun.at, a.lastRun].filter(Boolean).sort().pop();
+    const decisionsN = c.owner + a.decisions;
     return (
-      '<div class="agentStrip"><div class="agentStripHead"><span class="hx"></span><b>Staff compliance agent</b><span class="muted">' + (data.lastRun ? "Last checked " + E(relTime(data.lastRun.at).toLowerCase()) : "Not run yet") + "</span>" +
+      '<div class="agentStrip"><div class="agentStripHead"><span class="hx"></span><b>beehive agents</b><span class="muted">Staff compliance and audit readiness. ' + (last ? "Last checked " + E(relTime(last).toLowerCase()) : "Not run yet") + "</span>" +
       (leader() ? '<button class="textButton" onclick="StaffAgent.runNow()">Check now</button>' : "") + "</div>" +
       '<div class="agentStats">' +
-      '<button onclick="StaffAgent.filter(\'All\')"><b>' + c.handled + "</b><span>actions this week</span></button>" +
-      '<button onclick="go(\'staff\');StaffAgent.tab(\'waiting\')"><b>' + c.waiting + "</b><span>waiting on educators</span></button>" +
-      '<button onclick="go(\'staff\');StaffAgent.tab(\'owner_review\')" class="' + (c.owner ? "hot" : "") + '"><b>' + c.owner + "</b><span>need your decision</span></button>" +
-      '<button onclick="go(\'staff\');StaffAgent.tab(\'monitoring\')"><b>' + c.monitoring + "</b><span>monitoring</span></button></div></div>"
+      '<button onclick="StaffAgent.filter(\'Action taken\')"><b>' + (c.handled + a.handled) + "</b><span>actions this week</span></button>" +
+      '<button onclick="StaffAgent.filter(\'Waiting\')"><b>' + (c.waiting + a.waitingOthers) + "</b><span>waiting on staff</span></button>" +
+      '<button onclick="StaffAgent.filter(\'Owner review\')" class="' + (decisionsN ? "hot" : "") + '"><b>' + decisionsN + "</b><span>need your decision</span></button>" +
+      '<button onclick="go(\'audit\')"><b>' + a.yours + "</b><span>on your to-do list</span></button></div></div>"
     );
   }
   function renewalsCompact(max) {
@@ -542,41 +569,51 @@ const StaffAgent = (() => {
     }
     return { label: "", act: e.staffId ? "openStaffDetail('" + e.staffId + "')" : "" };
   }
-  // other beehive activity (audit, compliance, families) joins the same timeline
+  // other beehive activity (families, compliance) joins the same timeline
   function otherActivity() {
     if (typeof hiveActivity !== "function") return [];
     const map = { done: "Resolved", progress: "Waiting", watch: "Monitoring" };
+    const audit = typeof AuditAgent !== "undefined" && AuditAgent.active();
     return hiveActivity()
       .filter((x) => !/certificate|reminder|credential|expiry|escalated|agent/i.test(x.label + " " + (x.who || "")))
-      .map((x) => ({ other: true, state: map[x.state] || "Monitoring", summary: x.label, who: x.who, line: x.sub || "", time: x.time || "", act: x.act || "" }));
+      .filter((x) => !audit || !/evidence|regulation|policy review|checklist|compliance task|task due|drill/i.test(x.label))
+      .map((x) => ({ other: true, state: map[x.state] || "Monitoring", summary: x.label, subject: x.who, line: x.sub || "", time: x.time || "", act: x.act || "" }));
+  }
+  // one shape for every agent's entries: { at, state, summary, subject, line, act, actLabel, now, demo, proposed }
+  function staffRows() {
+    return data.feed.map((e) => {
+      const a = feedAction(e), t = data.tasks.find((x) => x.id === e.taskId);
+      return {
+        at: e.at, state: e.state, summary: e.summary, subject: (e.staffName || "") + (e.typeName ? ", " + (SHORT[e.code] || e.typeName) : ""),
+        line: feedLine(e), act: a.act, actLabel: a.label, demo: e.demo,
+        now: t && t.state !== "resolved" && TASK_STATE[t.state] !== e.state ? stateTag(t.state) : "",
+      };
+    });
+  }
+  function rowHtml(x) {
+    return (
+      '<li class="tlItem ' + (FEED_CLASS[x.state] || "watch") + (x.act ? " link" : "") + '"' + (x.act ? ' tabindex="0" role="button" onclick="' + x.act + '" onkeydown="if(event.key===\'Enter\')this.click()"' : "") + '>' +
+      '<span class="tlMark"></span><span class="tlText"><b>' + E(x.summary) + "</b>" + (x.subject ? " <span>" + E(x.subject) + "</span>" : "") +
+      (x.line ? "<small>" + E(x.line) + "</small>" : "") +
+      '<span class="feedMeta"><span class="status ' + (STATE_CLASS[x.state] || "neutral") + '">' + E(x.state) + "</span>" +
+      (x.proposed ? '<span class="proposedTag">Proposed</span>' : "") +
+      (x.now ? '<span class="nowState">Now ' + x.now + "</span>" : "") + (x.demo ? '<span class="demoTag">Demo history</span>' : "") +
+      (x.actLabel ? '<span class="feedAct">' + x.actLabel + "</span>" : "") + "</span></span>" +
+      "<time>" + E(x.at ? relTime(x.at) : x.time || "") + "</time></li>"
+    );
   }
   function feedHtml(limit) {
-    const staffEvents = data.feed.map((e) => ({ e, state: e.state, at: e.at }));
-    const other = otherActivity();
-    let rows = staffEvents.filter((x) => feedFilter === "All" || x.state === feedFilter);
-    const extra = other.filter((x) => feedFilter === "All" || x.state === feedFilter);
-    const total = rows.length + extra.length;
+    const auditRows = typeof AuditAgent !== "undefined" && AuditAgent.active() ? AuditAgent.feedRows() : [];
+    const all = staffRows().concat(auditRows).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const rows = all.filter((x) => feedFilter === "All" || x.state === feedFilter);
+    const extra = otherActivity().filter((x) => feedFilter === "All" || x.state === feedFilter);
     const max = limit || 12;
-    const shown = rows.slice(0, max);
-    const html = shown.map(({ e }) => {
-      const a = feedAction(e), t = data.tasks.find((x) => x.id === e.taskId);
-      const now = t && t.state !== "resolved" && TASK_STATE[t.state] !== e.state ? '<span class="nowState">Now ' + stateTag(t.state) + "</span>" : "";
-      return (
-        '<li class="tlItem ' + (FEED_CLASS[e.state] || "watch") + (a.act ? " link" : "") + '"' + (a.act ? ' tabindex="0" role="button" onclick="' + a.act + '" onkeydown="if(event.key===\'Enter\')this.click()"' : "") + '>' +
-        '<span class="tlMark"></span><span class="tlText"><b>' + E(e.summary) + "</b> <span>" + E(e.staffName || "") + (e.typeName ? ", " + E(SHORT[e.code] || e.typeName) : "") + "</span>" +
-        "<small>" + E(feedLine(e)) + "</small>" +
-        '<span class="feedMeta">' + '<span class="status ' + (STATE_CLASS[e.state] || "neutral") + '">' + E(e.state) + "</span>" + now + (e.demo ? '<span class="demoTag">Demo history</span>' : "") + (a.label ? '<span class="feedAct">' + a.label + "</span>" : "") + "</span></span>" +
-        "<time>" + E(relTime(e.at)) + "</time></li>"
-      );
-    }).join("");
-    const otherHtml = shown.length < max ? extra.slice(0, max - shown.length).map((x) =>
-      '<li class="tlItem ' + FEED_CLASS[x.state] + (x.act ? " link" : "") + '"' + (x.act ? ' tabindex="0" role="button" onclick="' + x.act + '" onkeydown="if(event.key===\'Enter\')this.click()"' : "") + '><span class="tlMark"></span><span class="tlText"><b>' + E(x.summary) + "</b> <span>" + E(x.who || "") + "</span>" +
-      (x.line ? "<small>" + E(x.line) + "</small>" : "") + '<span class="feedMeta"><span class="status ' + STATE_CLASS[x.state] + '">' + E(x.state) + "</span></span></span><time>" + E(x.time) + "</time></li>").join("") : "";
+    const shown = rows.slice(0, max).concat(rows.length < max ? extra.slice(0, max - rows.length) : []);
     return (
       '<div class="tabs feedTabs" role="tablist">' + FILTERS.map((f) => '<button class="tab' + (f === feedFilter ? " active" : "") + '" role="tab" aria-selected="' + (f === feedFilter) + '" onclick="StaffAgent.filter(\'' + f + '\')">' + f + "</button>").join("") + "</div>" +
-      '<ol class="timeline agentFeed">' + (html + otherHtml || '<li class="empty">Nothing in this state.</li>') + "</ol>" +
-      (total > max ? '<button class="textButton" onclick="StaffAgent.more()">Show more</button>' : "") +
-      '<p class="footnote">Every entry comes from the agent’s records. Email and SMS are simulated in this prototype: messages are recorded, not delivered.</p>'
+      '<ol class="timeline agentFeed">' + (shown.map(rowHtml).join("") || '<li class="empty">Nothing in this state.</li>') + "</ol>" +
+      (rows.length + extra.length > max ? '<button class="textButton" onclick="StaffAgent.more()">Show more</button>' : "") +
+      '<p class="footnote"><b>Action taken</b> and <b>Resolved</b> are done. <b>Owner review</b> is waiting for your decision. <b>Proposed</b> items are suggestions for you to act on. Email and SMS are simulated: messages are recorded, not delivered.</p>'
     );
   }
   let feedLimit = 12;
@@ -889,6 +926,7 @@ const StaffAgent = (() => {
     overviewSummary, renewalsCompact, feedHtml: () => feedHtml(feedLimit), staffSection, staffState, staffDetailHtml, prioTag, stateTag, uploadWidget, educatorRequests, setupNote,
     // actions
     runNow, sendNow, acknowledge, decide, openTask, openReview, nextDecision, filter, more, tab, fileChosen, useSample, submitUpload, openLink,
-    showUploadPage, closeUploadPage, linkToken, reset: () => Engine.reset(),
+    showUploadPage, closeUploadPage, linkToken, reset: () => Engine.reset(), contactFor: (id) => Engine.contactFor(id), rowHtml, FEED_CLASS, STATE_CLASS, announce,
+    guard, uploadUrl, brand,
   };
 })();
