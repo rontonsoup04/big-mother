@@ -330,7 +330,7 @@ select.formControl { appearance: none; padding-right: 32px; background-image: li
 .tableTools { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin-bottom: var(--s2); }
 .staffSearch { width: 260px; height: 34px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--surface); font-size: var(--t-sm); }
 .staffSearch:focus { outline: none; border-color: var(--honey); box-shadow: var(--focus); }
-.legend { display: flex; gap: var(--s4); font-size: var(--t-xs); color: var(--ink-3); }
+.legend { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); font-size: var(--t-xs); color: var(--ink-3); }
 
 /* upload (staff-facing, mobile first) */
 .uploadLayout { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: var(--s7); }
@@ -698,7 +698,7 @@ p.small, .small { font-size: var(--t-sm); }
 
 /* ---------- responsive ---------- */
 @media (max-width: 1080px) {
-  .twoCol, .auditTop, .uploadLayout { grid-template-columns: 1fr; gap: var(--s5); }
+  .twoCol, .auditTop, .uploadLayout { grid-template-columns: minmax(0, 1fr); gap: var(--s5); }
   .globalSearch { width: 220px; }
 }
 @media (max-width: 760px) {
