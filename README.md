@@ -145,7 +145,7 @@ It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and G
 1. Get a Gemini API key at aistudio.google.com (**Get API key → Create API key**) and note the name of a current Flash model.
 2. In Vercel → **Settings → Environment Variables**, add:
    - `GOOGLE_GENERATIVE_AI_API_KEY` = your Gemini key
-   - `AGENT_MODEL` = the Flash model name from AI Studio (e.g. `gemini-2.5-flash`)
+   - `AGENT_MODEL` = the Flash model name from AI Studio (e.g. `gemini-3.8-flash`)
    - `AGENT_PASSCODE` = a passcode your team shares (not a real password)
    - `BEEHIVE_AGENT_KEY` = the agent key from the last row of `seed_demo.sql`
 3. Run `supabase/migrations/20261026110000_compliance_agent.sql` in Supabase, then redeploy on Vercel.

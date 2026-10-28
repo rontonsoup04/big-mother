@@ -4,7 +4,7 @@
 //
 // Environment variables (Vercel → Settings → Environment Variables, and .env.local for local runs):
 //   GOOGLE_GENERATIVE_AI_API_KEY  Gemini key from aistudio.google.com   (server only)
-//   AGENT_MODEL                   e.g. gemini-2.5-flash (copy the Flash model name from AI Studio)
+//   AGENT_MODEL                   optional, defaults to gemini-3.8-flash (Google retired gemini-2.5-flash for new keys)
 //   AGENT_PASSCODE                shared team passcode; the agent only runs if it matches
 //   BEEHIVE_AGENT_KEY             the centre's agent key (last row of seed_demo.sql)   (server only)
 
@@ -100,7 +100,7 @@ async function runAgent({ message, uploadLink, model, fetchImpl }) {
   const ctx = { calls: 0, saved: 0, escalated: 0, log: [], fetch: fetchImpl, uploadLink };
   if (!model) {
     const { google } = require("@ai-sdk/google");
-    model = google(process.env.AGENT_MODEL || "gemini-2.5-flash");
+    model = google(process.env.AGENT_MODEL || "gemini-3.8-flash");
   }
   const result = await generateText({
     model,
