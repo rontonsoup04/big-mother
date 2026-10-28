@@ -176,6 +176,8 @@ const Library = (() => {
   }
   // Educators: reminders the owner approved for them.
   function educatorReminders() {
+    // approved reminders go out through the staff agent's renewal, so they're listed with its requests instead
+    if (typeof StaffAgent !== "undefined" && StaffAgent.active()) return "";
     if (!LIVE || !agentQueue.length) return "";
     return '<section class="card agentCard educatorReminders"><h2>Reminders from ' + esc(typeof ownerFirst === "function" ? ownerFirst() : "your centre") + "</h2>" +
       agentQueue.map((d) => '<div class="agentItem"><div class="agentItemTop"><b>' + esc(d.certificate_name || d.certificate_code || "Certificate") + "</b><small>" + esc(fmtDay(String(d.decided_at || "").slice(0, 10), true)) + "</small></div><p>" + esc(d.body).replace(/\n/g, "<br>") + "</p></div>").join("") + "</section>";

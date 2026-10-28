@@ -35,6 +35,12 @@ const AuditAgent = (() => {
     sun: { kind: "document", months: 12, hint: "Reviewed policy with a review date in the last 12 months" },
     sleep: { kind: "document", months: 12, hint: "Reviewed sleep and rest policy" },
   };
+  // what a regulation decision asks the owner to do when the requirement is checked from beehive's own records
+  const REG_ACTION = {
+    certificates: "Check the staff register against the new requirement in Staff certifications. Renewals and new certificates go through beehive’s staff agent. Mark this done when the change is in place.",
+    medical: "Update how medical information is collected and ask families for anything new through beehive. Mark this done when the change is in place.",
+    incidents: "Update the incident procedure and brief staff. Mark this done when the change is in place.",
+  };
   const CRITICAL = ["wwcc", "firstaid", "evacuation", "emergency", "medical", "incidents"];
   const TASK_PATTERN = { evacuation: /evacuat|rehears/i, premises: /playground|premises/i, sun: /sun protection/i, sleep: /sleep/i, medical: /medical conditions/i };
   const WHY = {
@@ -235,9 +241,10 @@ const AuditAgent = (() => {
       event(null, null, u.id, "regulation_assessed", "Action taken", "Regulation change assessed: " + u.title, { affected: n, items: titles.join(", ") });
     }
 
-    function run(trigger) {
+    function run(trigger, cause) {
       const out = { gaps: 0, status_changes: 0, requests: 0, follow_ups: 0, tasks: 0, resolved: 0, regulation_updates: 0, escalated: 0 };
       if (typeof approved === "undefined" || !approved) { return { skipped: "checklist not approved" }; }
+      const startAt = S.events.length;
       S.updates.filter((u) => u.status === "new").forEach((u) => { assessRegulation(u); out.regulation_updates++; });
       const d = today();
       items.forEach((x) => {
@@ -291,6 +298,10 @@ const AuditAgent = (() => {
       });
       S.tasks.filter((t) => t.kind === "overdue_task" && t.state !== "resolved").forEach((t) => {
         if (!compTasks().some((c) => c.title === t.recordTitle && c.state === "overdue")) { resolve(t, "Task completed"); event(t.itemId, t.id, null, "resolved", "Resolved", "Done: " + t.recordTitle, {}); out.resolved++; }
+      });
+      // say what caused the changes this run recorded (for example the credential that was renewed)
+      if (cause) S.events.slice(startAt).filter((e) => ["status_changed", "resolved", "gap_detected"].includes(e.kind)).forEach((e) => {
+        e.detail = Object.assign({}, e.detail, { cause: cause.text }); e.staffId = cause.staffId || null; e.code = cause.code || null; e.staffName = cause.staffName || "";
       });
       S.runs.push({ at: now(), trigger, summary: out });
       if (S.runs.length > 50) S.runs.shift();
@@ -387,7 +398,14 @@ const AuditAgent = (() => {
         const s = st(x.id);
         if (decision === "update_needed") {
           s.reviewNote = "Update needed after “" + u.title + "”";
-          if (!openTask(x.id, ["evidence"])) newTask({ itemId: x.id, title: "Update " + x.title, reason: "You decided the policy needs updating after “" + u.title + "”.", recommended: "Update the policy, upload it and verify it. The requirement stays under review until then.", dueDate: addDays(today(), 30), updateId: u.id });
+          const kind = meta(x).kind;
+          if (kind === "document") {
+            if (!openTask(x.id, ["evidence"])) newTask({ itemId: x.id, title: "Update " + x.title, reason: "You decided the policy needs updating after “" + u.title + "”.", recommended: "Update the policy, upload it and verify it. The requirement stays under review until then.", dueDate: addDays(today(), 30), updateId: u.id });
+          } else if (!S.tasks.some((t) => t.kind === "regulation_action" && t.updateId === u.id && t.itemId === x.id && t.state !== "resolved")) {
+            // checked from beehive's own records: an owner action in the workflow that owns those records
+            newTask({ itemId: x.id, kind: "regulation_action", title: "Put “" + u.title + "” into practice: " + x.title, reason: "You decided practices need to change after “" + u.title + "”.",
+              recommended: REG_ACTION[kind] || "Make the change, then mark this done.", dueDate: addDays(today(), 30), updateId: u.id });
+          }
         } else if (!S.reviews.some((r) => r.itemId === x.id && r.id !== rv.id && (!r.decision || (r.decision === "update_needed" && !r.completedAt)))) {
           s.reviewRequired = false; s.reviewNote = ""; if (decision === "no_change") s.lastReviewedAt = now();
         }
@@ -400,6 +418,26 @@ const AuditAgent = (() => {
       }
       run("regulation_decision");
       return { decision, update_status: u.status };
+    }
+    function complete(taskId, note) {
+      const t = S.tasks.find((y) => y.id === taskId);
+      if (!t) throw new Error("Task not found");
+      if (t.state === "resolved") throw new Error("This task is already complete.");
+      if (t.kind !== "regulation_action") throw new Error("This task closes by itself once the records show it’s done.");
+      const u = S.updates.find((y) => y.id === t.updateId) || {}, x = t.itemId ? itemById(t.itemId) : null;
+      resolve(t, "Done" + (note ? ": " + note : ""));
+      S.reviews.filter((r) => r.updateId === t.updateId && r.itemId === t.itemId && r.decision === "update_needed" && !r.completedAt).forEach((r) => { r.completedAt = now(); if (note) r.note = (r.note + " " + note).trim(); });
+      if (x && !S.reviews.some((r) => r.itemId === x.id && (!r.decision || (r.decision === "update_needed" && !r.completedAt)))) { const s = st(x.id); s.reviewRequired = false; s.reviewNote = ""; s.lastReviewedAt = now(); }
+      event(t.itemId, t.id, t.updateId, "regulation_action_done", "Resolved", "You put “" + (u.title || "the change") + "” into practice: " + (x ? x.title : ""), { note });
+      run("regulation_action");
+      return { done: true };
+    }
+    // offline demo: a new update arrives (signed in, the AI agent adds updates through its API)
+    function addUpdate(o) {
+      const u = { id: "reg-" + uid(), title: o.title, summary: o.summary, status: "new", published: today(), terms: o.terms || [], source: o.source || "", demo: true };
+      S.updates.unshift(u);
+      run("regulation_update");
+      return u;
     }
     function assign(taskId, staffId) {
       const t = S.tasks.find((y) => y.id === taskId);
@@ -451,7 +489,7 @@ const AuditAgent = (() => {
       });
       return { tasks, evidence: S.evidence.slice(), reviews: S.reviews.slice(), updates: S.updates.slice(), events: S.events.slice(-200).reverse(), messages: S.messages.slice().reverse(), lastRun: S.runs[S.runs.length - 1] || null };
     }
-    return { load, run, status, submit, verify, record, decide, assign, sendNow, linkInfo, view, reset, approvedRun: () => run("checklist_approved") };
+    return { load, run, status, submit, verify, record, decide, complete, addUpdate, assign, sendNow, linkInfo, view, reset, approvedRun: () => run("checklist_approved") };
   })();
 
   // =====================================================================================
@@ -477,7 +515,7 @@ const AuditAgent = (() => {
     return r;
   }
   const approvedNow = () => typeof approved !== "undefined" && approved;
-  function runOffline() { Engine.load(); const r = Engine.run("app"); applyOffline(); return r; }
+  function runOffline(cause) { Engine.load(); const r = Engine.run("app", cause); applyOffline(); return r; }
   async function runRemote(quiet) {
     if (!leader()) return null; // only the owner or director runs the agent; educators just read their own tasks
     try { const r = await Live.client().rpc("run_audit_agent"); return r.error ? null : r.data; } catch (e) { return null; }
@@ -509,7 +547,8 @@ const AuditAgent = (() => {
           verifiedAt: e.verified_at, checks: e.checks || [], flag: e.review_flag, extracted: e.extracted || {}, source: e.source, createdAt: e.created_at, reviewNote: e.review_note, details: e.details || {}, note: e.note })),
         updates: ups.map((u) => ({ id: u.id, title: u.title, summary: u.summary, status: u.status, published: u.published_on, assessment: u.assessment, source: u.source_url, assessedAt: u.assessed_at, reviewedAt: u.reviewed_at })),
         reviews: revs.map((r) => ({ id: r.id, updateId: r.regulation_update_id, itemId: r.checklist_item_id, impact: r.impact, reason: r.reason, recommended: r.recommended, decision: r.decision, note: r.note, decidedAt: r.decided_at, completedAt: r.completed_at })),
-        events: feed.map((e) => ({ id: e.id, itemId: e.checklist_item_id, taskId: e.audit_task_id, updateId: e.regulation_update_id, kind: e.kind, state: e.state, summary: e.summary, detail: e.detail || {}, demo: e.demo, at: e.created_at, itemTitle: e.item_title, updateTitle: e.update_title })),
+        events: feed.map((e) => ({ id: e.id, itemId: e.checklist_item_id, taskId: e.audit_task_id, updateId: e.regulation_update_id, kind: e.kind, state: e.state, summary: e.summary, detail: e.detail || {}, demo: e.demo, at: e.created_at, itemTitle: e.item_title, updateTitle: e.update_title,
+          staffId: e.staff_id, staffName: e.staff_name, code: e.type_code })),
         messages: msgs.map((m) => ({ id: m.id, taskId: m.audit_task_id, staffId: m.staff_id, kind: m.kind, channel: m.channel, recipient: m.recipient, subject: m.subject, body: m.body, link: (m.upload_link || "").replace(/^\/?/, ""), outcome: m.outcome, at: m.sent_at, nextFollowUp: m.next_follow_up })),
         lastRun: runs[0] ? { at: runs[0].ran_at, summary: runs[0].summary } : null,
       };
@@ -525,6 +564,17 @@ const AuditAgent = (() => {
   const reqOf = (x) => x.req || { status: x.status === "green" ? "compliant" : x.status === "yellow" ? "under_review" : "missing", flags: [], priority: "medium", reason: x.risk, nextAction: "", currentEvidence: x.evidence };
   const openTasks = () => data.tasks.filter((t) => t.state !== "resolved");
   const prioRank = (p) => (PRIO[p] || PRIO.low)[2];
+  const medicalDecisionPending = () => typeof medicalSubmission !== "undefined" && medicalSubmission && medicalSubmission.status === "pending";
+  // owner to-dos the agent proposed (not decisions): evidence only the owner holds, owner actions, overdue scheduled tasks
+  function todoTasks() {
+    return openTasks().filter((t) => t.state === "waiting" && !t.assigneeId)
+      .filter((t) => !(t.kind === "owner_action" && medicalDecisionPending() && keyOf(itemById(t.itemId)) === "medical"))
+      .sort((a, b) => prioRank(b.priority) - prioRank(a.priority));
+  }
+  function todoItems() {
+    return todoTasks().map((t) => ({ kind: t.kind === "overdue_task" ? "Overdue task" : t.kind === "regulation_action" ? "Put a change into practice" : "Your to-do",
+      who: t.kind === "regulation_action" ? t.title : t.kind === "overdue_task" ? t.recordTitle || t.recordTitleLive || t.title : t.itemTitle || t.title, detail: t.recommended || t.reason, act: "AuditAgent.openTask('" + t.id + "')", btn: "Open", todo: true }));
+  }
   function counts() {
     const o = openTasks();
     const since = Date.now() - 7 * 864e5;
@@ -532,7 +582,7 @@ const AuditAgent = (() => {
       handled: data.events.filter((e) => Date.parse(e.at) > since && ["Action taken", "Resolved"].includes(e.state) && !/^You /.test(e.summary)).length,
       waitingOthers: o.filter((t) => t.state === "waiting" && t.assigneeId).length,
       decisions: o.filter((t) => t.state === "owner_review").length,
-      yours: o.filter((t) => t.state === "waiting" && !t.assigneeId).length,
+      yours: todoTasks().length,
       lastRun: data.lastRun && data.lastRun.at,
     };
   }
@@ -701,6 +751,7 @@ const AuditAgent = (() => {
       '<div class="modalMeta"><span>Why it matters</span><b>' + E(r.why) + "</b></div></div>" +
       (revs.length ? '<div class="modalSection"><h3>Guidance change</h3>' + revs.map((v) => { const u = data.updates.find((y) => y.id === v.updateId) || {}; return '<p>' + E(u.title || "") + ": " + E(v.decision === "update_needed" ? "you decided the policy needs updating. Upload and verify the new version." : v.reason) + ' <button class="textButton" onclick="closeModal();go(\'updates\')">Open the update</button></p>'; }).join("") + "</div>" : "") +
       (ts.length ? '<div class="modalSection"><h3>Open actions</h3>' + ts.map(taskRow).join("") + "</div>" : "") +
+      (m.kind === "certificates" ? renewalsFor(m) : "") +
       (evs.length ? '<div class="modalSection"><h3>Evidence</h3>' + evs.map(evidenceRow).join("") + "</div>" : "") +
       (uploadable ? '<div class="modalSection"><h3>Add evidence</h3>' + uploadWidget(id) + "</div>" : "") +
       (g ? '<details class="more"><summary>How to comply</summary>' + g + "</details>" : "") +
@@ -710,6 +761,22 @@ const AuditAgent = (() => {
       (uploadable ? '<button class="button primary" id="submitEvidence" onclick="AuditAgent.submitFromDrawer(\'' + id + '\')">Submit for verification</button>' : "") + "</div>",
       "wide",
     );
+  }
+
+  // the staff agent's renewals behind a credential requirement (one workflow, linked both ways)
+  function renewalsFor(m) {
+    if (typeof StaffAgent === "undefined" || !StaffAgent.active()) return "";
+    const list = StaffAgent.data().tasks.filter((t) => t.state !== "resolved" && (m.codes || []).includes(t.code));
+    return '<div class="modalSection"><h3>Renewals beehive is handling</h3>' +
+      (list.length ? list.sort((a, b) => StaffAgent.PRIO[b.priority].rank - StaffAgent.PRIO[a.priority].rank).map((t) =>
+        '<button class="row agentRow" onclick="closeModal();StaffAgent.openTask(\'' + t.id + '\')"><span class="rowMain"><b>' + E(t.staffName) + ' <span class="muted">· ' + E(StaffAgent.SHORT[t.code]) + "</span></b><small>" + E(t.reason) + '</small></span><span class="rowEnd">' + StaffAgent.prioTag(t.priority) + StaffAgent.stateTag(t.state) + "</span></button>").join("")
+        : '<p class="muted">None. Every credential behind this requirement is current.</p>') +
+      '<p class="footnote">This requirement is worked out from the staff register. Renewing a credential updates it automatically.</p></div>';
+  }
+  // which audit requirement a credential counts towards
+  function requirementForCode(code) {
+    if (typeof items === "undefined") return null;
+    return items.find((x) => meta(x).kind === "certificates" && (meta(x).codes || []).includes(code)) || null;
   }
 
   // ---------- upload + reading (documents) ----------
@@ -907,6 +974,7 @@ const AuditAgent = (() => {
       (t.evidenceId ? '<div class="callout"><span class="hx lg"></span><div><b>Evidence waiting for you</b><p>Check it and verify or reject it.</p></div><span class="rowEnd"><button class="button primary small" onclick="AuditAgent.openEvidence(\'' + t.evidenceId + '\')">Review</button></span></div>' : "") +
       '<div class="modalMeta"><span>Assigned to</span><b>' + E(t.assigneeId ? t.assigneeName : "You") + "</b></div>" +
       (t.dueDate ? '<div class="modalMeta"><span>Due</span><b>' + E(fmtDate(t.dueDate)) + "</b></div>" : "") +
+      (t.kind === "regulation_action" && t.state !== "resolved" && leader() ? '<label class="formLabel" for="doneNote">What you changed (optional)</label><input class="formControl" id="doneNote" placeholder="For example: register checked, new course code noted">' : "") +
       (t.requestsSent ? '<div class="modalMeta"><span>Requests sent</span><b>' + t.requestsSent + (t.nextFollowUp ? ", next follow-up " + E(fmtDate(t.nextFollowUp)) : "") + "</b></div>" : "") +
       (canAssign ? '<label class="formLabel" for="assignTo">Ask someone for this evidence</label><div class="assignLine"><select class="formControl" id="assignTo"><option value="">Me (the owner)</option>' +
         staff.map((s) => '<option value="' + E(s.id) + '"' + (s.id === t.assigneeId ? " selected" : "") + ">" + E(s.name) + (s.role ? ", " + E(s.role) : "") + "</option>").join("") +
@@ -916,6 +984,8 @@ const AuditAgent = (() => {
       '<div class="modalActions">' + (t.itemId ? '<button class="button" onclick="closeModal();openItem(\'' + t.itemId + '\')">Requirement</button>' : "") +
       (t.kind === "regulation_review" ? '<button class="button primary" onclick="closeModal();go(\'updates\')">Review the update</button>' : "") +
       (t.kind === "overdue_task" ? '<button class="button primary" onclick="closeModal();go(\'compliance\')">Compliance tasks</button>' : "") +
+      (t.kind === "regulation_action" && t.state !== "resolved" && meta(itemById(t.itemId)).kind === "certificates" ? '<button class="button" onclick="closeModal();go(\'staff\')">Staff certifications</button>' : "") +
+      (t.kind === "regulation_action" && t.state !== "resolved" && leader() ? '<button class="button primary" onclick="AuditAgent.completeTask(\'' + t.id + '\')">Mark done</button>' : "") +
       (t.kind === "evidence" && t.assigneeId && t.state !== "resolved" && leader() ? '<button class="button" onclick="AuditAgent.sendNow(\'' + t.id + '\')">Send reminder now</button>' : "") + "</div>",
       "wide",
     );
@@ -927,6 +997,26 @@ const AuditAgent = (() => {
       (m.link ? '<a class="msgLink" href="' + E(StaffAgent.uploadUrl(m.link)) + '" target="_blank" rel="noopener" onclick="return AuditAgent.openLink(\'' + E(m.link) + '\')">Open the upload link (demo)</a>' : "") +
       (m.nextFollowUp ? '<small class="muted">Next follow-up ' + E(fmtDate(m.nextFollowUp)) + "</small>" : "") + "</div>"
     );
+  }
+  const DEMO_UPDATES = [
+    { title: "First aid qualification changes", summary: "Updated first aid course requirements for education and care services. Check that every educator’s first aid and CPR certificates meet the new course requirements.", terms: ["firstaid"] },
+    { title: "Sun protection guidance refreshed", summary: "Cancer Council has refreshed its sun protection guidance for early childhood services, including UV thresholds for outdoor play.", terms: ["sun"] },
+  ];
+  function addDemoUpdate(o) {
+    if (isLive()) return;
+    const next = o || DEMO_UPDATES.find((d) => !data.updates.some((u) => u.title === d.title));
+    if (!next) return toast("No more demo updates to add.");
+    Engine.load(); Engine.addUpdate(next); applyOffline(); render();
+    toast("Demo update added. beehive assessed it against your requirements.");
+  }
+  async function completeTask(taskId) {
+    const note = ((document.getElementById("doneNote") || {}).value || "").trim();
+    try {
+      if (isLive()) await rpc("complete_audit_task", { p_task: taskId, p_note: note });
+      else Engine.complete(taskId, note);
+      toast("Recorded. The review is complete and the requirement is updated.");
+      closeModal(); await refresh();
+    } catch (e) { toast(e.message || String(e)); }
   }
   async function assign(taskId) {
     const staffId = (document.getElementById("assignTo") || {}).value || null;
@@ -947,13 +1037,14 @@ const AuditAgent = (() => {
   function updatesPageHtml() {
     const ups = data.updates;
     if (!ups.length) return header("Regulation updates", "Changes that may affect your requirements.") + '<p class="empty">No updates. When guidance changes, beehive assesses which requirements it may affect and lists it here.</p>';
-    return header("Regulation updates", "beehive assesses each change against your requirements. It flags what may be affected; you decide whether anything needs to change.") +
+    return header("Regulation updates", "beehive assesses each change against your requirements. It flags what may be affected; you decide whether anything needs to change.",
+        isLive() ? "" : '<button class="button" onclick="AuditAgent.addDemoUpdate()">Add a demo update</button>') +
       ups.map((u) => {
         const revs = data.reviews.filter((r) => r.updateId === u.id);
         const updating = revs.some((r) => r.decision === "update_needed" && !r.completedAt);
         const state = u.status === "reviewed" ? (updating ? '<span class="status medium">Reviewed, policy update in progress</span>' : '<span class="status green">Reviewed</span>') : u.status === "new" ? '<span class="status neutral">New, not yet assessed</span>' : '<span class="status crit">Review required</span>';
         return (
-          '<article class="update"><p class="updateMeta">' + state + "<span>Published " + E(fmtDate(u.published)) + "</span></p><h2>" + E(u.title) + "</h2><p>" + E(u.summary) + "</p>" +
+          '<article class="update"><p class="updateMeta">' + state + "<span>Published " + E(fmtDate(u.published)) + "</span>" + (u.demo ? '<span class="demoTag">Demo update</span>' : "") + "</p><h2>" + E(u.title) + "</h2><p>" + E(u.summary) + "</p>" +
           (u.assessment ? '<div class="nextBox"><b>What beehive found</b><p>' + E(u.assessment) + "</p></div>" : "") +
           (u.source ? '<p class="small"><a href="' + E(u.source) + '" target="_blank" rel="noopener">Official source</a></p>' : "") +
           revs.map((r) => reviewBlock(r, u)).join("") + "</article>"
@@ -970,7 +1061,7 @@ const AuditAgent = (() => {
       "<p>" + E(r.reason) + "</p><p class=\"muted small\"><b>Recommended:</b> " + E(r.recommended) + "</p>" +
       (r.decision
         ? '<p class="decisionDone"><span class="status ' + (r.decision === "update_needed" && !r.completedAt ? "medium" : "green") + '">' + dec[r.decision] + "</span>" + E(r.decidedAt ? " Recorded " + fmtDate(String(r.decidedAt).slice(0, 10)) : "") + (r.note ? ". " + E(r.note) : "") +
-          (r.decision === "update_needed" ? (r.completedAt ? ". Updated policy verified." : '. Waiting for the updated policy. <button class="textButton" onclick="openItem(\'' + r.itemId + '\')">Upload it</button>') : "") + "</p>"
+          (r.decision === "update_needed" ? (r.completedAt ? ". Change in place." : (x && meta(x).kind !== "document" ? '. Waiting for you to put it into practice. <button class="textButton" onclick="AuditAgent.openActionFor(\'' + r.updateId + "','" + r.itemId + '\')">Open the task</button>' : '. Waiting for the updated policy. <button class="textButton" onclick="openItem(\'' + r.itemId + '\')">Upload it</button>')) : "") + "</p>"
         : leader()
         ? '<label class="formLabel" for="rn-' + r.id + '">Your note (optional)</label><input class="formControl" id="rn-' + r.id + '" placeholder="What you checked">' +
           '<div class="buttonRow decisionBtns">' +
@@ -980,6 +1071,10 @@ const AuditAgent = (() => {
           (x ? '<button class="textButton" onclick="openItem(\'' + x.id + '\')">See current evidence</button>' : "") + "</div>"
         : "") + "</div>"
     );
+  }
+  function openActionFor(updateId, itemId) {
+    const t = data.tasks.find((y) => y.kind === "regulation_action" && y.updateId === updateId && y.itemId === itemId && y.state !== "resolved");
+    if (t) openTask(t.id); else openItem(itemId);
   }
   async function decide(reviewId, decision) {
     const note = ((document.getElementById("rn-" + reviewId) || {}).value || "").trim();
@@ -1017,8 +1112,12 @@ const AuditAgent = (() => {
       else if (t && t.state !== "resolved") act = "AuditAgent.openTask('" + t.id + "')";
       else if (e.itemId) act = "openItem('" + e.itemId + "')";
       else if (e.updateId) act = "go('updates')";
+      else if (t) act = "AuditAgent.openTask('" + t.id + "')";
       const x = e.itemId ? itemById(e.itemId) : null;
-      return { at: e.at, state: e.state, summary: e.summary, subject: "", line: line(e), act, actLabel, demo: e.demo, proposed: !!(e.detail && e.detail.proposed) && t && t.state !== "resolved",
+      const d = e.detail || {};
+      const subject = e.staffName ? e.staffName + (e.code && typeof StaffAgent !== "undefined" ? ", " + StaffAgent.SHORT[e.code] : "") : t && t.assigneeName && /evidence_requested|evidence_follow_up|evidence_correction/.test(e.kind) ? t.assigneeName : "";
+      return { at: e.at, state: e.state, summary: e.summary, subject, line: (d.cause ? d.cause + ". " : "") + line(e), act, actLabel, demo: e.demo, agent: "audit",
+               simulated: !!d.simulated, proposed: !!d.proposed && t && t.state !== "resolved",
                now: t && t.state !== "resolved" && TASK_STATE[t.state] !== e.state ? taskStateTag(t) : "", itemTitle: x ? x.title : e.itemTitle };
     });
   }
@@ -1128,5 +1227,6 @@ const AuditAgent = (() => {
     auditPageHtml, updatesPageHtml, overviewRow, blockersAnswer, blockersSummaryText, educatorRequests, setupNote, readinessBlock,
     openItem, openBlockers, openEvidence, openTask, openDrillForm, saveDrill, decideEvidence, fileChosen, useSample, submitFromDrawer, assign, sendNow, decide, tab,
     linkToken, showLinkPage, submitLink, closeLinkPage, openLink, LABEL,
+    todoItems, completeTask, openActionFor, addDemoUpdate, requirementForCode, reqOf, meta, prioTag, statusTagHtml: (st) => statusTagHtml(st),
   };
 })();

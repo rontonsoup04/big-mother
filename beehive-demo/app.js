@@ -490,7 +490,7 @@ function setNav() {
   if (agentOn()) {
     let ac = StaffAgent.counts();
     badge("certAlertBadge", ac.owner, ac.critical > 0);
-    badge("notificationBadge", StaffAgent.decisions().length + (auditOn() ? AuditAgent.decisions().length : 0) + (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0));
+    badge("notificationBadge", attentionItems().length);
   } else {
     badge("certAlertBadge", certDueCount() + certExpiredCount() + (pendingSubmission ? 1 : 0), certExpiredCount() > 0);
     badge("notificationBadge", (pendingSubmission ? 1 : 0) + (medicalSubmission && medicalSubmission.status === "pending" ? 1 : 0) + certDueCount());
@@ -709,6 +709,11 @@ function certRows() {
   educators.forEach((e) => e.certs.forEach((c) => { if (c.days <= 60) out.push({ e, c }); }));
   return out.sort((a, b) => a.c.days - b.c.days);
 }
+// Everything that needs the owner, from both agents and the rest of beehive: decisions first, then the to-dos
+// beehive proposed. The Overview list, its count, the summary strip and the bell all use this one list.
+function attentionItems() {
+  return decisionItems().concat(auditOn() && approved ? AuditAgent.todoItems() : []);
+}
 function decisionItems() {
   let d = (agentOn() ? StaffAgent.decisions() : []).concat(auditOn() && approved ? AuditAgent.decisions() : []);
   if (pendingSubmission && !agentOn())
@@ -846,27 +851,41 @@ function overviewPage() {
   let tasks = typeof Library !== "undefined" ? Library.taskList() : [];
   let overdue = tasks.filter((t) => t.state === "overdue").length, dueSoon = tasks.filter((t) => t.state === "due_soon").length;
   let today = new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
+  if (agentOn()) {
+    let att = attentionItems(), dec = att.filter((x) => !x.todo), todo = att.filter((x) => x.todo);
+    let auditReady = auditOn() && approved;
+    return (
+      header(
+        greeting() + ", " + esc(firstName(OWNER_NAME)),
+        today + ". " + (att.length ? att.length + (att.length === 1 ? " thing needs" : " things need") + " you; beehive is handling the rest." : "Nothing needs you right now; beehive is handling the rest."),
+        '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>',
+      ) +
+      StaffAgent.overviewSummary() +
+      '<section class="section decisions" id="attention"><div class="sectionHead"><h2>Needs your attention<span class="count">' + att.length + "</span></h2><p>Decisions first, then to-dos beehive proposed</p></div>" +
+      (dec.length ? dec.map(decisionRow).join("") : "") +
+      (todo.length ? '<p class="subhead">Your to-do, proposed by beehive</p>' + todo.map(decisionRow).join("") : "") +
+      (att.length ? "" : '<p class="empty">You’re all caught up. beehive will bring you anything that needs your judgement.</p>') +
+      "</section>" +
+      '<div class="twoCol"><div>' + StaffAgent.detectedHtml(7) + "</div><div>" +
+      '<section class="section"><div class="sectionHead"><h2>Audit readiness</h2><button class="textButton" onclick="go(\'audit\')">Open</button></div>' +
+      (auditReady ? AuditAgent.overviewRow()
+        : '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Approve your checklist</b><small>Once approved, beehive checks every requirement against its evidence.</small></span><span class="rowMeta">Draft</span></button>') +
+      '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
+      (regPending && !auditReady ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
+      "</section>" + StaffAgent.waitingHtml() + "</div></div>" +
+      '<section class="section" id="agentActivity"><div class="sectionHead"><h2>Agent activity</h2><p>Everything beehive did, in order, with what happens next</p></div>' + StaffAgent.feedHtml() + "</section>"
+    );
+  }
   return (
     header(
       greeting() + ", " + esc(firstName(OWNER_NAME)),
       today + ". " + (decisions.length ? decisions.length + (decisions.length === 1 ? " decision is" : " decisions are") + " waiting for you." : "Nothing needs your decision right now."),
       '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>',
     ) +
-    (agentOn() ? StaffAgent.overviewSummary() : "") +
     '<section class="section decisions"><div class="sectionHead"><h2>Needs your decision<span class="count">' + decisions.length + "</span></h2></div>" +
     (decisions.length ? decisions.map(decisionRow).join("") : '<p class="empty">You’re all caught up. beehive will flag anything that needs you.</p>') +
     "</section>" +
-    (agentOn()
-      ? '<div class="twoCol"><div><section class="section"><div class="sectionHead"><h2>Staff renewals<span class="count">' + (StaffAgent.counts().critical + StaffAgent.counts().high + StaffAgent.counts().medium + StaffAgent.counts().monitor) + '</span></h2><button class="textButton" onclick="go(\'staff\')">All staff</button></div>' + StaffAgent.renewalsCompact(3) + "</section></div><div>" +
-        '<section class="section"><div class="sectionHead"><h2>Regulations and compliance</h2><button class="textButton" onclick="go(\'compliance\')">Compliance</button></div>' +
-        (auditOn() && approved ? AuditAgent.overviewRow() : "") +
-        (auditOn() && approved && AuditAgent.data().updates.some((u) => u.status !== "reviewed") ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(AuditAgent.data().updates.find((u) => u.status !== "reviewed").title) + "</b><small>beehive flagged what it may affect. Your decision is needed.</small></span>" + statusTag("crit", "Review required") + "</button>" : "") +
-        (regPending && !(auditOn() && approved) ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
-        '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
-        (auditOn() && approved ? "" : '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Audit readiness</b><small>' + (approved ? countStatus("red") + " missing, " + countStatus("yellow") + " due for review" : "Checklist waiting for your approval") + '</small></span><span class="rowMeta num">' + (approved ? readiness() + "%" : "Draft") + "</span></button>") +
-        "</section></div></div>" +
-        '<section class="section" id="agentActivity"><div class="sectionHead"><h2>Agent activity</h2><p>What beehive did, what it’s waiting for and what needs you</p></div>' + StaffAgent.feedHtml() + "</section>"
-      : '<div class="twoCol"><div>' +
+    ('<div class="twoCol"><div>' +
         '<section class="section"><div class="sectionHead"><h2>Staff credentials<span class="count">' + creds.length + '</span></h2><button class="textButton" onclick="go(\'staff\')">All staff</button></div>' +
         (creds.length ? group("Expired", expired, 4) + group("Due within 14 days", soon, 4) + group("Due within 60 days", later, 3) : '<p class="empty">Every credential is current for at least 60 days.</p>') +
         "</section>" +
@@ -1361,10 +1380,11 @@ function approveCertificate() {
 }
 function handleNotifications() {
   if (agentOn()) {
-    if (StaffAgent.decisions().length) { if (current !== "overview") go("overview"); StaffAgent.nextDecision(); return; }
-    if (auditOn() && AuditAgent.decisions().length) { if (current !== "overview") go("overview"); new Function(AuditAgent.decisions()[0].act)(); return; }
-    if (medicalSubmission && medicalSubmission.status === "pending") return reviewFamilyUpdate();
-    return go("staff");
+    let first = attentionItems()[0];
+    if (!first) return go("overview");
+    if (current !== "overview") go("overview");
+    new Function(first.act)();
+    return;
   }
   if (pendingSubmission) {
     current = "staff";

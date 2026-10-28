@@ -323,7 +323,7 @@ const StaffAgent = (() => {
         const old = e.certs.find((c) => (CODE_OF[c.type] || c.code) === code) || {};
         const c = certs[code];
         if (!c) return { type: SHORT[code], code, expiry: "Not on file", days: -1, missing: true };
-        return Object.assign({}, old, { type: SHORT[code], code, expiryISO: c.expiry, expiry: fmtDate(c.expiry), days: daysFrom(c.expiry), approvedAt: c.verifiedAt ? new Date(c.verifiedAt).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : old.approvedAt || "" });
+        return Object.assign({}, old, { type: SHORT[code], code, missing: false, expiryISO: c.expiry, expiry: fmtDate(c.expiry), days: daysFrom(c.expiry), approvedAt: c.verifiedAt ? new Date(c.verifiedAt).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : old.approvedAt || "" });
       });
       const t = data.tasks.filter((x) => x.staffId === e.id && x.state !== "resolved").sort((a, b) => PRIO[b.priority].rank - PRIO[a.priority].rank)[0];
       e.alertState = t ? TASK_STATE[t.state] + ": " + SHORT[t.code] : "";
@@ -395,13 +395,16 @@ const StaffAgent = (() => {
   // =====================================================================================
   // Actions
   // =====================================================================================
+  let pendingCause = null;
+  const causeFor = (staffId, code, what) => ({ text: (staffNameOf(staffId) || "An educator") + "’s " + TYPE[code] + " " + what, staffId, code, staffName: staffNameOf(staffId) });
   async function refresh(page) {
+    const cause = pendingCause; pendingCause = null;
     if (isLive()) {
       if (typeof AuditAgent !== "undefined" && AuditAgent.active()) await AuditAgent.runRemote();
       await Live.reload(page);
     } else {
       data = Object.assign({ available: true, mode: "offline", error: "" }, Engine.view()); syncEducators();
-      if (typeof AuditAgent !== "undefined" && AuditAgent.active()) AuditAgent.runOffline();
+      if (typeof AuditAgent !== "undefined" && AuditAgent.active()) AuditAgent.runOffline(cause);
       if (page) current = page;
       render();
     }
@@ -450,11 +453,13 @@ const StaffAgent = (() => {
         await guard(() => (isLive() ? rpc("verify_certificate", { p_submission: subId, p_approve: true, p_expiry: expiry || null, p_reason: "" }) : Engine.verify(subId, true, expiry, "")),
           sub.staffName + "’s " + sub.typeName + " is verified. The record is updated, the renewal task is closed and compliance is refreshed.");
       } catch (e) { if (btn) btn.disabled = false; return; }
+      pendingCause = causeFor(sub.staffId, sub.code, "was verified");
     } else {
       const reason = ((document.getElementById("rejectReason") || {}).value || "").trim();
       if (!reason) { const el = document.getElementById("rejectReason"); if (el) el.focus(); return toast("Add a reason so " + first(sub.staffName) + " knows what to fix."); }
       await guard(() => (isLive() ? rpc("verify_certificate", { p_submission: subId, p_approve: false, p_expiry: null, p_reason: reason }) : Engine.verify(subId, false, null, reason)),
         "Upload rejected. The record is unchanged and beehive asked " + first(sub.staffName) + " for a corrected upload (simulated).");
+      pendingCause = causeFor(sub.staffId, sub.code, "upload was rejected");
     }
     closeModal();
     await refresh();
@@ -519,19 +524,78 @@ const StaffAgent = (() => {
   }
 
   // ---------- Overview: what the agent has done, is waiting for and needs ----------
+  // ---------- Overview: one view of both agents, from the same records every page uses ----------
+  const auditOn = () => typeof AuditAgent !== "undefined" && AuditAgent.active() && typeof approved !== "undefined" && approved;
+  const RANK = { critical: 4, high: 3, medium: 2, monitor: 1, low: 1 };
+  // everything beehive has found that isn't resolved yet, highest priority first
+  function detectedItems() {
+    const out = [];
+    open().forEach((t) => {
+      const req = auditOn() ? AuditAgent.requirementForCode(t.code) : null;
+      out.push({ rank: RANK[t.priority] || 1, source: "Staff credential", title: t.staffName + " · " + SHORT[t.code], detail: t.reason + (req ? ". Counts towards “" + req.title + "”" : ""),
+                 tags: prioTag(t.priority) + stateTag(t.state), act: taskAction(t).act, next: nextStep(t) });
+    });
+    if (auditOn()) {
+      (typeof items !== "undefined" ? items : []).forEach((x) => {
+        const r = AuditAgent.reqOf(x), m = AuditAgent.meta(x);
+        if (r.status === "compliant" || m.kind === "certificates") return; // credential requirements are the renewals above
+        out.push({ rank: RANK[r.priority] || 1, source: "Audit requirement", title: x.title, detail: r.reason, tags: AuditAgent.prioTag(r.priority) + AuditAgent.statusTagHtml(r.status), act: "openItem('" + x.id + "')", next: r.nextAction });
+      });
+      AuditAgent.data().updates.filter((u) => u.status === "assessed").forEach((u) =>
+        out.push({ rank: 2, source: "Regulation change", title: u.title, detail: u.assessment, tags: '<span class="status crit">Owner review</span>', act: "go('updates')", next: "Record whether anything needs to change." }));
+    }
+    return out.sort((a, b) => b.rank - a.rank);
+  }
+  // requests beehive sent that are waiting for someone else to respond
+  function waitingItems() {
+    const out = open().filter((t) => t.state === "waiting").map((t) => ({ who: t.staffName, what: SHORT[t.code] + " renewal", since: t.lastMessageAt, next: t.nextFollowUp, act: "StaffAgent.openTask('" + t.id + "')" }));
+    if (auditOn()) AuditAgent.data().tasks.filter((t) => t.state === "waiting" && t.assigneeId).forEach((t) =>
+      out.push({ who: t.assigneeName, what: t.itemTitle, since: t.lastMessageAt, next: t.nextFollowUp, act: "AuditAgent.openTask('" + t.id + "')" }));
+    return out.sort((a, b) => String(a.next || "9").localeCompare(String(b.next || "9")));
+  }
+  function doneThisWeek() {
+    const since = Date.now() - 7 * 864e5;
+    const real = (e) => !e.demo && Date.parse(e.at) > since && ["Action taken", "Resolved"].includes(e.state) && !/^(You |Reminder approved by you)/.test(e.summary);
+    return data.feed.filter(real).length + (auditOn() ? AuditAgent.data().events.filter(real).length : 0);
+  }
   function overviewSummary() {
-    const c = counts();
-    const a = typeof AuditAgent !== "undefined" && AuditAgent.active() ? AuditAgent.counts() : { handled: 0, waitingOthers: 0, decisions: 0, yours: 0, monitoring: 0 };
+    const att = typeof attentionItems === "function" ? attentionItems() : decisions();
+    const det = detectedItems(), wait = waitingItems();
+    const a = auditOn() ? AuditAgent.counts() : {};
     const last = [data.lastRun && data.lastRun.at, a.lastRun].filter(Boolean).sort().pop();
-    const decisionsN = c.owner + a.decisions;
+    const stat2 = (n, label, act, hot) => '<button onclick="' + act + '" class="' + (hot ? "hot" : "") + '"><b>' + n + "</b><span>" + label + "</span></button>";
     return (
-      '<div class="agentStrip"><div class="agentStripHead"><span class="hx"></span><b>beehive agents</b><span class="muted">Staff compliance and audit readiness. ' + (last ? "Last checked " + E(relTime(last).toLowerCase()) : "Not run yet") + "</span>" +
+      '<div class="agentStrip"><div class="agentStripHead"><span class="hx"></span><b>beehive</b><span class="muted">Watching staff credentials, audit requirements and regulation changes. ' + (last ? "Last checked " + E(relTime(last).toLowerCase()) : "Not checked yet") + "</span>" +
       (leader() ? '<button class="textButton" onclick="StaffAgent.runNow()">Check now</button>' : "") + "</div>" +
       '<div class="agentStats">' +
-      '<button onclick="StaffAgent.filter(\'Action taken\')"><b>' + (c.handled + a.handled) + "</b><span>actions this week</span></button>" +
-      '<button onclick="StaffAgent.filter(\'Waiting\')"><b>' + (c.waiting + a.waitingOthers) + "</b><span>waiting on staff</span></button>" +
-      '<button onclick="StaffAgent.filter(\'Owner review\')" class="' + (decisionsN ? "hot" : "") + '"><b>' + decisionsN + "</b><span>need your decision</span></button>" +
-      '<button onclick="go(\'audit\')"><b>' + a.yours + "</b><span>on your to-do list</span></button></div></div>"
+      stat2(det.length, "open issues detected", "document.getElementById('detected').scrollIntoView({behavior:'smooth'})") +
+      stat2(doneThisWeek(), "actions done this week", "StaffAgent.filter('Action taken')") +
+      stat2(wait.length, "waiting on staff", "document.getElementById('waiting').scrollIntoView({behavior:'smooth'})") +
+      stat2(att.length, "need you", "document.getElementById('attention').scrollIntoView({behavior:'smooth'})", att.length > 0) +
+      "</div></div>"
+    );
+  }
+  let detectedAll = false;
+  function detectedHtml(max) {
+    const list = detectedItems();
+    const shown = detectedAll ? list : list.slice(0, max || 6);
+    return (
+      '<section class="section" id="detected"><div class="sectionHead"><h2>What beehive detected<span class="count">' + list.length + '</span></h2><p>Highest priority first, across staff credentials, audit requirements and regulation changes</p></div>' +
+      (shown.length ? shown.map((x) =>
+        '<button class="row agentRow detRow" onclick="' + x.act + '"><span class="rowMain"><span class="srcTag">' + E(x.source) + "</span><b>" + E(x.title) + "</b><small>" + E(x.detail) + (x.next ? " <b>Next:</b> " + E(x.next) : "") + '</small></span><span class="rowEnd">' + x.tags + "</span></button>").join("")
+        : '<p class="empty">Nothing open. Every credential and requirement is current.</p>') +
+      (list.length > shown.length || detectedAll ? '<button class="textButton moreLink" onclick="StaffAgent.toggleDetected()">' + (detectedAll ? "Show fewer" : "Show all " + list.length) + "</button>" : "") + "</section>"
+    );
+  }
+  function toggleDetected() { detectedAll = !detectedAll; render(); }
+  function waitingHtml() {
+    const list = waitingItems();
+    return (
+      '<section class="section" id="waiting"><div class="sectionHead"><h2>Waiting on staff<span class="count">' + list.length + "</span></h2><p>beehive follows up automatically</p></div>" +
+      (list.length ? list.slice(0, 6).map((x) =>
+        '<button class="row" onclick="' + x.act + '"><span class="rowMain"><b>' + E(x.who || "Staff") + "</b><small>" + E(x.what) + (x.since ? ", asked " + E(relTime(x.since).toLowerCase()) : "") + '</small></span><span class="rowMeta">' + (x.next ? (x.next <= today() ? "Follow-up today" : "Follow-up " + E(fmtShort(x.next))) : "") + "</span></button>").join("") +
+        (list.length > 6 ? '<p class="muted small">' + (list.length - 6) + " more in Staff certifications and Audit readiness</p>" : "")
+        : '<p class="empty">No one owes beehive a response.</p>') + "</section>"
     );
   }
   function renewalsCompact(max) {
@@ -569,8 +633,12 @@ const StaffAgent = (() => {
     }
     return { label: "", act: e.staffId ? "openStaffDetail('" + e.staffId + "')" : "" };
   }
-  // other beehive activity (families, compliance) joins the same timeline
+  // (Earlier versions mixed other app activity into this feed with approximate times. The feed now holds only
+  // the agents' own records, each with its real timestamp.)
   function otherActivity() {
+    return [];
+  }
+  function unusedOtherActivity() {
     if (typeof hiveActivity !== "function") return [];
     const map = { done: "Resolved", progress: "Waiting", watch: "Monitoring" };
     const audit = typeof AuditAgent !== "undefined" && AuditAgent.active();
@@ -585,7 +653,7 @@ const StaffAgent = (() => {
       const a = feedAction(e), t = data.tasks.find((x) => x.id === e.taskId);
       return {
         at: e.at, state: e.state, summary: e.summary, subject: (e.staffName || "") + (e.typeName ? ", " + (SHORT[e.code] || e.typeName) : ""),
-        line: feedLine(e), act: a.act, actLabel: a.label, demo: e.demo,
+        line: feedLine(e), act: a.act, actLabel: a.label, demo: e.demo, agent: "staff", simulated: !!(e.detail && e.detail.simulated),
         now: t && t.state !== "resolved" && TASK_STATE[t.state] !== e.state ? stateTag(t.state) : "",
       };
     });
@@ -597,6 +665,7 @@ const StaffAgent = (() => {
       (x.line ? "<small>" + E(x.line) + "</small>" : "") +
       '<span class="feedMeta"><span class="status ' + (STATE_CLASS[x.state] || "neutral") + '">' + E(x.state) + "</span>" +
       (x.proposed ? '<span class="proposedTag">Proposed</span>' : "") +
+      (x.simulated ? '<span class="simTag">Simulated message</span>' : "") +
       (x.now ? '<span class="nowState">Now ' + x.now + "</span>" : "") + (x.demo ? '<span class="demoTag">Demo history</span>' : "") +
       (x.actLabel ? '<span class="feedAct">' + x.actLabel + "</span>" : "") + "</span></span>" +
       "<time>" + E(x.at ? relTime(x.at) : x.time || "") + "</time></li>"
@@ -613,7 +682,7 @@ const StaffAgent = (() => {
       '<div class="tabs feedTabs" role="tablist">' + FILTERS.map((f) => '<button class="tab' + (f === feedFilter ? " active" : "") + '" role="tab" aria-selected="' + (f === feedFilter) + '" onclick="StaffAgent.filter(\'' + f + '\')">' + f + "</button>").join("") + "</div>" +
       '<ol class="timeline agentFeed">' + (shown.map(rowHtml).join("") || '<li class="empty">Nothing in this state.</li>') + "</ol>" +
       (rows.length + extra.length > max ? '<button class="textButton" onclick="StaffAgent.more()">Show more</button>' : "") +
-      '<p class="footnote"><b>Action taken</b> and <b>Resolved</b> are done. <b>Owner review</b> is waiting for your decision. <b>Proposed</b> items are suggestions for you to act on. Email and SMS are simulated: messages are recorded, not delivered.</p>'
+      '<p class="footnote"><b>Monitoring</b>: beehive is watching. <b>Action taken</b> and <b>Resolved</b>: done. <b>Waiting</b>: for someone to respond. <b>Owner review</b>: needs your decision. <b>Proposed</b>: a suggestion for you. <b>Simulated message</b>: recorded in beehive, not actually delivered. <b>Demo history</b>: seeded example data, not a real action.</p>'
     );
   }
   let feedLimit = 12;
@@ -693,6 +762,10 @@ const StaffAgent = (() => {
       '<div class="modalMeta"><span>Requests sent</span><b>' + t.requestsSent + "</b></div>" +
       (t.state !== "resolved" ? '<div class="modalMeta"><span>Next step</span><b>' + E(nextStep(t)) + "</b></div>" : '<div class="modalMeta"><span>Outcome</span><b>' + E(t.resolution || "Resolved") + "</b></div>") +
       '<div class="modalMeta"><span>Contact</span><b>' + E([t.email, t.phone].filter(Boolean).join(", ") || "None on file") + "</b></div>" +
+      (function () {
+        const req = typeof AuditAgent !== "undefined" && AuditAgent.active() && typeof approved !== "undefined" && approved ? AuditAgent.requirementForCode(t.code) : null;
+        return req ? '<div class="modalMeta"><span>Audit requirement</span><b><button class="textButton" onclick="closeModal();openItem(\'' + req.id + '\')">' + E(req.title) + "</button> " + AuditAgent.statusTagHtml(AuditAgent.reqOf(req).status) + "</b></div>" : "";
+      })() +
       '<div class="modalSection"><h3>Messages</h3>' + (msgs.length ? msgs.map(messageHtml).join("") : '<p class="muted">None yet. beehive sends the first request at 30 days.</p>') + "</div>" +
       '<div class="modalSection"><h3>What beehive did</h3><ol class="timeline">' + events.map((e) => '<li class="tlItem ' + (FEED_CLASS[e.state] || "watch") + '"><span class="tlMark"></span><span class="tlText"><b>' + E(e.summary) + "</b><small>" + E(feedLine(e)) + "</small></span><time>" + E(relTime(e.at)) + "</time></li>").join("") + "</ol></div>" +
       '<div class="modalActions"><button class="button" onclick="closeModal();openStaffDetail(\'' + t.staffId + '\')">Staff record</button>' +
@@ -840,6 +913,7 @@ const StaffAgent = (() => {
         r = Engine.submit(sel.staffId, sel.code, { fileName: upload.file.name, fileData: a.dataUrl, hash: a.hash, extracted: a.fields, expiry, source: "owner" });
       }
       const token = upload.token;
+      pendingCause = causeFor(upload.staffId || sel.staffId, upload.code || sel.code, "renewal was uploaded");
       upload = null;
       if (token) return uploadDone(r);
       toast(r.flag === "clear" ? "Uploaded. It’s waiting for the owner’s verification." : "Uploaded and flagged for the owner to check: " + (r.checks[0] || {}).message);
@@ -927,6 +1001,6 @@ const StaffAgent = (() => {
     // actions
     runNow, sendNow, acknowledge, decide, openTask, openReview, nextDecision, filter, more, tab, fileChosen, useSample, submitUpload, openLink,
     showUploadPage, closeUploadPage, linkToken, reset: () => Engine.reset(), contactFor: (id) => Engine.contactFor(id), rowHtml, FEED_CLASS, STATE_CLASS, announce,
-    guard, uploadUrl, brand,
+    guard, uploadUrl, brand, detectedHtml, waitingHtml, toggleDetected, detectedItems, waitingItems,
   };
 })();

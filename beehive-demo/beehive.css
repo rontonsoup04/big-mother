@@ -679,6 +679,9 @@ details.more[open] > summary::after { content: "–"; }
 .decisionBtns { margin-top: var(--s3); }
 .decisionDone { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .proposedTag { font-size: 11px; font-weight: 600; color: var(--honey-ink); border: 1px dashed var(--honey); border-radius: var(--r-sm); padding: 0 5px; }
+.simTag { font-size: 11px; color: var(--ink-2); background: var(--canvas); border: 1px solid var(--line-2); border-radius: var(--r-sm); padding: 0 5px; }
+.srcTag { display: block; font-size: var(--t-xs); font-weight: 500; color: var(--honey-ink); margin-bottom: 1px; }
+.detRow .rowMain small b { display: inline; font-weight: 600; color: var(--ink-2); }
 p.small, .small { font-size: var(--t-sm); }
 .muted.small { font-size: var(--t-xs); }
 .update + .update { margin-top: var(--s6); padding-top: var(--s5); border-top: 1px solid var(--line); }

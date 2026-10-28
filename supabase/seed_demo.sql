@@ -198,7 +198,9 @@ begin
   -- ---------- audit evidence already on file (verified by Sara) ----------
   -- Evacuation drill is out of date (quarterly, last one 100 days ago) and authorisation records are missing:
   -- the audit agent picks both up once Sara approves the checklist. Sun protection policy is due for renewal soon.
+  set constraints all immediate;
   alter table public.evidence disable trigger evidence_completes_rehearsal;
+  set constraints all deferred;
   insert into public.evidence (centre_id, checklist_item_id, title, recorded_on, uploaded_by, status, verified_by, verified_at, source, note, created_at)
   select c_centre, ci.id, e.title, current_date - e.days, u_sara, 'verified', u_sara, now() - make_interval(days => e.days - 1), 'seed', 'Demo record', now() - make_interval(days => e.days)
   from (values
@@ -209,7 +211,9 @@ begin
     ('sleep',      'Sleep and Rest Policy and risk assessment', 210)
   ) as e(item_key, title, days)
   join public.checklist_items ci on ci.centre_id = c_centre and ci.item_key = e.item_key and ci.is_active;
+  set constraints all immediate;  -- run the queued requirement checks before changing the table
   alter table public.evidence enable trigger evidence_completes_rehearsal;
+  set constraints all deferred;
 
   -- ---------- AI agent key for Copilot Studio ----------
   insert into public.agent_keys (centre_id, key_hash, created_by)
