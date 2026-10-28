@@ -13,6 +13,7 @@ PENDING = [
     "supabase/migrations/20261028090000_staff_agent.sql",
     "supabase/migrations/20261029090000_audit_agent.sql",
     "supabase/migrations/20261030090000_integration.sql",
+    "supabase/migrations/20261031090000_ask_beehive.sql",
     "supabase/seed_demo.sql",
 ]
 
@@ -24,7 +25,8 @@ HEADER = """-- =================================================================
 --   2. the staff compliance agent
 --   3. the audit-readiness agent
 --   4. the integration that joins them into one system
---   5. the demo data (this RESETS the demo centre: Sara, Priya, Mia and all demo records)
+--   5. read-only data for Ask beehive (Gemini)
+--   6. the demo data (this RESETS the demo centre: Sara, Priya, Mia and all demo records)
 --
 -- It's safe to run again: every step checks what already exists, and the demo data is rebuilt each time.
 -- The last row it returns is a new AI agent key. Paste it into Vercel -> Settings -> Environment Variables

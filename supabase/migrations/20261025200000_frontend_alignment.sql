@@ -498,7 +498,7 @@ begin
 end $$;
 
 -- ===========================================================================
--- 7. AI agent API (Copilot Studio calls these over HTTPS with the centre's agent key)
+-- 7. AI agent API (the Gemini functions in beehive-demo/api call these over HTTPS with the centre's agent key)
 -- ===========================================================================
 create table if not exists public.agent_keys (
   centre_id   uuid primary key references public.centres (id) on delete cascade,
@@ -517,7 +517,7 @@ begin
   insert into agent_keys (centre_id, key_hash, created_by) values (v_centre, encode(sha256(convert_to(v_key, 'UTF8')), 'hex'), auth.uid())
   on conflict (centre_id) do update set key_hash = excluded.key_hash, created_by = excluded.created_by, created_at = now();
   perform log_audit(v_centre, 'agent_key.created', 'agent_keys', v_centre::text, '{}');
-  return v_key;   -- shown once; paste it into Copilot Studio
+  return v_key;   -- shown once; paste it into Vercel as BEEHIVE_AGENT_KEY
 end $$;
 
 create or replace function public._agent_centre(p_key text)
@@ -603,7 +603,7 @@ begin
           coalesce(p_staff_note, ''), trim(p_body), true, 'draft')
   returning id into v_id;
   perform log_audit(v_centre, 'parent_message.ai_drafted', 'parent_messages', v_id::text,
-    jsonb_build_object('child_id', v_child.id, 'by', 'Copilot Studio agent'));
+    jsonb_build_object('child_id', v_child.id, 'by', 'AI agent'));
   return jsonb_build_object('draft_id', v_id, 'child', v_child.first_name || ' ' || v_child.last_name,
                             'status', 'Saved as a draft. A staff member must approve it in Beehive before the family sees it.');
 end $$;

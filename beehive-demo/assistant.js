@@ -1,15 +1,16 @@
 // beehive AI assistant.
-// - If config.copilotTokenEndpoint is set, "Ask beehive" opens the Copilot Studio agent
-//   (Beehive Audit Assistant) inside the app, and "Draft with AI" asks the agent to write
-//   parent messages over Direct Line.
-// - Otherwise a built-in assistant answers from the centre's own records (no AI model),
-//   so the demo still works. Every AI-drafted parent message needs staff approval.
+// - Signed in with the team passcode, "Ask beehive" and "Draft with AI" use Gemini on the server (api/ask.js),
+//   which reads the centre's records through read-only tools.
+// - Otherwise (offline demo, no passcode, or Gemini unavailable) a built-in assistant answers from the same
+//   records with fixed rules, so the demo still works. Every AI-drafted parent message needs staff approval.
 const Assistant = (() => {
-  const cfg = window.BEEHIVE_CONFIG || {};
-  const connected = () => !!(cfg.copilotTokenEndpoint && cfg.copilotTokenEndpoint.trim());
+  const PASS_KEY = "beehive-agent-passcode"; // shared with the Compliance agent on the Compliance page
+  const getPass = () => { try { return sessionStorage.getItem(PASS_KEY) || ""; } catch (e) { return ""; } };
+  const setPass = (v) => { try { v ? sessionStorage.setItem(PASS_KEY, v) : sessionStorage.removeItem(PASS_KEY); } catch (e) {} };
+  const geminiReady = () => typeof LIVE !== "undefined" && LIVE && !!getPass();
   let open = false;
-  let webchatLoaded = false;
-  let chat = []; // built-in assistant history
+  let busy = false;
+  let chat = []; // { from: "you" | "bot", text: html, plain: text, source: "gemini" | "builtin" }
 
   // ---------- floating button + panel ----------
   function refresh() {
@@ -33,90 +34,63 @@ const Assistant = (() => {
     const panel = document.getElementById("assistantPanel");
     const head =
       '<div class="assistantHead"><span class="assistantMark">✦</span><div><b>Ask beehive</b><small>' +
-      (connected() ? "Audit assistant in Copilot Studio" : "Answers from your centre’s records") +
+      (geminiReady() ? "Gemini, reading your centre’s records" : "Built-in answers from your centre’s records") +
       '</small></div><button class="closeButton" aria-label="Close assistant" onclick="Assistant.toggle(false)">×</button></div>';
-    if (connected()) {
-      panel.innerHTML = head + '<div id="webchat" class="webchat" role="log"><div class="assistantLoading">Connecting to your agent…</div></div>';
-      startWebChat().catch((e) => {
-        document.getElementById("webchat").innerHTML =
-          '<div class="assistantError"><b>Couldn’t connect to Copilot Studio.</b><p>' + esc(e.message || String(e)) +
-          '</p><p>Check the token endpoint in config.js and that the agent is published with “No authentication”.</p></div>';
-      });
-      return;
-    }
-    const chips = ["What is stopping us from being audit ready?", "What should I fix first?", "What compliance is overdue?", "What does the law say about sleep?", "Show the WWCC register", "Which certificates expire soon?", "Draft a message to a family"];
+    const chips = ["What is stopping us from being audit ready?", "What should I fix first?", "What is beehive waiting on?", "What compliance is overdue?", "What does the law say about sleep?", "Which certificates expire soon?"];
     panel.innerHTML =
       head +
       '<div class="assistantBody" id="assistantBody">' +
       (chat.length
         ? chat.map(bubble).join("")
-        : bubble({ from: "bot", text: "Hi " + esc(firstName(OWNER_NAME)) + ", I can check your audit readiness, find records for a spot check, list expiring certificates and draft messages to families for you to approve." })) +
+        : bubble({ from: "bot", text: "Hi " + esc(firstName(OWNER_NAME)) + ", ask me about audit readiness, staff credentials, regulation updates or a record for a spot check." })) +
+      (busy ? '<div class="assistantMsg bot"><span class="reading"><span class="hx"></span>' + (geminiReady() ? "Gemini is checking your records…" : "Checking…") + "</span></div>" : "") +
       '</div><div class="assistantChips">' +
       chips.map((c) => '<button class="chip" onclick="Assistant.ask(\'' + c.replace(/'/g, "\\'") + "')\">" + c + "</button>").join("") +
       '</div><form class="assistantInput" onsubmit="event.preventDefault();Assistant.ask(document.getElementById(\'assistantText\').value)">' +
-      '<input id="assistantText" type="text" placeholder="Ask about readiness, staff or a record…" autocomplete="off" aria-label="Ask beehive"><button class="button primary small">Ask</button></form>' +
-      '<p class="assistantFoot">' + (LIVE ? "" : "Offline demo data. ") + "To use your Copilot Studio agent, open your account menu and choose Connect AI agent.</p>";
+      '<input id="assistantText" type="text" placeholder="Ask about readiness, staff or a record…" autocomplete="off" aria-label="Ask beehive"' + (busy ? " disabled" : "") + '><button class="button primary small"' + (busy ? " disabled" : "") + ">Ask</button></form>" +
+      '<p class="assistantFoot">' + footNote() + "</p>";
     const body = document.getElementById("assistantBody");
     body.scrollTop = body.scrollHeight;
   }
+  function footNote() {
+    if (typeof LIVE === "undefined" || !LIVE) return "Offline demo: built-in answers. Sign in to use Gemini.";
+    if (!getPass()) return 'Built-in answers. <button class="textButton" onclick="Assistant.openSettings()">Add the team passcode</button> to use Gemini.';
+    return "Gemini reads beehive’s records but can’t change anything. Check important answers against the record.";
+  }
 
   function bubble(m) {
-    return '<div class="assistantMsg ' + m.from + '">' + m.text + "</div>";
+    return '<div class="assistantMsg ' + m.from + '">' + m.text + (m.from === "bot" && m.source ? '<small class="srcNote">' + (m.source === "gemini" ? "Gemini" : "Built-in answer") + "</small>" : "") + "</div>";
   }
 
-  // ---------- Copilot Studio web chat ----------
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = src; s.onload = resolve; s.onerror = () => reject(new Error("Couldn’t load the chat component."));
-      document.head.appendChild(s);
+  // Gemini's plain text -> safe HTML (paragraphs and "- " bullet lists only)
+  function formatAnswer(text) {
+    const lines = String(text || "").split(/\n+/);
+    let html = "", inList = false;
+    lines.forEach((l) => {
+      const t = l.trim();
+      if (!t) return;
+      const b = t.match(/^[-*•]\s+(.*)$/);
+      const inline = (x) => esc(x).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+      if (b) { if (!inList) { html += "<ul>"; inList = true; } html += "<li>" + inline(b[1]) + "</li>"; }
+      else { if (inList) { html += "</ul>"; inList = false; } html += "<p>" + inline(t) + "</p>"; }
     });
+    if (inList) html += "</ul>";
+    return html;
   }
-  async function getToken() {
-    const res = await fetch(cfg.copilotTokenEndpoint);
-    if (!res.ok) throw new Error("Token endpoint returned " + res.status);
-    return res.json(); // { token, conversationId? }
-  }
-  async function startWebChat() {
-    if (!webchatLoaded) { await loadScript("https://cdn.botframework.com/botframework-webchat/latest/webchat.js"); webchatLoaded = true; }
-    const { token } = await getToken();
-    const el = document.getElementById("webchat");
-    el.innerHTML = "";
-    window.WebChat.renderWebChat({
-      directLine: window.WebChat.createDirectLine({ token }),
-      locale: "en-AU",
-      styleOptions: {
-        accent: "#d79e13", bubbleBackground: "#fffefa", bubbleBorderRadius: 14, bubbleFromUserBackground: "#fff2c9",
-        bubbleFromUserBorderRadius: 14, primaryFont: "Inter, -apple-system, Segoe UI, sans-serif", rootHeight: "100%",
-        hideUploadButton: true, sendBoxBackground: "#fffefa", suggestedActionBorderRadius: 999,
-      },
-    }, el);
-  }
-
-  // Ask the agent one question over Direct Line and return its first text reply.
-  async function askAgent(text) {
-    const { token, conversationId } = await getToken();
-    const base = "https://directline.botframework.com/v3/directline/conversations";
-    const auth = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
-    let convId = conversationId;
-    if (!convId) {
-      const conv = await (await fetch(base, { method: "POST", headers: auth })).json();
-      convId = conv.conversationId;
-    }
-    const sent = await (await fetch(`${base}/${convId}/activities`, {
-      method: "POST", headers: auth, body: JSON.stringify({ type: "message", from: { id: "beehive-app", name: "beehive app" }, text, locale: "en-AU" }),
-    })).json();
-    let watermark = "";
-    const started = Date.now();
-    while (Date.now() - started < 30000) {
-      await new Promise((r) => setTimeout(r, 1200));
-      const page = await (await fetch(`${base}/${convId}/activities${watermark ? "?watermark=" + watermark : ""}`, { headers: auth })).json();
-      watermark = page.watermark || watermark;
-      const replies = (page.activities || []).filter((a) => a.type === "message" && a.from && a.from.id !== "beehive-app" && a.text && a.replyToId === sent.id);
-      const any = replies.length ? replies : (page.activities || []).filter((a) => a.type === "message" && a.from && a.from.id !== "beehive-app" && a.text && new Date(a.timestamp) > new Date(started - 1000));
-      if (any.length) return any[any.length - 1].text.trim();
-    }
-    throw new Error("The agent didn’t reply in time.");
+  async function callGemini(payload) {
+    const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 75000) : null;
+    try {
+      const res = await fetch("api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ passcode: getPass() }, payload)), signal: ctl ? ctl.signal : undefined });
+      let body = {};
+      try { body = await res.json(); } catch (e) { body = { error: res.status === 404 ? "Gemini isn’t deployed on this site yet." : res.status === 504 ? "Gemini took too long." : "Unexpected response (" + res.status + ")." }; }
+      if (res.status === 401) setPass("");
+      if (!res.ok) throw new Error(body.error || "Gemini couldn’t answer (" + res.status + ").");
+      return body;
+    } catch (e) {
+      if (e && e.name === "AbortError") throw new Error("Gemini didn’t answer within 75 seconds.");
+      throw e;
+    } finally { if (timer) clearTimeout(timer); }
   }
 
   // ---------- Draft with AI (owner reply box) ----------
@@ -137,19 +111,17 @@ const Assistant = (() => {
     note.textContent = "✦ Drafting…";
     let text, source;
     try {
-      if (connected()) {
-        text = await askAgent(
-          "APP DRAFT: Write a short message from the centre to a parent. Child: " + child + ". Parent: " + (parent || "unknown") +
-          ". Educator's note: \"" + (staffNote || "general positive update about the day") + "\". Use only facts in the note. Warm, plain Australian English, 2–4 sentences, first names only. Reply with the message text only."
-        );
-        source = "Copilot Studio";
+      if (geminiReady()) {
+        text = (await callGemini({ mode: "draft", child, parent, note: staffNote })).text;
+        if (!text) throw new Error("empty draft");
+        source = "Gemini";
       } else {
         text = templateDraft(child, parent, staffNote);
         source = "built-in template";
       }
     } catch (e) {
       text = templateDraft(child, parent, staffNote);
-      source = "built-in template (agent unavailable: " + (e.message || e) + ")";
+      source = "built-in template, because Gemini wasn’t available: " + (e.message || e);
     }
     input.value = text;
     if (LIVE && ownerThread) {
@@ -175,17 +147,49 @@ const Assistant = (() => {
     for (const [key, re] of Object.entries(GUIDE_WORDS)) if (re.test(ql)) return Library.guide(key);
     return null;
   }
+  // links to the records behind a readiness answer, so the owner can go straight to resolving them
+  function blockerLinks() {
+    if (typeof AuditAgent === "undefined" || !AuditAgent.active() || !approved) return "";
+    const b = AuditAgent.blockers().filter((y) => y.r.status !== "compliant").slice(0, 4);
+    return b.length ? '<div class="askLinks">' + b.map(({ x }) => '<button class="chip" onclick="Assistant.toggle(false);openItem(\'' + x.id + '\')">' + esc(x.title) + "</button>").join("") +
+      '<button class="chip" onclick="Assistant.toggle(false);AuditAgent.openBlockers()">The full answer</button></div>' : "";
+  }
   async function ask(question) {
     const qtext = String(question || "").trim();
-    if (!qtext) return;
-    chat.push({ from: "you", text: esc(qtext) });
+    if (!qtext || busy) return;
+    const history = chat.filter((m) => m.plain).slice(-6).map((m) => ({ role: m.from === "you" ? "user" : "assistant", text: m.plain }));
+    chat.push({ from: "you", text: esc(qtext), plain: qtext });
+    if (geminiReady()) {
+      busy = true; renderPanel();
+      try {
+        const r = await callGemini({ mode: "ask", question: qtext, history });
+        const links = /stopping|blocking|audit.?ready|not ready|fix first|gap|priorit|readiness/i.test(qtext) ? blockerLinks() : "";
+        chat.push({ from: "bot", text: formatAnswer(r.answer) + links, plain: r.answer, source: "gemini" });
+        busy = false; renderPanel();
+        return;
+      } catch (e) {
+        busy = false;
+        chat.push({ from: "bot", text: '<small class="srcNote">Gemini wasn’t available (' + esc(e.message || String(e)) + "). Here’s the built-in answer instead.</small>", source: "" });
+      }
+    }
+    const answer = await builtinAnswer(qtext);
+    chat.push({ from: "bot", text: answer, source: "builtin" });
     renderPanel();
+  }
+  async function builtinAnswer(qtext) {
     let answer = "";
     const ql = qtext.toLowerCase();
     try {
       const guide = /law|regulat|requir|comply|complian|guidance|official|what does|how do (i|we)|rule/.test(ql) ? findGuide(ql) : null;
       const blockerQ = /stopping|blocking|holding .*back|audit.?ready|not ready|fix first|gap|priorit|readiness/.test(ql);
-      if (blockerQ && typeof AuditAgent !== "undefined" && AuditAgent.active() && approved) {
+      const waitingQ = /waiting|outstanding|owe|chasing|follow.?up/.test(ql);
+      if (waitingQ && typeof StaffAgent !== "undefined" && StaffAgent.active()) {
+        const w = StaffAgent.waitingItems();
+        answer = w.length
+          ? "beehive is waiting on " + w.length + " response" + (w.length === 1 ? "" : "s") + " and follows up automatically:<ul>" +
+            w.slice(0, 8).map((x) => "<li><b>" + esc(x.who || "Staff") + "</b> · " + esc(x.what) + (x.next ? "<br><small>Follow-up " + esc(x.next) + "</small>" : "") + "</li>").join("") + "</ul>"
+          : "No one owes beehive a response right now.";
+      } else if (blockerQ && typeof AuditAgent !== "undefined" && AuditAgent.active() && approved) {
         answer = AuditAgent.blockersAnswer();
       } else if (guide) {
         answer = "<b>" + esc(guide.title) + "</b> <small>(" + esc(guide.source_ref) + ")</small><br>" + esc(guide.summary) +
@@ -232,22 +236,28 @@ const Assistant = (() => {
     } catch (e) {
       answer = "Sorry, I couldn’t check that: " + esc(e.message || String(e));
     }
-    chat.push({ from: "bot", text: answer });
-    renderPanel();
+    return answer;
   }
 
-  // ---------- Connect AI agent (owner) ----------
-  function openConnect() {
-    const url = (cfg.supabaseUrl || "").replace(/\/$/, "");
+  // ---------- AI settings (owner) ----------
+  function openSettings() {
     openModal(
-      '<div class="modalHead"><div><h2>Connect your Copilot Studio agent</h2><p>Lets the agent read your readiness, search records and draft parent messages for you to approve.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<div class="modalSection"><h3>1. Create an agent key</h3><p>The key lets the agent read this centre’s records. It’s shown once. Creating a new key stops the old one working.</p>' +
-      '<div class="modalActions" style="justify-content:flex-start"><button class="button primary" onclick="Assistant.createKey()">Create agent key</button></div><div id="agentKeyOut"></div></div>' +
-      '<div class="modalSection"><h3>2. Add the beehive tool in Copilot Studio</h3><p>In your agent, go to <b>Tools</b>, <b>Add a tool</b>, <b>REST API</b>, upload <code>docs/copilot-studio/beehive-agent-openapi.json</code> from the repo (paste your key where it says PASTE_AGENT_KEY_HERE). Authentication: <b>API key</b>, header <code>apikey</code>, value:</p><p><code class="copyable">' + esc(cfg.supabaseKey || "") + "</code></p><p>Server: <code>" + esc(url) + "</code></p></div>" +
-      '<div class="modalSection"><h3>3. Show the agent inside beehive</h3><p>Publish the agent, then open <b>Channels</b>, <b>Mobile app</b> and copy the <b>Token endpoint</b> into <code>beehive-demo/config.js</code> as <code>copilotTokenEndpoint</code>. “Ask beehive” and “Draft with AI” will then use your agent.</p>' +
-      '<p>Status: <b>' + (connected() ? "Connected to Copilot Studio" : "Not connected yet (using the built-in assistant)") + "</b></p></div>" +
+      '<div class="modalHead"><div><h2>AI settings</h2><p>Ask beehive, Draft with AI and the Compliance agent use Gemini on the server. Your Gemini key never reaches the browser.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalSection"><h3>Team passcode</h3><p>Saved on this device until you close the browser. It’s the same passcode as the Compliance agent.</p>' +
+      '<div class="assignLine"><input class="formControl" id="aiPass" type="password" placeholder="Team passcode" autocomplete="off" value="' + esc(getPass()) + '"><button class="button primary" onclick="Assistant.savePass()">Save</button></div>' +
+      '<p class="helpLine">Status: <b>' + (geminiReady() ? "Gemini on" : typeof LIVE !== "undefined" && LIVE ? "built-in answers (no passcode yet)" : "offline demo, built-in answers") + "</b></p></div>" +
+      '<div class="modalSection"><h3>Agent key for Vercel</h3><p>Gemini reads this centre’s records with an agent key. Put it in Vercel as <code>BEEHIVE_AGENT_KEY</code>, then redeploy. Creating a new key stops the old one working.</p>' +
+      '<div class="modalActions" style="justify-content:flex-start"><button class="button" onclick="Assistant.createKey()">Create agent key</button></div><div id="agentKeyOut"></div></div>' +
+      '<div class="modalSection"><h3>Vercel settings</h3><p><code>GOOGLE_GENERATIVE_AI_API_KEY</code> (from aistudio.google.com), <code>AGENT_PASSCODE</code>, <code>BEEHIVE_AGENT_KEY</code> and, optionally, <code>AGENT_MODEL</code> (default gemini-3.8-flash).</p></div>' +
       '<div class="modalActions"><button class="button" onclick="closeModal()">Done</button></div>'
     );
+  }
+  function savePass() {
+    const v = ((document.getElementById("aiPass") || {}).value || "").trim();
+    setPass(v);
+    closeModal();
+    toast(v ? "Passcode saved. Ask beehive will use Gemini." : "Passcode cleared. Ask beehive will use built-in answers.");
+    if (open) renderPanel();
   }
   async function createKey() {
     const out = document.getElementById("agentKeyOut");
@@ -268,5 +278,5 @@ const Assistant = (() => {
     );
   }
 
-  return { refresh, toggle, ask, draftReply, openConnect, createKey, copyKey, askAgent, connected };
+  return { refresh, toggle, ask, draftReply, openSettings, openConnect: openSettings, savePass, createKey, copyKey, geminiReady };
 })();

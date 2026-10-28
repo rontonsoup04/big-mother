@@ -215,12 +215,12 @@ begin
   alter table public.evidence enable trigger evidence_completes_rehearsal;
   set constraints all deferred;
 
-  -- ---------- AI agent key for Copilot Studio ----------
+  -- ---------- AI agent key (Vercel: BEEHIVE_AGENT_KEY) ----------
   insert into public.agent_keys (centre_id, key_hash, created_by)
   values (c_centre, encode(sha256(convert_to(v_key, 'UTF8')), 'hex'), u_sara);
   perform set_config('beehive.demo_agent_key', v_key, false);
 end $$;
 
--- Copy this key into Copilot Studio (shown once; re-run this file to get a new one).
+-- Copy this key into Vercel as BEEHIVE_AGENT_KEY (shown once; re-run this file to get a new one).
 select 'Demo centre ready. Logins: sara@beehive.demo / priya@beehive.demo / mia@beehive.demo, password Beehive2026!' as done,
        current_setting('beehive.demo_agent_key') as agent_key;
