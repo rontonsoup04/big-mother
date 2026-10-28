@@ -111,16 +111,26 @@ const Library = (() => {
     setPass(pass);
     agentRun = { busy: true, reply: "", actions: [], error: "", message };
     render();
+    // never leave the button spinning: give up after 75 seconds, and always redraw
+    const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 75000) : null;
     try {
-      const res = await fetch("api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: pass, message }) });
+      const res = await fetch("api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: pass, message }), signal: ctl ? ctl.signal : undefined });
       let body = {};
-      try { body = await res.json(); } catch (e) { body = { error: res.status === 404 ? "The agent isn't deployed on this site yet (no /api/agent). Deploy the latest version on Vercel." : "The agent returned an unexpected response (" + res.status + ")." }; }
+      try { body = await res.json(); } catch (e) {
+        body = { error: res.status === 404 ? "The agent isn't deployed on this site yet (no /api/agent). Deploy the latest version on Vercel."
+          : res.status === 504 ? "The AI agent took too long and Vercel stopped it. Try again, or ask for something narrower, like “Only check WWCC”."
+          : "The agent returned an unexpected response (" + res.status + ")." };
+      }
       if (!res.ok) agentRun = { busy: false, reply: "", actions: [], error: body.error || "The agent couldn't run (" + res.status + ")." , message };
       else agentRun = { busy: false, reply: body.reply, actions: body.actions || [], error: "", message, saved: body.drafts_saved, escalated: body.escalated };
     } catch (e) {
-      agentRun = { busy: false, reply: "", actions: [], error: "Couldn't reach the agent: " + (e.message || e), message };
+      agentRun = { busy: false, reply: "", actions: [], error: e && e.name === "AbortError" ? "The agent didn’t answer within 75 seconds. Try again, or ask for something narrower." : "Couldn't reach the agent: " + (e.message || e), message };
+    } finally {
+      if (timer) clearTimeout(timer);
+      agentRun.busy = false;
     }
-    if (LIVE) await Live.reload(); else render();
+    try { if (LIVE) await Live.reload(); else render(); } catch (e) { render(); }
   }
 
   function agentCard() {

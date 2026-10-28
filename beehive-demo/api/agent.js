@@ -7,6 +7,7 @@
 //   AGENT_MODEL                   optional, defaults to gemini-3.8-flash (Google retired gemini-2.5-flash for new keys)
 //   AGENT_PASSCODE                shared team passcode; the agent only runs if it matches
 //   BEEHIVE_AGENT_KEY             the centre's agent key (last row of seed_demo.sql)   (server only)
+//   AGENT_TIME_LIMIT_MS           optional, default 50000; keep it under maxDuration in vercel.json
 
 const { generateText, tool, stepCountIs } = require("ai");
 const { z } = require("zod");
@@ -96,18 +97,27 @@ function buildTools(ctx) {
 }
 
 // Runs one agent turn. `model` and `fetchImpl` can be swapped in tests.
-async function runAgent({ message, uploadLink, model, fetchImpl }) {
+// Vercel stops the function at maxDuration (vercel.json); stop a little earlier so the owner gets a clear message.
+const TIME_LIMIT_MS = Number(process.env.AGENT_TIME_LIMIT_MS) || 50000;
+
+async function runAgent({ message, uploadLink, model, fetchImpl, timeLimitMs }) {
   const ctx = { calls: 0, saved: 0, escalated: 0, log: [], fetch: fetchImpl, uploadLink };
+  const modelId = process.env.AGENT_MODEL || "gemini-3.8-flash";
   if (!model) {
     const { google } = require("@ai-sdk/google");
-    model = google(process.env.AGENT_MODEL || "gemini-3.8-flash");
+    model = google(modelId);
   }
+  // Gemini 3 models think before answering; "low" is plenty for this task and keeps each step fast.
+  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: "low" } } } : undefined;
   const result = await generateText({
     model,
     system: INSTRUCTIONS.replace("{UPLOAD_LINK}", uploadLink),
     prompt: String(message || "Run the weekly credential check.").slice(0, 1000),
     tools: buildTools(ctx),
     stopWhen: stepCountIs(MAX_TOOL_CALLS + 1),
+    providerOptions,
+    maxRetries: 1,
+    abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
   });
   return { reply: result.text || "(The agent finished without a summary.)", actions: ctx.log, drafts_saved: ctx.saved, escalated: ctx.escalated };
 }
@@ -145,6 +155,8 @@ module.exports = async function agent(req, res) {
     return send(res, 200, await runAgent({ message: body.message, uploadLink }));
   } catch (e) {
     const msg = String((e && e.message) || e);
+    if ((e && (e.name === "TimeoutError" || e.name === "AbortError")) || /aborted|timed? ?out/i.test(msg))
+      return send(res, 504, { error: "The AI agent took too long and was stopped. Any drafts it saved before stopping are on this page. Try again, or ask for something narrower, like “Only check WWCC”." });
     return send(res, 502, { error: "The AI agent couldn't finish: " + msg.slice(0, 400) });
   }
 };
