@@ -58,6 +58,7 @@ The app points at project `gaxkvceirdxqfpeeskwf` (`beehive-demo/config.js`). The
    8. `supabase/migrations/20261028090000_staff_agent.sql` (the staff compliance agent: renewal tasks, simulated messages, checked uploads, activity feed, daily schedule)
    9. `supabase/migrations/20261029090000_audit_agent.sql` (the audit-readiness agent: requirement status, verified evidence, audit tasks, regulation reviews)
    10. `supabase/migrations/20261030090000_integration.sql` (joins the agents: any record change re-checks requirements at once, regulation actions routed to the right workflow, one reminder system)
+   **Already set up up to step 6 (the live project)?** Run `supabase/live_setup.sql` instead of steps 7 to 10 and the demo data: it's all of them in one file, in order, and safe to run again. Rebuild it with `python3 tools/build_live_setup.py` if any of those files change.
 2. **Demo data.** Run `supabase/seed_demo.sql`. It creates the three logins, Beehive Early Learning, 10 educators with certificates, 12 children with medical profiles, incidents, a regulation update and a draft checklist. No compliance documents or evidence files are included; you add those during the demo. The last row it returns is the AI agent key. Re-run it any time to reset the demo.
 3. **Auth.** **Authentication → URL Configuration** → Site URL = your Vercel address (and `http://localhost:3000` for local). **Providers → Email** → turn off **Confirm email** if you want new sign-ups to work immediately.
 

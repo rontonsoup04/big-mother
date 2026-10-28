@@ -631,7 +631,8 @@ left join lateral (select cs.id, cs.review_flag from public.certificate_submissi
                    order by cs.submitted_at desc limit 1) ps on true;
 grant select on public.v_credential_tasks to authenticated;
 
-create or replace view public.v_agent_feed with (security_invoker = on) as
+drop view if exists public.v_agent_feed;  -- later migrations add columns; recreate so this file can be re-run
+create view public.v_agent_feed with (security_invoker = on) as
 select e.id, e.centre_id, e.task_id, e.staff_id, e.kind, e.state, e.summary, e.detail, e.demo, e.created_at,
        s.full_name as staff_name, ct.code as type_code, ct.name as type_name,
        t.state as task_state, t.priority as task_priority, t.next_follow_up
