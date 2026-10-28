@@ -14,6 +14,18 @@ The app is the static site in `beehive-demo/` (no build step).
 - **Vercel:** New Project → import this repo → **Root Directory** `beehive-demo` → Framework Preset **Other** → Deploy.
 - **Phone size:** the layout adapts below 680px wide (bottom navigation, card-style staff register, bottom-sheet dialogs, full-screen assistant). For a demo on a computer: F12 → Ctrl+Shift+M (Cmd+Shift+M on Mac) → pick an iPhone.
 
+## Design system
+
+The product name is always written **beehive**, in lowercase. All styling lives in `beehive-demo/beehive.css`, starting with design tokens (colour, type, spacing, radii) on `:root`:
+
+- **Colour:** neutral surfaces with honey (`--honey`) used only for the brand mark, the current page, focus rings and hexagon markers. Red, amber and green are for status only.
+- **Type:** Inter on a fixed scale (`--t-xs` to `--t-2xl`), sentence case, no all-caps labels.
+- **Structure:** hairlines and whitespace instead of boxes. Cards (`.callout`, `.agentCard`) are only for things that need a decision. Details open in a side panel (`openModal`) rather than filling the page.
+- **Hexagons:** the brand mark, status markers (`.status`), the Overview's hive activity timeline and the hive guide.
+- **Icons:** line icons in `beehive-demo/icons.js`, added with `data-icon="name"`.
+
+Every page answers: what needs attention, what has happened, what action is required.
+
 ## Two ways to use it
 
 - **Live mode:** sign in. Everything is read from and saved to Supabase, and updates appear on other open screens straight away.
@@ -120,12 +132,13 @@ Key rules enforced by the database:
 
 ```
 beehive-demo/          The web app
-  index.html, app.js, app.css   Screens (offline demo logic included)
+  index.html, app.js   Screens (offline demo logic included)
+  beehive.css          The design system and all styles
+  icons.js             Line icons and the hexagon brand mark
   live.js              Supabase sign-in, loading and saving (live mode)
   assistant.js         Ask Beehive, Draft with AI, Connect AI agent
   library.js           Compliance library page, item guidance, search
   library-data.js      Offline copy of the library (generated)
-  beehive-live.css     Live-mode extras and the phone layout
   config.js            Supabase URL + publishable key + Copilot token endpoint
   api/agent.js         Beehive Compliance Agent (Vercel function, Gemini via the AI SDK)
   api/_agent-instructions.js  Its system prompt, generated from AGENT.md

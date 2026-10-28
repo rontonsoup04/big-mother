@@ -1,4 +1,4 @@
-// Beehive compliance library: official documents behind each checklist item,
+// beehive compliance library: official documents behind each checklist item,
 // with a plain-English summary and steps. Offline mode uses LIBRARY_DATA
 // (library-data.js); live mode replaces it with the copy in Supabase.
 
@@ -44,7 +44,7 @@ const Library = (() => {
     return (
       '<a class="docRow" href="' + esc(d.url) + '" target="_blank" rel="noopener">' +
       '<span class="docType">' + esc(d.doc_type || d.type || "Document") + "</span>" +
-      '<span class="docText"><b>' + esc(d.title) + "</b><small>" + esc(d.issuer) + (d.published ? " · " + esc(d.published) : "") + "</small>" +
+      '<span class="docText"><b>' + esc(d.title) + "</b><small>" + esc(d.issuer) + (d.published ? ", " + esc(d.published) : "") + "</small>" +
       (d.note ? "<em>" + esc(d.note) + "</em>" : "") + "</span>" +
       '<span class="docOpen" aria-hidden="true">↗</span></a>'
     );
@@ -58,7 +58,7 @@ const Library = (() => {
       '<div class="guideHead"><div><div class="eyebrow">' + esc(AREA_NAMES[g.area] || g.area) + "</div><h2>" + esc(g.title) + "</h2>" +
       '<p class="guideRefs">' + esc(g.source_ref) + "</p></div>" + chip + "</div>" +
       '<p class="guideSummary">' + esc(g.summary) + "</p>" +
-      '<details class="guideSteps"' + (filter !== "All" ? " open" : "") + "><summary>What to do · " + g.directions.length + " steps</summary><ol>" +
+      '<details class="guideSteps"' + (filter !== "All" ? " open" : "") + "><summary>What to do (" + g.directions.length + " steps)</summary><ol>" +
       g.directions.map((s) => "<li>" + esc(s) + "</li>").join("") + "</ol></details>" +
       '<div class="guideFacts">' +
       (g.evidence ? '<div><span>Show an officer</span><p>' + esc(g.evidence) + "</p></div>" : "") +
@@ -82,7 +82,7 @@ const Library = (() => {
         return gs.length ? '<section class="libGroup"><h3 class="libGroupTitle">' + esc(name) + "</h3>" + gs.map(guideCard).join("") + "</section>" : "";
       }).join("");
     return (
-      '<div class="libNote"><b>Sources checked ' + esc(fmtChecked()) + '</b> · ACECQA, NSW Legislation, NSW Department of Education, the NSW Early Learning Commission and the Office of the Children’s Guardian. ' +
+      '<div class="libNote"><b>Sources checked ' + esc(fmtChecked()) + '.</b> From ACECQA, NSW Legislation, the NSW Department of Education, the NSW Early Learning Commission and the Office of the Children’s Guardian. ' +
       "Summaries are guidance only, not legal advice. Always confirm the current official document." +
       (LIVE ? "" : " <span class=\"libMode\">Offline copy</span>") + "</div>" +
       '<div class="areaFilters libFilters">' + chips + "</div>" +
@@ -95,7 +95,7 @@ const Library = (() => {
 
 
 
-  // ---------- Beehive Compliance Agent (server: /api/agent, see AGENT.md) ----------
+  // ---------- beehive compliance agent (server: /api/agent, see AGENT.md) ----------
   let agentQueue = [];
   let agentRun = { busy: false, reply: "", actions: [], error: "" };
   const PASS_KEY = "beehive-agent-passcode";
@@ -129,7 +129,7 @@ const Library = (() => {
     const prioRank = { high: 0, medium: 1, low: 2 };
     drafts.sort((a, b) => prioRank[a.priority] - prioRank[b.priority]);
     if (!LIVE) {
-      return '<section class="card agentCard"><div class="agentHead"><span class="assistantMark">✦</span><div><h2>Beehive Compliance Agent</h2><p>Checks every educator’s credentials, drafts personalised renewal reminders with an upload link, and flags what you must decide. Sign in to Beehive to run it: it works on live data and runs on the server.</p></div></div></section>';
+      return '<section class="card agentCard"><div class="agentHead"><span class="assistantMark">✦</span><div><h2>Compliance agent</h2><p>Checks every educator’s credentials, drafts renewal reminders with an upload link, and flags what you need to decide. Sign in to run it on live data.</p></div></div></section>';
     }
     const result = agentRun.busy
       ? '<div class="agentResult"><span class="agentSpinner"></span> Checking credentials and drafting reminders…</div>'
@@ -137,21 +137,21 @@ const Library = (() => {
       ? '<div class="agentResult agentError"><b>Couldn’t run the agent.</b> ' + esc(agentRun.error) + "</div>"
       : agentRun.reply
       ? '<div class="agentResult"><small>You asked: “' + esc(agentRun.message || "") + '”</small><div class="agentReply">' + esc(agentRun.reply).replace(/\n/g, "<br>") + "</div>" +
-        (agentRun.actions.length ? '<div class="agentSteps">' + agentRun.actions.map((a, i) => "<span>" + (i + 1) + ". " + esc(a.tool.replace(/_/g, " ")) + (a.result ? " · " + esc(a.result) : "") + "</span>").join("") + "</div>" : "") + "</div>"
+        (agentRun.actions.length ? '<div class="agentSteps">' + agentRun.actions.map((a, i) => "<span>" + (i + 1) + ". " + esc(a.tool.replace(/_/g, " ")) + (a.result ? ": " + esc(a.result) : "") + "</span>").join("") + "</div>" : "") + "</div>"
       : "";
     return (
-      '<section class="card agentCard"><div class="agentHead"><span class="assistantMark">✦</span><div><h2>Beehive Compliance Agent</h2>' +
-      "<p>Checks every educator’s WWCC, first aid, CPR and anaphylaxis, decides what needs attention, drafts personalised renewal reminders with an upload link and a follow-up date, and flags what you must decide. Nothing is sent until you approve it.</p></div></div>" +
+      '<section class="card agentCard"><div class="agentHead"><span class="assistantMark">✦</span><div><h2>Compliance agent</h2>' +
+      "<p>Checks every educator’s WWCC, first aid, CPR and anaphylaxis, drafts renewal reminders and flags what you need to decide. Nothing is sent until you approve it.</p></div></div>" +
       '<div class="agentForm"><input class="formControl" id="agentAsk" placeholder="Run the weekly credential check" value="' + esc(agentRun.message && agentRun.message !== "Run the weekly credential check." ? agentRun.message : "") + '" onkeydown="if(event.key===\'Enter\')Library.runAgent()">' +
       '<input class="formControl agentPass" id="agentPass" type="password" placeholder="Team passcode" autocomplete="off" value="' + esc(getPass()) + '">' +
       '<button class="button primary" ' + (agentRun.busy ? "disabled" : "") + ' onclick="Library.runAgent()">' + (agentRun.busy ? "Running…" : "Run agent") + "</button></div>" +
       result +
-      (escalations.length ? '<div class="agentList"><h3>Needs your decision · ' + escalations.length + "</h3>" + escalations.map((d) =>
-        '<div class="agentItem escalation"><div><b>' + esc(d.staff_name) + (d.certificate_code ? " · " + esc(d.certificate_name || d.certificate_code) : "") + "</b><small>" + esc(d.reason) + "</small></div>" +
+      (escalations.length ? '<div class="agentList"><h3>Needs your decision (' + escalations.length + ")</h3>" + escalations.map((d) =>
+        '<div class="agentItem escalation"><div><b>' + esc(d.staff_name) + (d.certificate_code ? ", " + esc(d.certificate_name || d.certificate_code) : "") + "</b><small>" + esc(d.reason) + "</small></div>" +
         '<div class="draftActions"><button class="button small" onclick="Library.decide(\'' + d.id + '\',\'resolved\')">Mark handled</button></div></div>').join("") + "</div>" : "") +
-      (drafts.length ? '<div class="agentList"><h3>Reminder drafts awaiting approval · ' + drafts.length + "</h3>" + drafts.map((d) =>
-        '<div class="agentItem"><div class="agentItemTop"><b>' + esc(d.staff_name) + " · " + esc(d.certificate_name || d.certificate_code || "") + '</b><span class="status ' + PRIO[d.priority] + '">' + esc(d.priority) + " · " + esc(KIND[d.kind] || d.kind) + "</span></div>" +
-        "<small>" + esc(d.reason) + (d.follow_up_on ? " · follow up " + esc(fmtDay(d.follow_up_on, true)) + " if still outstanding" : "") + "</small>" +
+      (drafts.length ? '<div class="agentList"><h3>Reminder drafts to approve (' + drafts.length + ")</h3>" + drafts.map((d) =>
+        '<div class="agentItem"><div class="agentItemTop"><b>' + esc(d.staff_name) + ", " + esc(d.certificate_name || d.certificate_code || "") + '</b><span class="status ' + PRIO[d.priority] + '">' + esc(d.priority[0].toUpperCase() + d.priority.slice(1)) + " priority, " + esc((KIND[d.kind] || d.kind).toLowerCase()) + "</span></div>" +
+        "<small>" + esc(d.reason) + (d.follow_up_on ? ". Follow up " + esc(fmtDay(d.follow_up_on, true)) + " if still outstanding." : "") + "</small>" +
         '<textarea id="rd-' + d.id + '" rows="4">' + esc(d.body) + "</textarea>" +
         '<div class="draftActions"><button class="button small" onclick="Library.decide(\'' + d.id + '\',\'discarded\')">Discard</button><button class="button small primary" onclick="Library.approveReminder(\'' + d.id + '\')">Approve & send</button></div></div>').join("") + "</div>"
         : (agentRun.reply ? "" : '<p class="agentEmpty">No reminder drafts waiting. Run the agent to check credentials.</p>')) +
@@ -265,16 +265,16 @@ const Library = (() => {
   const STATE_UI = { overdue: ["red", "Overdue"], due_soon: ["yellow", "Due soon"], on_track: ["green", "On track"], done: ["green", "Done"] };
   function dueText(t) {
     if (t.state === "done") return "Completed";
-    if (t.days < 0) return "Overdue by " + -t.days + " day" + (t.days === -1 ? "" : "s") + " · was due " + fmtDay(t.due_date);
+    if (t.days < 0) return "Overdue by " + -t.days + " day" + (t.days === -1 ? "" : "s") + " (due " + fmtDay(t.due_date) + ")";
     if (t.days === 0) return "Due today";
-    if (t.state === "due_soon") return "Due in " + t.days + " day" + (t.days === 1 ? "" : "s") + " · " + fmtDay(t.due_date);
+    if (t.state === "due_soon") return "Due in " + t.days + " day" + (t.days === 1 ? "" : "s") + ", " + fmtDay(t.due_date);
     return "Due " + fmtDay(t.due_date, true);
   }
   function taskRow(t) {
     const [cls, label] = STATE_UI[t.state];
     const last = t.last_completed ? "Last done " + fmtDay(t.last_completed, true) + (t.last_completed_by ? " by " + esc(t.last_completed_by) : "") : "Not done yet";
     return (
-      '<div class="taskRow ' + t.state + '"><div class="taskMain"><b>' + esc(t.title) + "</b><small>" + esc(t.regulation_reference || "") + " · " + esc(FREQ[t.frequency] || t.frequency) + " · " + last + "</small></div>" +
+      '<div class="taskRow ' + t.state + '"><div class="taskMain"><b>' + esc(t.title) + "</b><small>" + esc(t.regulation_reference || "") + ", " + esc((FREQ[t.frequency] || t.frequency).toLowerCase()) + ". " + last + "</small></div>" +
       '<div class="taskDue"><span class="status ' + cls + '">' + label + "</span><small>" + esc(dueText(t)) + "</small></div>" +
       '<div class="taskBtns">' + (t.guide_key ? '<button class="button small" onclick="Library.focus(\'' + t.guide_key + '\')">Guidance</button>' : "") +
       (t.state !== "done" && t.record_id ? '<button class="button small primary" onclick="Library.complete(\'' + t.record_id + '\')">Mark done</button>' : "") + "</div></div>"
@@ -282,7 +282,7 @@ const Library = (() => {
   }
   function checklistRow(x) {
     return (
-      '<div class="taskRow"><div class="taskMain"><b>' + esc(x.title) + "</b><small>" + esc(x.area) + " · " + esc(x.source) + "</small></div>" +
+      '<div class="taskRow"><div class="taskMain"><b>' + esc(x.title) + "</b><small>" + esc(x.area) + ", " + esc(x.source) + "</small></div>" +
       '<div class="taskDue"><span class="status ' + x.status + '">' + statusLabel(x.status) + "</span><small>" + esc(x.updated || "") + "</small></div>" +
       '<div class="taskBtns"><button class="button small" onclick="Library.focus(\'' + esc(x.key || x.id) + '\')">Guidance</button><button class="button small" onclick="openItem(\'' + x.id + '\')">Open</button></div></div>'
     );
@@ -293,16 +293,16 @@ const Library = (() => {
     const list = typeof items !== "undefined" ? items : [];
     const green = list.filter((x) => x.status === "green").length;
     return (
-      agentCard() +
-      '<div class="summaryGrid compTiles">' +
-      miniCard(n("overdue"), "Overdue", "tasks past their due date") +
-      miniCard(n("due_soon"), "Due in 14 days", "coming up next") +
-      miniCard(n("on_track") + n("done"), "On track", "scheduled or complete") +
-      miniCard(green + "/" + list.length, "Audit checklist", "items with current evidence") +
+      '<div class="summaryLine">' +
+      stat(n("overdue"), "overdue", n("overdue") ? "red" : "") +
+      stat(n("due_soon"), "due in 14 days", n("due_soon") ? "yellow" : "") +
+      stat(n("on_track") + n("done"), "on track") +
+      stat(green + "/" + list.length, "checklist items with current evidence") +
       "</div>" +
-      '<section class="card compCard"><div class="compHead"><div><h2>Recurring compliance tasks</h2><p>Every regular check, review and service the regulations require. Mark a task done and Beehive sets the next due date.</p></div></div>' +
+      agentCard() +
+      '<section class="card compCard"><div class="compHead"><div><h2>Recurring tasks</h2><p>Drills, safety checks and policy reviews. Mark one done and beehive sets the next due date.</p></div></div>' +
       (ts.length ? ts.map(taskRow).join("") : '<div class="emptyState">No recurring tasks yet.</div>') + "</section>" +
-      '<section class="card compCard"><div class="compHead"><div><h2>Audit checklist</h2><p>' + (approved ? "Your approved baseline: the records an authorised officer can ask to see." : "Draft baseline: approve it in Audit readiness to start scoring.") + '</p></div><button class="button small" onclick="go(\'audit\')">Open audit readiness</button></div>' +
+      '<section class="card compCard"><div class="compHead"><div><h2>Audit checklist</h2><p>' + (approved ? "The records an authorised officer can ask to see." : "Approve your checklist in Audit readiness to start scoring.") + '</p></div><button class="textButton" onclick="go(\'audit\')">Audit readiness</button></div>' +
       list.map(checklistRow).join("") + "</section>"
     );
   }
@@ -310,8 +310,7 @@ const Library = (() => {
     const tabs = [["all", "All compliance"], ["guidance", "Official guidance"]].map(([k, l]) =>
       '<button class="compTab ' + (tab === k ? "active" : "") + '" onclick="Library.setTab(\'' + k + '\')">' + l + "</button>").join("");
     return (
-      header("Compliance", "Every compliance requirement for your centre in one place, with the official government guidance behind it.",
-        '<button class="button" onclick="go(\'audit\')">Audit readiness</button>') +
+      header("Compliance", "Requirements, evidence and outstanding actions, with the official guidance behind them.") +
       '<div class="compTabs" role="tablist">' + tabs + "</div>" +
       (tab === "all" ? registerPage() : guidancePage())
     );
@@ -327,7 +326,7 @@ const Library = (() => {
       g.directions.slice(0, 3).map((s) => "<li>" + esc(s) + "</li>").join("") + "</ol>" +
       (g.retention ? '<p class="libKeep"><b>Keep records:</b> ' + esc(g.retention) + "</p>" : "") +
       '<div class="guideDocs">' + (g.documents || []).slice(0, 2).map(docRow).join("") + "</div>" +
-      '<button class="textButton libMore" onclick="Library.focus(\'' + esc(key) + '\')">All ' + g.directions.length + " steps and " + (g.documents || []).length + " official documents →</button></div>"
+      '<button class="textButton libMore" onclick="Library.focus(\'' + esc(key) + '\')">All ' + g.directions.length + " steps and " + (g.documents || []).length + " official documents</button></div>"
     );
   }
 
@@ -360,7 +359,7 @@ const Library = (() => {
     if (!hits.length) return "";
     return '<div class="resultHeading libResultHeading">Official guidance</div>' +
       hits.map((g) => '<button class="searchResult" onclick="document.getElementById(\'searchResults\').classList.add(\'hidden\');Library.focus(\'' + g.item_key + '\')"><b>' +
-        esc(g.title) + " · guidance</b><small>" + esc(g.source_ref) + " · " + (g.documents || []).length + " official documents</small></button>").join("");
+        esc(g.title) + "</b><small>Official guidance, " + esc(g.source_ref) + ", " + (g.documents || []).length + " documents</small></button>").join("");
   }
 
   return { page, itemSection, focus, setFilter, setTab, searchHtml, loadFrom, guide, loadTasks, complete, drillLogged, resetOffline, taskList,
