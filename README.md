@@ -194,7 +194,7 @@ beehive-demo/          The web app
   api/agent.js         Beehive Compliance Agent (Vercel function, Gemini via the AI SDK)
   api/_agent-instructions.js  Its system prompt, generated from AGENT.md
   api/ask.js           Ask beehive and Draft with AI (Vercel function, Gemini via the AI SDK)
-  vercel.json          Gives the Gemini functions up to 60 seconds
+  vercel.json          Gives the Gemini functions up to 2 minutes
   package.json         Server dependencies (ai, @ai-sdk/google, zod)
 supabase/migrations/   Database schema, views, functions and security rules
 supabase/seed_demo.sql Demo data for the web app

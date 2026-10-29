@@ -79,7 +79,7 @@ const Assistant = (() => {
   }
   async function callGemini(payload) {
     const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timer = ctl ? setTimeout(() => ctl.abort(), 75000) : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 130000) : null;
     try {
       const res = await fetch("api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ passcode: getPass() }, payload)), signal: ctl ? ctl.signal : undefined });
       let body = {};
@@ -88,7 +88,7 @@ const Assistant = (() => {
       if (!res.ok) throw new Error(body.error || "Gemini couldn’t answer (" + res.status + ").");
       return body;
     } catch (e) {
-      if (e && e.name === "AbortError") throw new Error("Gemini didn’t answer within 75 seconds.");
+      if (e && e.name === "AbortError") throw new Error("Gemini didn’t answer within 2 minutes.");
       throw e;
     } finally { if (timer) clearTimeout(timer); }
   }

@@ -7,7 +7,7 @@
 //   AGENT_MODEL                   optional, defaults to gemini-3.8-flash (Google retired gemini-2.5-flash for new keys)
 //   AGENT_PASSCODE                shared team passcode; the agent only runs if it matches
 //   BEEHIVE_AGENT_KEY             the centre's agent key (last row of seed_demo.sql)   (server only)
-//   AGENT_TIME_LIMIT_MS           optional, default 50000; keep it under maxDuration in vercel.json
+//   AGENT_TIME_LIMIT_MS           optional, default 110000; keep it under maxDuration in vercel.json
 
 const { generateText, tool, stepCountIs } = require("ai");
 const { z } = require("zod");
@@ -48,8 +48,8 @@ function buildTools(ctx) {
       inputSchema: z.object({}),
       execute: async () => {
         const entry = guard("review_credentials");
-        const r = await rpc("agent_credential_review", {}, ctx.fetch);
-        entry.result = (r.needs_attention || []).length + " credentials need attention";
+        const r = focusReview(await rpc("agent_credential_review", {}, ctx.fetch));
+        entry.result = r.needs_attention.length + " to act on";
         return r;
       },
     }),
@@ -98,9 +98,35 @@ function buildTools(ctx) {
   };
 }
 
+// Gemini only sees what it can act on: the staff agent is already chasing renewals it has sent a request for,
+// and the database would discard a second reminder anyway. Fewer, shorter rows keep the Gemini call quick.
+const MAX_FOCUS = 8;
+function focusReview(review) {
+  const all = (review && review.needs_attention) || [];
+  const act = [], waiting = [];
+  let chasing = 0;
+  for (const r of all) {
+    if (r.draft_already_waiting || r.escalation_open) { waiting.push(r.staff + " (" + r.certificate + ")"); continue; }
+    // The staff agent emails or texts educators and follows up on its own, so a beehive login isn't needed
+    // and its follow-ups aren't Gemini's job.
+    const urgent = r.status === "expired" || r.status === "missing" || r.renewal_submitted;
+    if (r.last_reminder_sent && !urgent) { chasing++; continue; }
+    act.push({ staff: r.staff, certificate: r.certificate, status: r.status, expiry_date: r.expiry_date, days_left: r.days_left,
+      last_reminder_sent: r.last_reminder_sent, renewal_submitted: r.renewal_submitted });
+  }
+  return {
+    today: review && review.today,
+    educators_checked: review && review.educators_checked,
+    needs_attention: act.slice(0, MAX_FOCUS),
+    left_for_next_run: Math.max(0, act.length - MAX_FOCUS),
+    already_chased_by_staff_agent: chasing,
+    already_waiting_for_sara: waiting,
+  };
+}
+
 // Runs one agent turn. `model` and `fetchImpl` can be swapped in tests.
 // Vercel stops the function at maxDuration (vercel.json); stop a little earlier so the owner gets a clear message.
-const TIME_LIMIT_MS = Number(process.env.AGENT_TIME_LIMIT_MS) || 50000;
+const TIME_LIMIT_MS = Number(process.env.AGENT_TIME_LIMIT_MS) || 110000;
 
 async function runAgent({ message, uploadLink, model, fetchImpl, timeLimitMs }) {
   const ctx = { calls: 0, saved: 0, escalated: 0, log: [], fetch: fetchImpl, uploadLink, timings: [] };
@@ -109,13 +135,13 @@ async function runAgent({ message, uploadLink, model, fetchImpl, timeLimitMs }) 
     const { google } = require("@ai-sdk/google");
     model = google(modelId);
   }
-  // Gemini 3 models think before answering; "low" is plenty for this task and keeps each step fast.
-  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: "low" } } } : undefined;
+  // Gemini 3 models think before answering; "minimal" is the fastest setting and enough for this task.
+  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: process.env.AGENT_THINKING || "minimal" } } } : undefined;
   // Read the credentials first (a quick database call), so Gemini needs two calls instead of four:
   // one to save drafts and escalations together, one to write the summary.
   const t0 = Date.now();
-  const review = await rpc("agent_credential_review", {}, fetchImpl);
-  ctx.log.push({ tool: "review_credentials", result: (review.needs_attention || []).length + " credentials need attention" });
+  const review = focusReview(await rpc("agent_credential_review", {}, fetchImpl));
+  ctx.log.push({ tool: "review_credentials", result: review.needs_attention.length + " to act on, " + review.already_chased_by_staff_agent + " already being chased by the staff agent" });
   ctx.timings = [{ step: "beehive credential review", ms: Date.now() - t0 }];
   let last = Date.now();
   try {
@@ -189,3 +215,4 @@ module.exports = async function agent(req, res) {
 module.exports.runAgent = runAgent;
 module.exports.explainError = explainError;
 module.exports.MAX_TOOL_CALLS = MAX_TOOL_CALLS;
+module.exports.focusReview = focusReview;

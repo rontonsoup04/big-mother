@@ -15,7 +15,7 @@ const { explainError } = require("./agent.js");
 
 const SUPABASE_URL = process.env.BEEHIVE_SUPABASE_URL || "https://gaxkvceirdxqfpeeskwf.supabase.co";
 const SUPABASE_KEY = process.env.BEEHIVE_SUPABASE_KEY || "sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8"; // public by design
-const TIME_LIMIT_MS = Number(process.env.AGENT_TIME_LIMIT_MS) || 50000;
+const TIME_LIMIT_MS = Number(process.env.AGENT_TIME_LIMIT_MS) || 110000;
 const MAX_STEPS = 4;
 
 const ASK_INSTRUCTIONS = `You are "Ask beehive", the assistant inside beehive, a compliance app for an Australian long day care centre (NSW, Education and Care Services National Regulations). You answer the centre owner's questions.
@@ -77,7 +77,7 @@ function buildTools(ctx) {
 function modelFor(model) {
   const modelId = process.env.AGENT_MODEL || "gemini-3.8-flash";
   if (!model) { const { google } = require("@ai-sdk/google"); model = google(modelId); }
-  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: "low" } } } : undefined;
+  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: process.env.AGENT_THINKING || "minimal" } } } : undefined;
   return { model, providerOptions };
 }
 

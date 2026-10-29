@@ -111,9 +111,9 @@ const Library = (() => {
     setPass(pass);
     agentRun = { busy: true, reply: "", actions: [], error: "", message };
     render();
-    // never leave the button spinning: give up after 75 seconds, and always redraw
+    // never leave the button spinning: give up after 2 minutes, and always redraw
     const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timer = ctl ? setTimeout(() => ctl.abort(), 75000) : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 130000) : null;
     try {
       const res = await fetch("api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: pass, message }), signal: ctl ? ctl.signal : undefined });
       let body = {};
@@ -125,7 +125,7 @@ const Library = (() => {
       if (!res.ok) agentRun = { busy: false, reply: "", actions: [], error: body.error || "The agent couldn't run (" + res.status + ")." , message };
       else agentRun = { busy: false, reply: body.reply, actions: body.actions || [], error: "", message, saved: body.drafts_saved, escalated: body.escalated, seconds: body.seconds };
     } catch (e) {
-      agentRun = { busy: false, reply: "", actions: [], error: e && e.name === "AbortError" ? "The agent didn’t answer within 75 seconds. Try again, or ask for something narrower." : "Couldn't reach the agent: " + (e.message || e), message };
+      agentRun = { busy: false, reply: "", actions: [], error: e && e.name === "AbortError" ? "The agent didn’t answer within 2 minutes. Try again, or ask for something narrower." : "Couldn't reach the agent: " + (e.message || e), message };
     } finally {
       if (timer) clearTimeout(timer);
       agentRun.busy = false;
