@@ -77,7 +77,7 @@ function buildTools(ctx) {
 function modelFor(model) {
   const modelId = process.env.AGENT_MODEL || "gemini-3.8-flash";
   if (!model) { const { google } = require("@ai-sdk/google"); model = google(modelId); }
-  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: process.env.AGENT_THINKING || "minimal" } } } : undefined;
+  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: process.env.AGENT_THINKING || "low" } } } : undefined;
   return { model, providerOptions };
 }
 
