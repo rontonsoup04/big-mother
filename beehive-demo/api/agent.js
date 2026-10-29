@@ -135,8 +135,8 @@ async function runAgent({ message, uploadLink, model, fetchImpl, timeLimitMs }) 
     const { google } = require("@ai-sdk/google");
     model = google(modelId);
   }
-  // Gemini 3 models think before answering; "minimal" is the fastest setting and enough for this task.
-  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: process.env.AGENT_THINKING || "minimal" } } } : undefined;
+  // Gemini 3 models think before answering; "low" is the fastest level this model accepts ("minimal" is refused).
+  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: process.env.AGENT_THINKING || "low" } } } : undefined;
   // Read the credentials first (a quick database call), so Gemini needs two calls instead of four:
   // one to save drafts and escalations together, one to write the summary.
   const t0 = Date.now();
