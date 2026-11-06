@@ -7,6 +7,7 @@
 --   3. the audit-readiness agent
 --   4. the integration that joins them into one system
 --   5. read-only data for Ask beehive (Gemini)
+--   5b. asthma training as a required credential
 --   6. the demo data (this RESETS the demo centre: Sara, Priya, Mia and all demo records)
 --
 -- It's safe to run again: every step checks what already exists, and the demo data is rebuilt each time.
@@ -62,7 +63,7 @@ grant select on public.staff_reminder_drafts to authenticated;
 
 -- Which credentials every educator must hold (matches the staff register).
 create or replace function public._required_cert_codes()
-returns text[] language sql immutable as $$ select array['WWCC', 'FIRST_AID', 'CPR', 'ANAPHYLAXIS', 'ASTHMA'] $$;
+returns text[] language sql immutable as $$ select array['WWCC', 'FIRST_AID', 'CPR', 'ANAPHYLAXIS'] $$;
 
 -- One row per educator per required credential, with what the agent needs to decide.
 drop function if exists public._credential_review(uuid);
@@ -2315,6 +2316,14 @@ end $$;
 grant execute on function public.agent_overview(text) to anon, authenticated;
 
 -- Official guidance: Ask beehive uses agent_guidance(p_key, p_topic) from 20261026090000_compliance_library.sql.
+
+-- ============================================================================
+-- supabase/migrations/20261106090000_asthma_required.sql
+-- ============================================================================
+-- Emergency asthma management training is now a required credential for every educator (Reg 136).
+-- Educators with no ASTHMA record show as missing, so the staff agent asks them to upload one.
+create or replace function public._required_cert_codes()
+returns text[] language sql immutable as $$ select array['WWCC', 'FIRST_AID', 'CPR', 'ANAPHYLAXIS', 'ASTHMA'] $$;
 
 -- ============================================================================
 -- supabase/seed_demo.sql

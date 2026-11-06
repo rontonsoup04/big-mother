@@ -18,6 +18,7 @@
 <script src="./extract.js" defer></script>
 <script src="./agent.js" defer></script>
 <script src="./audit.js" defer></script>
+<script src="./legal.js" defer></script>
 <script src="./app.js" defer></script>
 </head>
 <body>
@@ -30,7 +31,7 @@
     <nav class="navigation" aria-label="Main navigation">
       <button class="navButton ownerOnly" data-nav="overview" onclick="go('overview')"><span data-icon="overview"></span>Overview</button>
       <button class="navButton ownerOnly" data-nav="staff" onclick="go('staff')"><span data-icon="staff"></span>Staff<b id="certAlertBadge"></b></button>
-      <button class="navButton ownerOnly" data-nav="legal" onclick="go('audit')"><span data-icon="legal"></span>Legal<b id="gapBadge"></b></button>
+      <button class="navButton ownerOnly" data-nav="legal" onclick="go('legal')"><span data-icon="legal"></span>Legal<b id="gapBadge"></b></button>
       <button class="navButton ownerOnly" data-nav="centre" onclick="go('compliance')"><span data-icon="centre"></span>Centre<b id="complianceBadge"></b></button>
       <button class="navButton ownerOnly" data-nav="roster" onclick="go('roster')"><span data-icon="roster"></span>Roster<b id="rosterBadge"></b></button>
       <button class="navButton parentOnly" data-nav="family" onclick="go('family')"><span data-icon="home"></span>Home</button>
@@ -61,7 +62,7 @@
 <nav class="mobileNav" aria-label="Mobile navigation">
   <button class="ownerOnly" data-nav="overview" onclick="go('overview')"><span data-icon="overview"></span>Overview</button>
   <button class="ownerOnly" data-nav="staff" onclick="go('staff')"><span data-icon="staff"></span>Staff</button>
-  <button class="ownerOnly" data-nav="legal" onclick="go('audit')"><span data-icon="legal"></span>Legal</button>
+  <button class="ownerOnly" data-nav="legal" onclick="go('legal')"><span data-icon="legal"></span>Legal</button>
   <button class="ownerOnly" data-nav="centre" onclick="go('compliance')"><span data-icon="centre"></span>Centre</button>
   <button class="ownerOnly" data-nav="roster" onclick="go('roster')"><span data-icon="roster"></span>Roster</button>
   <button class="parentOnly" data-nav="family" onclick="go('family')"><span data-icon="home"></span>Home</button>

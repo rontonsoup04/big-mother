@@ -448,7 +448,7 @@ function setNav() {
     navCurrent =
       current === "staff-upload"
         ? "staff"
-        : current === "audit" || current === "updates"
+        : current === "audit" || current === "updates" || current === "legal" || current === "legal-safety"
         ? "legal"
         : current === "compliance"
         ? "centre"
@@ -479,12 +479,14 @@ function setNav() {
   if (pb) pb.style.display = LIVE ? "none" : "";
   let crumb = {
     overview: "Overview",
-    updates: "Legal · Regulation updates",
+    updates: "Legal",
+    legal: "Legal",
+    "legal-safety": "Legal",
     compliance: "Centre",
     roster: "Roster",
     staff: "Staff",
     "staff-upload": isEducator() ? "My certificates" : "Upload a certificate",
-    audit: "Legal · Audit readiness",
+    audit: "Legal",
     family: "Home",
     "family-medical": "Medical profile",
     "family-form": "Update medical details",
@@ -1430,8 +1432,12 @@ function render() {
       ? overviewPage()
       : current === "roster"
       ? rosterPage()
+      : current === "legal"
+      ? Legal.tabs() + Legal.briefingPage()
+      : current === "legal-safety"
+      ? Legal.tabs() + Legal.safetyPage()
       : current === "updates"
-        ? legalTabs() + updatesPage()
+        ? Legal.tabs() + updatesPage()
         : current === "compliance"
         ? Library.page()
         : current === "staff"
@@ -1446,7 +1452,7 @@ function render() {
                   ? familyFormPage()
                   : current === "family-messages"
                     ? familyMessagesPage()
-                    : legalTabs() + auditPage();
+                    : Legal.tabs() + auditPage();
   if (typeof fillIcons === "function") fillIcons(document);
   if (typeof Assistant !== "undefined") Assistant.refresh();
   if (document.getElementById("selectedCount"))
@@ -1699,12 +1705,7 @@ function toast(message) {
 Live.boot();
 
 // ---------------------------------------------------------------------------------------------
-// Legal: audit readiness and regulation updates share one section with a tab strip.
-function legalTabs() {
-  let tab = (id, label, badge) =>
-    '<button class="filterButton ' + (current === id ? "active" : "") + '" onclick="go(\'' + id + '\')">' + label + (badge || "") + "</button>";
-  return '<div class="areaFilters legalTabs" role="tablist">' + tab("audit", "Audit readiness") + tab("updates", "Regulation updates", ' <b class="updateBadge"></b>') + "</div>";
-}
+// Legal: Briefing, ACECQA requirements, Safety and premises and Regulation updates (tabs in legal.js).
 
 // ---------------------------------------------------------------------------------------------
 // Roster: who is in each room today, and whether their credentials let them count.

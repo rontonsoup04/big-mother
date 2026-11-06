@@ -8,7 +8,7 @@
 // Uses the same settings as the Compliance agent (api/agent.js): GOOGLE_GENERATIVE_AI_API_KEY, AGENT_MODEL,
 // AGENT_PASSCODE, BEEHIVE_AGENT_KEY. Free AI tiers aren't private: use invented data only.
 
-const { generateText, tool, stepCountIs } = require("ai");
+const { generateText, generateObject, tool, stepCountIs } = require("ai");
 const { z } = require("zod");
 const crypto = require("crypto");
 const { explainError } = require("./agent.js");
@@ -33,6 +33,35 @@ const DRAFT_INSTRUCTIONS = `You write short messages from an Australian childcar
 - Use only the facts in the educator's note. Never add health, medical or incident details that aren't in the note.
 - Warm, plain Australian English, 2 to 4 sentences, first names only, no emoji, no sign-off name.
 - Reply with the message text only.`;
+
+const BRIEF_INSTRUCTIONS = `You brief the owner of an Australian long day care centre (NSW, Education and Care Services National Law and Regulations) on a regulation or policy change they pasted in.
+- Use only the pasted text and the centre's requirement list. Never invent regulation numbers, dates or obligations that aren't in the text.
+- whatChanged: 1 to 2 plain sentences on what the change requires.
+- affects: the exact titles from the requirement list that the change touches. Empty if none clearly match.
+- actions: 1 to 4 short, concrete steps for this centre, starting with a verb. Say "check" or "review", not "you are non-compliant": a change only flags what may need updating.
+- deadline: when it takes effect, quoted from the text, or "No start date in the text: check the official notice."
+- Plain Australian English, no legal advice.`;
+
+async function brief({ title, text, requirements, model, timeLimitMs }) {
+  const m = modelFor(model);
+  const reqs = (Array.isArray(requirements) ? requirements : []).slice(0, 40)
+    .map((r) => "- " + String(r.title || "").slice(0, 120) + " (" + String(r.area || "").slice(0, 40) + ", " + String(r.status || "").slice(0, 20) + ")").join("\n");
+  const { object } = await generateObject({
+    model: m.model, providerOptions: m.providerOptions, system: BRIEF_INSTRUCTIONS,
+    schema: z.object({
+      title: z.string().max(100),
+      whatChanged: z.string().max(500),
+      affects: z.array(z.string().max(120)).max(12),
+      actions: z.array(z.string().max(220)).min(1).max(4),
+      deadline: z.string().max(160),
+    }),
+    prompt: "Title: " + String(title || "(none given)").slice(0, 120) + "\n\nPasted change:\n" + String(text || "").slice(0, 6000) + "\n\nCentre's requirements:\n" + reqs,
+    maxRetries: 0, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
+  });
+  const known = new Set((Array.isArray(requirements) ? requirements : []).map((r) => r.title));
+  object.affects = object.affects.filter((t) => known.has(t)); // only titles that really are on the checklist
+  return object;
+}
 
 async function rpc(fn, body, fetchImpl) {
   const res = await (fetchImpl || fetch)(SUPABASE_URL + "/rest/v1/rpc/" + fn, {
@@ -144,6 +173,10 @@ module.exports = async function handler(req, res) {
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) return send(res, 500, { error: "Gemini isn't set up yet: add GOOGLE_GENERATIVE_AI_API_KEY in Vercel's environment variables." });
   try {
     if (body.mode === "draft") return send(res, 200, await draft(body));
+    if (body.mode === "brief") {
+      if (String(body.text || "").trim().length < 40) return send(res, 400, { error: "Paste the text of the change first." });
+      return send(res, 200, await brief(body));
+    }
     if (!process.env.BEEHIVE_AGENT_KEY) return send(res, 500, { error: "Gemini can't read beehive yet: add BEEHIVE_AGENT_KEY (the centre's agent key) in Vercel's environment variables." });
     if (!String(body.question || "").trim()) return send(res, 400, { error: "Ask a question." });
     return send(res, 200, await ask(body));
@@ -154,3 +187,4 @@ module.exports = async function handler(req, res) {
 };
 module.exports.ask = ask;
 module.exports.draft = draft;
+module.exports.brief = brief;
