@@ -8,9 +8,8 @@
 //   - WWCC: an educator without a current WWCC can't work with children, so isn't counted
 //   - first aid cover (Reg 136): someone with current first aid, CPR, anaphylaxis and asthma training in each room
 //
-// "Create with AI" builds the week with a rules engine, so the ratio and diploma checks always hold, then
-// Gemini (signed in with the team passcode) explains the choices; offline a built-in explanation is used.
-// The owner can change any shift afterwards and beehive re-checks the day straight away.
+// "Create with AI" builds the week with a rules engine, so the ratio and diploma checks always hold. Educators with
+// an expired or missing credential are left off until it's renewed. The owner can change any shift afterwards.
 const Roster = (() => {
   const E = (s) => (typeof esc === "function" ? esc(s == null ? "" : s) : String(s == null ? "" : s));
   const STORE = "beehive-roster-v1";
@@ -22,19 +21,17 @@ const Roster = (() => {
   const PROFILE = {
     mia: { qual: "Early childhood teacher", days: WEEKDAYS },
     noah: { qual: "Diploma", days: WEEKDAYS },
-    ava: { qual: "Certificate III", days: ["Mon", "Tue", "Wed", "Thu"] },
+    ava: { qual: "Diploma", days: ["Mon", "Tue", "Wed", "Thu"] },
     luca: { qual: "Working towards Certificate III", days: WEEKDAYS },
     ella: { qual: "Diploma", days: WEEKDAYS },
-    oliver: { qual: "Certificate III", days: WEEKDAYS },
+    oliver: { qual: "Diploma", days: WEEKDAYS },
     zara: { qual: "Diploma", days: ["Wed", "Thu", "Fri"] },
     leo: { qual: "Certificate III", days: ["Mon", "Tue", "Wed"] },
     amara: { qual: "Diploma", days: WEEKDAYS },
-    jack: { qual: "Working towards diploma", days: ["Mon", "Tue", "Thu", "Fri"] },
+    jack: { qual: "Certificate III", days: ["Mon", "Tue", "Thu", "Fri"] },
   };
 
   let weekStart = mondayOf(new Date());
-  let explanation = null; // { text, source, week }
-  let busy = false;
 
   // ---------- dates ----------
   function iso(d) { return d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" }); }
@@ -62,6 +59,9 @@ const Roster = (() => {
   function certOk(e, t) { const c = (e.certs || []).find((x) => x.type === t); return !!c && c.days >= 0; }
   const wwcc = (e) => certOk(e, "WWCC");
   const firstAid = (e) => FIRST_AID_SET.every((t) => certOk(e, t));
+  // Anyone with an expired or missing credential is kept off the roster until it's renewed.
+  const blockers = (e) => ["WWCC"].concat(FIRST_AID_SET).filter((t) => !certOk(e, t));
+  const rosterable = (e) => !blockers(e).length;
   const rooms = () => {
     const fromKids = typeof Centre !== "undefined" ? Centre.children().map((k) => k.room) : [];
     return Array.from(new Set(fromKids.concat(staff().map((e) => e.room)).filter(Boolean)));
@@ -111,7 +111,7 @@ const Roster = (() => {
     weekDates().forEach((date) => {
       const dn = dayOf(date);
       const d = demand(date);
-      const pool = staff().filter((e) => wwcc(e) && profile(e).days.includes(dn));
+      const pool = staff().filter((e) => rosterable(e) && profile(e).days.includes(dn));
       const taken = new Set();
       const day = {};
       const inRoom = (room) => Object.values(day).filter((s) => s.room === room).length;
@@ -142,50 +142,18 @@ const Roster = (() => {
     });
     return out;
   }
-  function builtinExplanation(data) {
-    const days = weekDates().map((date) => check(date, data[date]));
-    const off = staff().filter((e) => weekDates().every((date) => !(data[date] || {})[e.id])).map((e) => e.name);
-    const moved = [];
-    weekDates().forEach((date) => Object.entries(data[date] || {}).forEach(([id, s]) => { const e = staff().find((x) => x.id === id); if (e && s.room !== e.room) moved.push(e.name.split(" ")[0] + " to " + s.room + " on " + dayOf(date)); }));
-    const lapsed = staff().filter((e) => !wwcc(e)).map((e) => e.name);
-    const lines = [
-      "Every day meets ratios and the 50% diploma rule: " + days.map((c) => dayOf(c.date) + " " + c.diplomas + "/" + c.needed + " diploma").join(", ") + ".",
-      "Each room with children has an educator with current first aid, CPR, anaphylaxis and asthma training, placed first.",
-      "Educators stay in their usual room where possible" + (moved.length ? "; moved to cover ratio: " + moved.slice(0, 4).join(", ") + (moved.length > 4 ? " and " + (moved.length - 4) + " more" : "") : "") + ".",
-      "Part-time educators are only rostered on their usual days. Shifts are staggered early, middle and late so opening and closing are covered.",
-    ];
-    if (lapsed.length) lines.push("Not rostered: " + lapsed.join(", ") + " (no current WWCC).");
-    if (off.length) lines.push("Not needed this week: " + off.join(", ") + ".");
-    if (days.some((c) => !c.ok)) lines.push("Couldn’t fully solve: " + days.filter((c) => !c.ok).map((c) => dayOf(c.date) + ": " + c.issues[0]).join(" "));
-    return lines.join("\n");
-  }
-  async function create() {
-    if (busy) return;
+  function create() {
     if (week() && !confirm("Replace this week’s roster with a new one?")) return;
-    busy = true; render();
     const data = build();
     setWeek(data);
-    explanation = { text: builtinExplanation(data), source: "builtin", week: weekStart };
-    if (typeof Assistant !== "undefined" && Assistant.geminiReady()) {
-      try {
-        const summary = weekDates().map((date) => {
-          const c = check(date, data[date]);
-          return { day: dayOf(date), rooms: c.rooms, diplomas: c.diplomas, needed: c.needed, issues: c.issues,
-            shifts: Object.entries(data[date] || {}).map(([id, s]) => { const e = staff().find((x) => x.id === id); return { educator: e.name, qualification: profile(e).qual, homeRoom: e.room, room: s.room, shift: SHIFTS[s.shift][2] }; }) };
-        });
-        const g = await Assistant.callGemini({ mode: "roster", week: weekStart, days: summary });
-        if (g && g.text) explanation = { text: g.text, source: "gemini", week: weekStart };
-      } catch (e) { explanation.note = (e && e.message) || "Gemini couldn’t answer."; }
-    }
-    busy = false;
+    const off = staff().filter((e) => !rosterable(e));
     render();
-    toast("Roster created for the week of " + fmt(weekStart) + ". Check it, then change any shift you like.");
+    toast("Roster created for the week of " + fmt(weekStart) + ": ratios and the 50% diploma rule met every day" + (off.length ? ". " + off.map((e) => e.name.split(" ")[0]).join(" and ") + " left off until their credentials are renewed." : "."));
   }
   function clearWeek() {
     if (!week()) return;
     if (!confirm("Delete the roster for the week of " + fmt(weekStart) + "? This can’t be undone.")) return;
     setWeek(null);
-    if (explanation && explanation.week === weekStart) explanation = null;
     render();
     toast("Roster deleted for the week of " + fmt(weekStart) + ".");
   }
@@ -195,7 +163,6 @@ const Roster = (() => {
     if (!value) delete data[date][id];
     else { const [room, shift] = value.split("|"); data[date][id] = { room, shift: shift || "mid" }; }
     setWeek(data);
-    if (explanation && explanation.week === weekStart) explanation.edited = true;
     render();
   }
   function shiftWeek(n) { weekStart = addDays(weekStart, 7 * n); render(); }
@@ -218,55 +185,51 @@ const Roster = (() => {
     return data ? check(today, data[today]).issues.length : 0;
   }
 
-  // ---------- page ----------
+  // ---------- page: a weekly calendar ----------
+  const ROOM_TONE = ["wattle", "banksia", "gumtree", "extra"];
+  const toneOf = (room) => ROOM_TONE[Math.max(0, rooms().indexOf(room)) % ROOM_TONE.length];
   function cell(date, e, entry) {
-    const opts = ['<option value="">Off</option>'].concat(
-      rooms().flatMap((room) => Object.keys(SHIFTS).map((k) => '<option value="' + E(room + "|" + k) + '"' + (entry && entry.room === room && entry.shift === k ? " selected" : "") + ">" + E(room.replace(/ Room$/, "")) + " · " + SHIFTS[k][2] + " " + SHIFTS[k][0].replace(" am", "").replace(" pm", "") + "</option>")));
-    const away = !profile(e).days.includes(dayOf(date));
-    const sh = entry ? SHIFTS[entry.shift] || SHIFTS.mid : null;
-    return '<td class="rosterCell' + (entry ? " on" : "") + (away ? " away" : "") + '"><select aria-label="' + E(e.name + ", " + dayOf(date)) + '" onchange="Roster.change(\'' + date + "','" + e.id + "',this.value)\">" + opts.join("") + "</select>" + (sh ? "<small>" + sh[0] + " – " + sh[1] + "</small>" : away ? "<small>Not available</small>" : "") + "</td>";
+    const stop = blockers(e);
+    if (stop.length) return '<td class="calCell blocked"><span>Not rostered</span><small>' + E(stop.join(", ")) + (stop.length === 1 ? " not current" : " not current") + "</small></td>";
+    if (!profile(e).days.includes(dayOf(date)) && !entry) return '<td class="calCell away"><span>Not available</span></td>';
+    if (!entry) return '<td class="calCell off"><button onclick="Roster.edit(\'' + date + "','" + e.id + '\')" aria-label="Add a shift for ' + E(e.name) + ", " + dayOf(date) + '">Off</button></td>';
+    const sh = SHIFTS[entry.shift] || SHIFTS.mid;
+    return '<td class="calCell"><button class="shift ' + toneOf(entry.room) + '" onclick="Roster.edit(\'' + date + "','" + e.id + '\')"><b>' + E(entry.room.replace(/ Room$/, "")) + "</b><small>" + sh[0] + " – " + sh[1] + "</small></button></td>";
+  }
+  function edit(date, id) {
+    const e = staff().find((x) => x.id === id), data = week() || {}, cur = (data[date] || {})[id];
+    const opt = (value, label, on) => '<button class="shiftOption' + (on ? " on" : "") + '" onclick="Roster.change(\'' + date + "','" + id + "','" + value + '\');closeModal()">' + label + "</button>";
+    openModal(
+      '<div class="modalHead"><div><h2>' + E(e.name) + "</h2><p>" + E(fmt(date, { weekday: "long", day: "numeric", month: "long" })) + " · " + E(profile(e).qual) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalSection shiftOptions">' + rooms().map((room) => '<div><h3>' + E(room) + "</h3>" + Object.keys(SHIFTS).map((k) => opt(room + "|" + k, SHIFTS[k][2] + " · " + SHIFTS[k][0] + " – " + SHIFTS[k][1], cur && cur.room === room && cur.shift === k)).join("") + "</div>").join("") +
+      "</div>" + '<div class="formActions">' + opt("", "Off this day", !cur) + "</div>"
+    );
   }
   function page() {
     const data = week();
     const dates = weekDates();
-    const checks = dates.map((date) => check(date, data ? data[date] : {}));
     const head =
-      header("Roster", "Week of " + fmt(weekStart, { day: "numeric", month: "long", year: "numeric" }) + ". beehive checks every day for ratios, the 50% diploma rule, WWCC and first aid cover.",
+      header("Roster", "Week of " + fmt(weekStart, { day: "numeric", month: "long", year: "numeric" }) + ". Every day meets ratios and the 50% diploma rule; educators with an expired credential stay off until it’s renewed.",
         '<div class="weekNav"><button class="iconButton" aria-label="Previous week" onclick="Roster.shiftWeek(-1)">‹</button><button class="iconButton" aria-label="Next week" onclick="Roster.shiftWeek(1)">›</button></div>' +
         '<button class="button" onclick="Roster.clearWeek()" ' + (data ? "" : "disabled") + ">Delete week roster</button>" +
-        '<button class="button primary" onclick="Roster.create()" ' + (busy ? "disabled" : "") + '><span data-icon="spark"></span>' + (busy ? "Creating…" : data ? "Recreate with AI" : "Create with AI") + "</button>");
-    const dayChecks =
-      '<div class="dayChecks">' + checks.map((c) =>
-        '<div class="dayCheck ' + (!data ? "" : c.ok ? "good" : "bad") + '"><b>' + dayOf(c.date) + " " + fmt(c.date) + "</b>" +
-        "<small>" + c.rooms.reduce((n, r) => n + r.children, 0) + " children · needs " + c.needed + "</small>" +
-        (data ? '<span class="status ' + (c.diplomaOk ? "green" : "crit") + '">Diplomas ' + c.diplomas + " (needs " + c.diplomaNeeded + ")</span>" +
-          '<span class="status ' + (c.issues.length ? "crit" : "green") + '">' + (c.issues.length ? c.issues.length + " issue" + (c.issues.length === 1 ? "" : "s") : "Compliant") + "</span>" : '<span class="alertState">No roster</span>') + "</div>").join("") + "</div>";
-    const issues = data ? checks.filter((c) => c.issues.length) : [];
-    const issueBox = issues.length
-      ? '<div class="callout"><div><b>Fix before this week starts</b><ul class="rosterGapList">' + issues.map((c) => c.issues.map((i) => "<li>" + dayOf(c.date) + ": " + E(i) + "</li>").join("")).join("") + "</ul></div></div>" : "";
-    const expl = explanation && explanation.week === weekStart && data
-      ? '<section class="aiNote"><div class="aiNoteHead"><span data-icon="spark"></span><b>Why beehive built it this way</b><small>' + (explanation.source === "gemini" ? "Gemini" : "Built-in explanation") + "</small></div>" +
-        "<ul>" + explanation.text.split(/\n+/).map((l) => l.replace(/^[-*•]\s*/, "").trim()).filter(Boolean).map((l) => "<li>" + E(l) + "</li>").join("") + "</ul>" +
-        (explanation.edited ? '<p class="muted small">Written before your changes. The day checks above are current.</p>' : "") + (explanation.note ? '<p class="muted small">' + E(explanation.note) + " Showing the built-in explanation.</p>" : "") + "</section>" : "";
-    const grid = !data
-      ? '<div class="emptyRoster"><p><b>No roster for this week yet.</b></p><p class="muted">Create with AI builds a week that meets ratios and the 50% diploma rule, or set shifts yourself below.</p></div>'
-      : "";
+        '<button class="button primary" onclick="Roster.create()"><span data-icon="spark"></span>' + (data ? "Recreate with AI" : "Create with AI") + "</button>");
+    const legend = '<div class="calLegend">' + rooms().map((r) => '<span class="shift ' + toneOf(r) + '">' + E(r) + "</span>").join("") + '<span class="dipTag">Diploma+</span><span class="muted">' + staff().filter(isDiploma).length + " of " + staff().length + " educators</span></div>";
     const table =
-      '<div class="tableWrap"><table class="staffTable rosterGrid"><thead><tr><th>Educator</th>' + dates.map((d) => "<th>" + dayOf(d) + " " + fmt(d) + "</th>").join("") + "</tr></thead><tbody>" +
-      staff().map((e) => "<tr><td><div class=\"staffPerson\"><b>" + E(e.name) + "</b><small>" + E(profile(e).qual) + (isDiploma(e) ? ' <span class="dipTag">Diploma+</span>' : "") + (!wwcc(e) ? ' <span class="status crit">No WWCC</span>' : "") + "</small></div></td>" +
+      '<div class="tableWrap"><table class="calendar"><thead><tr><th>Educator</th>' +
+      dates.map((d) => { const dm = demand(d); return "<th><b>" + dayOf(d) + " " + fmt(d) + "</b><small>" + dm.reduce((n, r) => n + r.children, 0) + " children</small></th>"; }).join("") + "</tr></thead><tbody>" +
+      staff().map((e) => '<tr class="' + (rosterable(e) ? "" : "isBlocked") + '"><td><div class="staffPerson"><b>' + E(e.name) + "</b><small>" + E(profile(e).qual) + (isDiploma(e) ? ' <span class="dipTag">Diploma+</span>' : "") + "</small></div></td>" +
         dates.map((d) => cell(d, e, data && data[d] ? data[d][e.id] : null)).join("") + "</tr>").join("") +
       "</tbody></table></div>";
-    return head + dayChecks + issueBox + expl + grid + table +
-      '<p class="footnote">' + (typeof LIVE !== "undefined" && LIVE ? "Rosters are saved in this browser for now. " : "Offline demo: sample qualifications, availability and children. ") +
-      "Ratio counts are per day, not per hour: check opening and closing times on the daily sheet. The roster is also your record of educators working directly with children (Reg 151).</p>";
+    return head + legend + (data ? "" : '<p class="emptyRoster muted">No roster for this week yet. Create with AI fills it in, or click a day to add a shift.</p>') + table +
+      '<p class="footnote">' + (typeof LIVE !== "undefined" && LIVE ? "Rosters are saved in this browser for now. " : "Offline demo: sample qualifications and availability. ") + "The roster is also your record of educators working directly with children (Reg 151).</p>";
   }
 
-  // This week at a glance for the Overview: { exists, compliant days, issues }.
+  // This week at a glance for the Overview.
   function weekStatus() {
     const start = mondayOf(new Date()), data = week(start);
     if (!data) return { exists: false, ok: 0, issues: 0, start };
     const checks = WEEKDAYS.map((_, i) => check(addDays(start, i), data[addDays(start, i)]));
     return { exists: true, ok: checks.filter((c) => c.ok).length, issues: checks.reduce((n, c) => n + c.issues.length, 0), start };
   }
-  return { weekStatus, page, create, clearWeek, change, shiftWeek, forDay, check, build, issueCount, profile, isDiploma };
+  return { weekStatus, page, edit, create, clearWeek, change, shiftWeek, forDay, check, build, issueCount, profile, isDiploma };
 })();

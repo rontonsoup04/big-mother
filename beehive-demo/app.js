@@ -351,7 +351,7 @@ let uploadName = "";
 let extractedExpiryDate = "";
 let staffQuery = "";
 let alertScanDone = false;
-let current = approved ? "overview" : "audit";
+let current = "overview";
 let activeFilter = "All areas";
 let query = "";
 let toastTimer;
@@ -502,7 +502,7 @@ function setNav() {
   let rb = document.getElementById("rosterBadge");
   if (rb) { let gaps = rosterGaps().length; rb.textContent = gaps || ""; rb.classList.toggle("alert", gaps > 0); }
   if (cb && typeof Library !== "undefined") {
-    let due = Library.taskList().filter((t) => t.state === "overdue" || t.state === "due_soon").length + Library.agentDraftCount();
+    let due = typeof Centre !== "undefined" ? Centre.children().filter((k) => k.missing.length).length : 0;
     cb.textContent = due || "";
     cb.style.display = due ? "" : "none";
   }
@@ -1121,14 +1121,13 @@ function staffPortalPage() {
     reminderTotal = educators.filter((e) => e.alertState && /prompt/i.test(e.alertState)).length;
   if (agentOn() || (LIVE && typeof StaffAgent !== "undefined" && StaffAgent.data().error))
     return (
-      header("Staff records", "beehive watches every credential, chases renewals and brings you only the decisions.", '<button class="button" onclick="StaffAgent.runNow()"><span data-icon="refresh"></span>Check now</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
-      StaffAgent.staffSection() +
-      '<section class="section"><div class="sectionHead"><h2>All educators<span class="count">' + educators.length + "</span></h2></div>" +
-      '<div class="tableTools"><div class="legend"><span class="certState crit">Critical: expired or missing</span><span class="certState high">High: 7 days</span><span class="certState medium">Medium: 30 days</span><span class="certState monitor">Monitor: 60 days</span><span class="certState current">Current</span></div>' +
-      '<input id="staffSearch" class="staffSearch" type="search" placeholder="Search educators or credentials" aria-label="Search staff certifications" oninput="searchStaff(this.value)"></div>' +
-      '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Asthma</th><th>Renewal</th></tr></thead><tbody id="staffRows">' +
+      header("Staff", "Every educator’s credentials. beehive chases renewals for you.", '<button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
+      followUpsCard() +
+      '<section class="section"><div class="sectionHead"><h2>All educators<span class="count">' + educators.length + "</span></h2>" +
+      '<input id="staffSearch" class="staffSearch" type="search" placeholder="Search educators or credentials" aria-label="Search staff" oninput="searchStaff(this.value)"></div>' +
+      '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Asthma</th><th>Follow-up</th></tr></thead><tbody id="staffRows">' +
       staffRows() + "</tbody></table></div></section>" +
-      '<p class="footnote">' + (LIVE ? "The agent checks every credential when you open beehive and each morning. " : "Offline demo: the agent runs in this browser with sample educators. ") + "Email and SMS are simulated: messages are recorded with recipient and time but not delivered.</p>"
+      '<p class="footnote">' + (LIVE ? "" : "Offline demo: sample educators. ") + "Email and SMS are simulated: messages are recorded with recipient and time but not delivered.</p>"
     );
   return (
     header("Staff records", "", '<button class="button" onclick="runExpiryCheck()"><span data-icon="refresh"></span>Run expiry check</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
@@ -1144,6 +1143,30 @@ function staffPortalPage() {
     "</tbody></table></div>" +
     '<p class="footnote">' + (LIVE ? "Reminders go out 60, 30 and 7 days before expiry. Email and SMS are simulated in this pilot; certificates are stored in your centre’s private storage." : "Offline demo: expiry checks and reminders are simulated. Files stay in this browser.") + "</p>"
   );
+}
+// The AI follow-ups on the Staff page: what beehive sends on its own, the latest messages, and what needs the owner.
+function followUpsCard() {
+  let d = StaffAgent.data(), msgs = (d.messages || []).slice(0, 4);
+  let nameOf = (id) => { let e = educators.find((x) => x.id === id); return e ? e.name : "Educator"; };
+  let waiting = (d.tasks || []).filter((t) => t.state === "waiting").length;
+  let decide = (StaffAgent.decisions ? StaffAgent.decisions() : []).length;
+  return (
+    '<section class="followUps"><div class="followHead"><span class="aiMark" data-icon="spark"></span><div><h2>Automated follow-ups</h2>' +
+      "<p>beehive emails each educator a secure upload link 60, 30 and 7 days before a credential expires, follows up until it’s renewed, and only brings you the decisions.</p></div>" +
+      '<button class="button small" onclick="StaffAgent.runNow()"><span data-icon="refresh"></span>Send follow-ups now</button></div>' +
+    '<div class="followStats"><span><b class="num">' + waiting + "</b> waiting on educators</span>" +
+      (decide ? '<button class="textButton" onclick="StaffAgent.nextDecision()">' + decide + " need" + (decide === 1 ? "s" : "") + " your decision</button>" : "<span>Nothing needs you</span>") + "</div>" +
+    (msgs.length ? '<div class="followList">' + msgs.map((m) =>
+      '<button class="followMsg" onclick="showFollowUp(\'' + esc(m.id) + '\')"><b>' + esc(nameOf(m.staffId)) + "</b><small>" + esc(m.subject || (m.kind === "follow_up" ? "Follow-up" : "Renewal request")) + "</small><small>" + (m.channel === "sms" ? "SMS" : "Email") + " · " + esc(relTime(m.at)) + "</small></button>").join("") + "</div>" : "") +
+    "</section>"
+  );
+}
+function showFollowUp(id) {
+  let m = (StaffAgent.data().messages || []).find((x) => String(x.id) === String(id));
+  if (!m) return;
+  openModal('<div class="modalHead"><div><h2>' + esc(m.subject || "Message") + "</h2><p>To " + esc(m.recipient || "educator") + " · " + (m.channel === "sms" ? "SMS" : "Email") + " · " + esc(relTime(m.at)) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+    '<div class="modalSection"><p style="white-space:pre-wrap">' + esc(m.body || "") + "</p></div>" +
+    '<p class="footnote">Simulated: recorded in beehive, not actually delivered.' + (m.nextFollowUp ? " Next follow-up " + esc(m.nextFollowUp) + "." : "") + "</p>");
 }
 function staffUploadPage() {
   let options = educators.map((e) => '<option value="' + e.id + '" ' + (e.id === defaultUploadStaff() ? "selected" : "") + ">" + esc(e.name) + ", " + esc(e.room) + "</option>").join("");
@@ -1451,15 +1474,13 @@ function render() {
   let root = document.getElementById("page");
   root.innerHTML =
     current === "overview"
-      ? overviewPage()
+      ? Canvas.page()
       : current === "roster"
       ? rosterPage()
-      : current === "legal"
-      ? Legal.tabs() + Legal.briefingPage()
-      : current === "legal-safety"
-      ? Legal.tabs() + Legal.safetyPage()
+      : (current === "legal" || current === "legal-safety" || current === "audit") && approved
+      ? Legal.page()
       : current === "updates"
-        ? Legal.tabs() + updatesPage()
+        ? '<button class="textButton backLink" onclick="go(\'legal\')">‹ Back to Legal</button>' + updatesPage()
         : current === "compliance"
         ? Centre.page()
         : current === "staff"
@@ -1474,7 +1495,7 @@ function render() {
                   ? familyFormPage()
                   : current === "family-messages"
                     ? familyMessagesPage()
-                    : Legal.tabs() + auditPage();
+                    : auditPage();
   if (typeof fillIcons === "function") fillIcons(document);
   if (typeof Assistant !== "undefined") Assistant.refresh();
   if (document.getElementById("selectedCount"))
@@ -1731,5 +1752,5 @@ Live.boot();
 
 // ---------------------------------------------------------------------------------------------
 // Roster: weekly roster with an AI builder (roster.js).
-function rosterGaps() { return typeof Roster !== "undefined" ? new Array(Roster.issueCount()).fill(0) : []; }
+function rosterGaps() { return []; }
 function rosterPage() { return Roster.page(); }

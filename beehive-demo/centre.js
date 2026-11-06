@@ -135,31 +135,114 @@ const Centre = (() => {
     const alerts = all.filter((k) => alertText(k)).length, missing = all.filter((k) => k.missing.length).length;
     const roomBtns = ["All rooms"].concat(rooms()).map((r) => '<button class="chip ' + (roomFilter === r ? "active" : "") + '" onclick="Centre.room(\'' + r + '\')">' + E(r) + (r === "All rooms" ? "" : " " + all.filter((k) => k.room === r).length) + "</button>").join("");
     return (
-      header("Children", all.length + " children enrolled across " + rooms().length + " rooms. " + alerts + " with medical or dietary alerts" + (missing ? ", " + missing + " with incomplete enrolment records." : "."),
-        '<button class="button primary" onclick="Centre.setTab(\'daily\')"><span data-icon="download"></span>Today’s daily sheet</button>') +
+      header("Children", all.length + " children enrolled across " + rooms().length + " rooms. " + alerts + " with medical or dietary alerts" + (missing ? ", " + missing + " with incomplete enrolment records." : ".") + " Click a child to open their contracts.",
+        "") +
       '<div class="childToolbar"><div class="chips">' + roomBtns + '</div><input class="formControl childSearch" type="search" placeholder="Search children, rooms or allergies" value="' + E(childQuery) + '" oninput="Centre.search(this.value)" aria-label="Search children"></div>' +
-      '<div class="tableWrap"><table class="staffTable childTable"><thead><tr><th>Child</th><th>Age</th><th>Days</th><th>Medical and dietary</th><th>Emergency contact</th><th>Enrolment record</th></tr></thead><tbody>' +
+      '<div class="tableWrap"><table class="staffTable childTable"><thead><tr><th>Child</th><th>Age</th><th>Days</th><th>Medical and dietary</th><th>Emergency contact</th><th>Contracts</th></tr></thead><tbody>' +
       (list.map((k) =>
         '<tr onclick="Centre.openChild(\'' + E(k.id) + '\')"><td><div class="staffPerson"><b>' + E(k.first + " " + k.last) + "</b><small>" + E(k.room) + "</small></div></td>" +
         '<td data-label="Age" class="num">' + E(ageLabel(k.dob)) + "</td>" +
         '<td data-label="Days">' + (k.days.length === 5 ? "Mon–Fri" : E(k.days.join(", "))) + "</td>" +
         '<td data-label="Medical">' + (alertText(k) ? '<span class="status ' + (hasPlan(k) ? "crit" : "medium") + '">' + E(alertText(k)) + "</span>" + (hasPlan(k) ? "<small class=\"days\">Action plan on file</small>" : "") : '<span class="alertState">None recorded</span>') + "</td>" +
         '<td data-label="Contact">' + E(k.contact) + "</td>" +
-        '<td data-label="Enrolment">' + (k.live ? '<span class="alertState">See record</span>' : k.missing.length ? '<span class="status crit">Missing ' + E(k.missing[0].toLowerCase()) + "</span>" : '<span class="status green">Complete</span>') + "</td></tr>").join("") ||
+        '<td data-label="Contracts">' + (CONTRACTS.some((c) => unsigned(k, c.id)) ? '<span class="status crit">Awaiting signature</span>' : '<span class="status green">3 signed</span>') + (k.missing.filter((m) => !/enrolment agreement/i.test(m)).length ? '<small class="days">Missing ' + E(k.missing.filter((m) => !/enrolment agreement/i.test(m))[0].toLowerCase()) + "</small>" : "") + "</td></tr>").join("") ||
         '<tr><td colspan="6"><p class="empty">No children match.</p></td></tr>') +
       "</tbody></table></div>" +
       '<p class="footnote">' + (typeof LIVE !== "undefined" && LIVE ? "From beehive’s enrolment records. Medical details show once the centre has approved a family’s update." : "Offline demo: sample children with invented details.") + " Enrolment records must include the details in Regs 160–162 and be kept for 3 years after the child leaves.</p>"
     );
   }
+  // ---------- a child's record and contracts ----------
+  const CONTRACTS = [
+    { id: "enrolment", title: "Enrolment agreement", why: "Care arrangements, fees, notice and the centre’s policies (Regs 160–162, 168)" },
+    { id: "fees", title: "Fee schedule and payment agreement", why: "Daily fee, Child Care Subsidy, payment terms (Reg 168(2)(n))" },
+    { id: "consent", title: "Medical and authorisations consent", why: "Medication, emergency treatment, excursions and collection (Regs 92–102, 161)" },
+  ];
+  const parentOf = (k) => String(k.contact || "").split("·")[0].trim() || "Parent";
+  const signedDate = (k) => { const d = new Date(); d.setDate(d.getDate() - 40 - (k.first.length * 9)); return d; };
+  const unsigned = (k, c) => c === "enrolment" && k.missing.some((m) => /enrolment agreement/i.test(m));
   function openChild(id) {
     const k = children().find((x) => x.id === id);
     if (!k) return;
     const row = (label, value) => '<div class="modalMeta"><span>' + label + "</span><b>" + E(value || "None recorded") + "</b></div>";
     openModal(
-      '<div class="modalHead"><div><h2>' + E(k.first + " " + k.last) + "</h2><p>" + E(k.room) + ", " + E(ageLabel(k.dob)) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<div class="modalSection">' + row("Attends", k.days.join(", ")) + row("Allergies", k.allergies) + row("Medical conditions", k.conditions) + row("Medication", k.medication) + row("Dietary needs", k.dietary) + row("Emergency contact", k.contact) +
-      row("Enrolment record", k.missing.length ? "Missing: " + k.missing.join(", ") : "Complete") + "</div>" +
-      (k.missing.length ? '<p class="footnote">beehive will ask the family for the missing items through the family app.</p>' : "")
+      '<div class="modalHead"><div><h2>' + E(k.first + " " + k.last) + "</h2><p>" + E(k.room) + ", " + E(ageLabel(k.dob)) + ", " + (k.days.length === 5 ? "Mon–Fri" : E(k.days.join(", "))) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalSection"><h3>Contracts</h3><div class="contractList">' +
+        CONTRACTS.map((c) => {
+          const open = unsigned(k, c.id);
+          return '<button class="contractRow" onclick="Centre.openContract(\'' + E(k.id) + "','" + c.id + '\')"><span class="pdfIcon">PDF</span><span class="rowMain"><b>' + E(c.title) + "</b><small>" +
+            (open ? "Sent to " + E(parentOf(k)) + ", waiting for their signature" : "Signed by " + E(typeof OWNER_NAME !== "undefined" ? OWNER_NAME : "the centre") + " and " + E(parentOf(k)) + ", " + signedDate(k).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })) +
+            '</small></span><span class="status ' + (open ? "crit" : "green") + '">' + (open ? "Awaiting signature" : "Signed") + "</span></button>";
+        }).join("") + "</div></div>" +
+      '<div class="modalSection"><h3>Record</h3>' + row("Allergies", k.allergies) + row("Medical conditions", k.conditions) + row("Medication", k.medication) + row("Dietary needs", k.dietary) + row("Emergency contact", k.contact) +
+      row("Enrolment record", k.missing.length ? "Missing: " + k.missing.join(", ") : "Complete") + "</div>", "wide"
+    );
+  }
+
+  // Builds the agreement as a real PDF in the browser (jsPDF), so it can be viewed and downloaded.
+  function contractPdf(k, cid) {
+    const J = window.jspdf && window.jspdf.jsPDF;
+    if (!J) return null;
+    const c = CONTRACTS.find((x) => x.id === cid);
+    const doc = new J({ unit: "mm", format: "a4" });
+    const centre = typeof CENTRE_NAME !== "undefined" ? CENTRE_NAME : "Beehive Early Learning";
+    const owner = typeof OWNER_NAME !== "undefined" ? OWNER_NAME : "Sara Williams";
+    const parent = parentOf(k), open = unsigned(k, cid), when = signedDate(k).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
+    let y = 22;
+    const line = (t, size, bold, gap) => { doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(size || 10); doc.splitTextToSize(t, 174).forEach((l) => { if (y > 278) { doc.addPage(); y = 20; } doc.text(l, 18, y); y += (size || 10) * 0.48; }); y += gap == null ? 2 : gap; };
+    doc.setDrawColor(192, 138, 34); doc.setLineWidth(0.8); doc.line(18, 14, 192, 14);
+    line(centre, 9, true, 0); line("Long day care, Liverpool NSW · ABN 00 000 000 000 (sample)", 8, false, 6);
+    line(c.title, 18, true, 4);
+    line("This agreement is between " + centre + " (the Service), represented by " + owner + ", Approved Provider, and " + parent + " (the Parent), for the care of:", 10, false, 3);
+    line("Child: " + k.first + " " + k.last + "    Date of birth: " + (k.dob ? new Date(k.dob + "T00:00:00").toLocaleDateString("en-AU") : "—") + "    Room: " + k.room, 10, true, 1);
+    line("Days of care: " + k.days.join(", ") + "    Hours: 6:30 am to 6:30 pm", 10, true, 5);
+    const clauses = cid === "enrolment" ? [
+      ["1. Care", "The Service will provide education and care in line with the Education and Care Services National Law and Regulations, the National Quality Framework and the Service’s policies, which the Parent has been given access to."],
+      ["2. Booked days", "Fees apply to booked days, including public holidays and absences, unless the Service closes. Changes to booked days need 2 weeks’ written notice."],
+      ["3. Health and wellbeing", "The Parent will keep the child’s medical, allergy and immunisation details current and tell the Service of any change straight away. Medical details recorded: " + ([k.allergies && "allergy to " + k.allergies.toLowerCase(), k.conditions, k.dietary && k.dietary.toLowerCase()].filter(Boolean).join("; ") || "none") + "."],
+      ["4. Collection", "Only the Parent or an authorised nominee recorded on the enrolment form may collect the child. Photo ID may be requested."],
+      ["5. Policies", "The Service will give at least 14 days’ notice of any change to a policy that affects fees or the way fees are collected (Reg 172)."],
+      ["6. Ending care", "Either party may end this agreement with 2 weeks’ written notice."],
+    ] : cid === "fees" ? [
+      ["1. Daily fee", "$148.00 per day (sample). Fees are reviewed each July with at least 14 days’ notice."],
+      ["2. Child Care Subsidy", "The Service will report attendance to Services Australia. The gap fee is the daily fee less any Child Care Subsidy received for the child."],
+      ["3. Payment", "Fees are charged fortnightly in advance by direct debit. Statements are issued each fortnight."],
+      ["4. Late payment", "Fees more than 14 days overdue may lead to care being suspended after written notice."],
+      ["5. Late collection", "A late fee of $1 per minute applies after 6:30 pm."],
+    ] : [
+      ["1. Medication", "Educators may give medication only with the Parent’s written authorisation for each dose, as recorded in the medication record (Regs 92–93)." + (k.medication ? " Current medication: " + k.medication + "." : "")],
+      ["2. Emergency treatment", "The Parent consents to the Service seeking medical treatment, ambulance transport and hospital care for the child in an emergency (Reg 161)."],
+      ["3. Excursions", "Regular outings within the local area are authorised; other excursions will be authorised separately (Regs 100–102)."],
+      ["4. Collection", "Authorised nominees: as listed on the enrolment record (Reg 160)."],
+      ["5. Photos", "Photos of the child may be shared privately with the family through the beehive family app only."],
+    ];
+    clauses.forEach(([h, t]) => { line(h, 11, true, 1); line(t, 10, false, 4); });
+    y = Math.max(y + 6, 236);
+    if (y > 250) { doc.addPage(); y = 30; }
+    doc.setDrawColor(150); doc.setLineWidth(0.3);
+    const sig = (x, who, role, name, signed) => {
+      doc.line(x, y + 12, x + 76, y + 12);
+      doc.setFont("helvetica", "italic"); doc.setFontSize(13);
+      if (signed) doc.text(name, x + 2, y + 9);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+      doc.text(who + " (" + role + ")", x, y + 17);
+      doc.text(signed ? "Signed electronically " + when : "Not yet signed", x, y + 22);
+    };
+    sig(18, owner, "for the Service", owner, true);
+    sig(114, parent, "Parent", parent, !open);
+    doc.setFontSize(7); doc.setTextColor(120);
+    doc.text("Sample document generated by beehive for the demo. Not a real contract.", 18, 290);
+    return doc;
+  }
+  function openContract(kidId, cid) {
+    const k = children().find((x) => x.id === kidId), c = CONTRACTS.find((x) => x.id === cid);
+    const doc = k && contractPdf(k, cid);
+    if (!doc) return toast("Couldn’t build the PDF. Check your internet connection and try again.");
+    const url = URL.createObjectURL(doc.output("blob"));
+    const file = (k.first + "-" + k.last + "-" + c.title).toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".pdf";
+    openModal(
+      '<div class="modalHead"><div><h2>' + E(c.title) + "</h2><p>" + E(k.first + " " + k.last) + " · " + E(c.why) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<iframe class="pdfFrame" src="' + url + '" title="' + E(c.title) + '"></iframe>' +
+      '<div class="formActions"><button class="button" onclick="Centre.openChild(\'' + E(k.id) + '\')">Back to ' + E(k.first) + '</button><a class="button primary" href="' + url + '" download="' + file + '"><span data-icon="download"></span>Download PDF</a></div>', "wide"
     );
   }
   function room(r) { roomFilter = r; render(); }
@@ -229,9 +312,7 @@ const Centre = (() => {
     return typeof Library !== "undefined" ? Library.page().replace(/<h1>Compliance<\/h1>/, "<h1>Policies and procedures</h1>") : "";
   }
 
-  function page() {
-    return tabs() + (tab === "daily" ? dailyPage() : tab === "policies" ? policiesPage() : tab === "contracts" ? contractsPage() : childrenPage());
-  }
+  function page() { return childrenPage(); }
 
   // ---------- Overview ----------
   function stats() {
@@ -243,12 +324,12 @@ const Centre = (() => {
     return '<div class="sheetRooms">' + s.rooms.map((r) =>
       '<div class="sheetRoom"><b>' + E(r.room) + "</b><small>" + r.kids.length + " children · " + r.eds.length + " educators · 1:" + r.rule.per + "</small>" +
       (r.kids.filter((k) => alertText(k)).length ? '<small class="sheetAlert">' + r.kids.filter((k) => alertText(k)).map((k) => k.first + " (" + (k.allergies || k.conditions || k.dietary) + ")").join(", ") + "</small>" : "") + "</div>").join("") + "</div>" +
-      (s.flags.length ? '<ul class="rosterGapList sheetFlags">' + s.flags.slice(0, 4).map((f) => "<li>" + E(f) + "</li>").join("") + (s.flags.length > 4 ? "<li>" + (s.flags.length - 4) + " more on the full sheet</li>" : "") + "</ul>" : '<p class="muted small">Nothing to sort out: every room is in ratio with trained educators on shift.</p>');
+      (s.flags.length ? '<ul class="rosterGapList sheetFlags">' + s.flags.slice(0, 2).map((f) => "<li>" + E(f) + "</li>").join("") + (s.flags.length > 2 ? "<li>" + (s.flags.length - 2) + " more on the full sheet</li>" : "") + "</ul>" : '<p class="muted small">Nothing to sort out: every room is in ratio with trained educators on shift.</p>');
   }
   function overviewSection() {
     const day = nextWeekday(), s = buildSheet(day);
-    return '<section class="section dailyOverview"><div class="sectionHead"><h2>Daily sheet · ' + E(fmtDay(day)) + "</h2>" +
-      '<div class="buttonRow"><button class="textButton" onclick="Centre.openFull()">Open</button><button class="button small" onclick="Centre.printDay(\'' + day + '\')"><span data-icon="download"></span>Print or save as PDF</button></div></div>' +
+    return '<section class="section dailyOverview"><div class="sectionHead"><h2>' + E(fmtDay(day)) + "</h2>" +
+      '<div class="buttonRow"><button class="textButton" onclick="Centre.openFull()">Full sheet</button><button class="button small" onclick="Centre.printDay(\'' + day + '\')"><span data-icon="download"></span>Print or save as PDF</button></div></div>' +
       sheetSummary(s) + "</section>";
   }
   // Shown on sign-in: today's sheet, ready to print.
@@ -262,8 +343,12 @@ const Centre = (() => {
       '<p class="footnote">beehive shows this each time you sign in. It’s also on your Overview.</p>', "wide");
     if (typeof fillIcons === "function") fillIcons(document.getElementById("modalRoot"));
   }
-  function openFull() { tab = "daily"; sheetDay = null; go("compliance"); }
+  function openFull() {
+    const s = buildSheet(nextWeekday());
+    openModal('<div class="modalHead"><div><h2>Daily sheet</h2><p>' + E(fmtDay(s.day)) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' + sheetHtml(s, false) +
+      '<div class="formActions"><button class="button primary" onclick="Centre.printDay(\'' + s.day + '\')"><span data-icon="download"></span>Print or save as PDF</button></div>', "wide");
+  }
   function printDay(day) { sheetDay = day; print(); }
 
-  return { page, setTab, room, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
+  return { page, openContract, setTab, room, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
 })();

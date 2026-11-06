@@ -181,6 +181,68 @@ const Legal = (() => {
     return '<div class="areaFilters legalTabs" role="tablist">' + tab("legal", "Briefing", n) + tab("audit", "ACECQA requirements") + tab("legal-safety", "Safety and premises") + tab("updates", "Regulation updates") + "</div>";
   }
 
+
+  // ---------- the Legal page: spot check requirements and ACECQA requirements on one page ----------
+  function today() { const d = new Date(); while ([0, 6].includes(d.getDay())) d.setDate(d.getDate() + 1); return d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" }); }
+  function byId(id) { return reqItems().find((x) => x.id === id); }
+  function itemRow(id, label, why) {
+    const x = byId(id);
+    if (!x) return null;
+    const s = reqStatus(x);
+    return { label, why, tone: s[0], status: s[1], act: "openItem('" + x.id + "')" };
+  }
+  // What an authorised officer can ask to see on an unannounced visit, and whether beehive's records show it.
+  function spotChecks() {
+    const day = today();
+    const on = typeof Roster !== "undefined" ? Roster.forDay(day) : [];
+    const c = typeof Roster !== "undefined" ? Roster.check(day, Object.fromEntries(on.map((r) => [r.e.id, { room: r.room, shift: "mid" }]))) : null;
+    const ed = typeof educators !== "undefined" ? educators : [];
+    const noWwcc = ed.filter((e) => !(e.certs || []).some((k) => k.type === "WWCC" && k.days >= 0));
+    const kids = typeof Centre !== "undefined" ? Centre.children() : [];
+    const plans = kids.filter((k) => /anaphyla|asthma/i.test(k.conditions || ""));
+    const rows = [
+      { label: "Provider and service approvals on display", why: "Reg 173", tone: "green", status: "On display" },
+      { label: "Quality rating, nominated supervisor and responsible person on display", why: "Regs 173, 150", tone: "green", status: "On display" },
+      { label: "Every educator working today has a current WWCC", why: "Reg 145–147",
+        tone: noWwcc.length ? "yellow" : "green", status: noWwcc.length ? noWwcc.length + " not current, kept off the roster" : "All current", act: "go('staff')" },
+      { label: "Educator-to-child ratios met in every room today", why: "Regs 123, 271",
+        tone: !on.length ? "red" : c && c.issues.length ? "red" : "green", status: !on.length ? "No roster today" : c && c.issues.length ? "Under ratio" : "Met", act: "go('roster')" },
+      { label: "At least 50% of educators hold a diploma today", why: "Reg 126",
+        tone: !on.length ? "red" : c && c.diplomaOk ? "green" : "red", status: !on.length ? "No roster today" : c ? c.diplomas + " with a diploma, " + c.diplomaNeeded + " needed" : "", act: "go('roster')" },
+      { label: "First aid, anaphylaxis and asthma-trained educator on site", why: "Reg 136",
+        tone: on.some((r) => r.firstAid) ? "green" : "red", status: on.some((r) => r.firstAid) ? "Covered" : "Not covered", act: "go('roster')" },
+      { label: "Children’s attendance signed in and out", why: "Reg 158", tone: "green", status: "Daily sheet ready", act: "go('overview')" },
+      { label: "Medical management plans for children who need them", why: "Regs 90–91",
+        tone: plans.every((k) => k.plan) ? "green" : "red", status: plans.length ? plans.filter((k) => k.plan).length + " of " + plans.length + " on file" : "None needed", act: "go('compliance')" },
+      itemRow("evacuation", "Emergency evacuation rehearsed this quarter", "Regs 97, 98"),
+      itemRow("incidents", "Incident, injury, trauma and illness records", "Regs 85–87"),
+      itemRow("premises", "Premises and safety checks", "Regs 103–115"),
+    ].filter(Boolean);
+    return rows;
+  }
+  function row(r) {
+    return '<div class="checkRow"><button ' + (r.act ? 'onclick="' + r.act + '"' : "disabled") + '><span class="rowMain"><b>' + E(r.label) + "</b><small>" + E(r.why) + '</small></span><span class="rowEnd"><span class="status ' + r.tone + '">' + E(r.status) + "</span>" + (r.act ? '<span class="chev">' + ico("chevron") + "</span>" : "") + "</span></button></div>";
+  }
+  function page() {
+    const spots = spotChecks();
+    const spotGaps = spots.filter((r) => r.tone !== "green").length;
+    const list = reqItems();
+    const areas = Array.from(new Set(list.map((x) => x.area)));
+    const gaps = list.filter((x) => reqStatus(x)[0] !== "green").length;
+    const n = openCount();
+    return (
+      header("Legal", (spotGaps ? spotGaps + " spot check item" + (spotGaps === 1 ? "" : "s") + " to fix" : "Ready for a spot check") + " · " + (list.length - gaps) + " of " + list.length + " ACECQA requirements on track.",
+        '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>') +
+      (n ? '<div class="callout"><div><b>' + n + " regulation change" + (n === 1 ? "" : "s") + " may affect your policies</b><p>beehive read the change and matched it to your requirements. Record whether anything needs to change.</p></div><span class=\"rowEnd\"><button class=\"button primary\" onclick=\"go('updates')\">Review</button></span></div>" : "") +
+      '<section class="section"><div class="sectionHead"><h2>Spot check requirements<span class="count">' + spots.length + "</span></h2><p>What an authorised officer can ask to see on an unannounced visit, checked against today</p></div>" +
+        '<section class="areaBlock">' + spots.map(row).join("") + "</section></section>" +
+      '<section class="section"><div class="sectionHead"><h2>ACECQA requirements<span class="count">' + list.length + "</span></h2><p>The National Law and Regulations your centre is assessed against</p></div>" +
+        areas.map((a) => '<section class="areaBlock"><h3>' + E(a) + '<span class="count">' + list.filter((x) => x.area === a).length + "</span></h3>" +
+          list.filter((x) => x.area === a).map((x) => { const s = reqStatus(x); return row({ label: x.title, why: x.source || "", tone: s[0], status: s[1], act: "openItem('" + x.id + "')" }); }).join("") + "</section>").join("") +
+      "</section>" +
+      '<p class="footnote">Guidance, not legal advice. Open any requirement to see its evidence, upload a document or assign it.</p>'
+    );
+  }
   function openCount() { return updates().reduce((k, o) => k + o.reviews.filter((r) => !r.decision).length, 0); }
-  return { openCount, briefingPage, safetyPage, tabs, summarise, track, dismiss, example, builtinBrief };
+  return { page, spotChecks, openCount, briefingPage, safetyPage, tabs, summarise, track, dismiss, example, builtinBrief };
 })();
