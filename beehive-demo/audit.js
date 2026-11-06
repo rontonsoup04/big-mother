@@ -11,7 +11,7 @@
 //
 // Status: Missing, Under review, Compliant (+ indicators). Readiness = (compliant + ½ under review) / requirements.
 const AuditAgent = (() => {
-  const STORE = "beehive-audit-v3";
+  const STORE = "beehive-audit-v4";
   const LABEL = { missing: "Missing", under_review: "Under review", compliant: "Compliant" };
   const STATUS_CLASS = { missing: "red", under_review: "yellow", compliant: "green" };
   const COLOR_OF = { missing: "red", under_review: "yellow", compliant: "green" };
@@ -465,7 +465,8 @@ const AuditAgent = (() => {
       const d = today();
       S = { v: 1, seq: 0, items: {}, evidence: [], tasks: [], reviews: [], updates: [], events: [], messages: [], runs: [] };
       const add = (key, title, days) => { const x = (typeof items !== "undefined" ? items : []).find((y) => keyOf(y) === key); if (x) S.evidence.push({ id: uid(), itemId: x.id, title, recordedOn: addDays(d, -days), status: "verified", verifiedAt: new Date(Date.now() - (days - 1) * 864e5).toISOString(), createdAt: new Date(Date.now() - days * 864e5).toISOString(), source: "seed", note: "Demo record", checks: [], flag: "clear", demo: true }); };
-      add("evacuation", "Evacuation drill: all rooms, 4 min 10 s", 100);
+      add("evacuation", "Evacuation drill: all rooms, 4 min 10 s", 40);
+      add("authorisations", "Authorisations register: medication, excursions and collection nominees", 20);
       add("premises", "Weekly premises and playground safety checklist", 5);
       add("emergency", "Emergency procedures, contacts and floor plan (displayed)", 150);
       add("sun", "Sun Protection Policy (reviewed)", 345);
