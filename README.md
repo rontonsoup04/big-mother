@@ -152,6 +152,10 @@ It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and C
 
 Use the invented demo data only: don't send real children's or staff details to any AI service until the centre has agreed to it.
 
+## Daily sheet (Claude)
+
+On the Overview, **Open the sheet** shows the day's sheet as a PDF: every child booked in with their age, allergies, medical needs, medication and sign-in/out columns, the educators on shift in each room, the day's meals and each room's activities. Claude (`beehive-demo/api/sheet.js`) writes the meals, with an alternative for every child whose allergy or diet rules a dish out, the activities (linked to EYLF outcomes) and the reminders; the children and educators come from beehive's records. Type a change in the box ("make lunch pasta", "add that Leo goes home at 2 pm") and Claude updates the sheet; **Print** opens the print dialog. The server removes anything that doesn't match the day's records and adds a check line for any child with a dietary need the menu missed. Without Claude, a built-in menu and activity plan is used. Sheets are kept in the browser.
+
 ## Staff records and contracts
 
 - **Staff → Add educator** adds a new educator (role, room, qualification, usual days). The staff agent then asks them for any required credential that isn't on file.

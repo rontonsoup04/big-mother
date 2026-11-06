@@ -8,6 +8,9 @@
     },
     "api/hive.js": {
       "maxDuration": 120
+    },
+    "api/sheet.js": {
+      "maxDuration": 120
     }
   }
 }

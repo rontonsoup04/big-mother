@@ -443,12 +443,13 @@ const Centre = (() => {
       '<p class="footnote">beehive shows this each time you sign in. It’s also on your Overview.</p>', "wide");
     if (typeof fillIcons === "function") fillIcons(document.getElementById("modalRoot"));
   }
-  function openFull() {
+  function openFull() { if (typeof Sheet !== "undefined") return Sheet.open(nextWeekday()); return openFullOld(); }
+  function openFullOld() {
     const s = buildSheet(nextWeekday());
     openModal('<div class="modalHead"><div><h2>Daily sheet</h2><p>' + E(fmtDay(s.day)) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' + sheetHtml(s, false) +
       '<div class="formActions"><button class="button primary" onclick="Centre.printDay(\'' + s.day + '\')"><span data-icon="download"></span>Print or save as PDF</button></div>', "wide");
   }
-  function printDay(day) { sheetDay = day; print(); }
+  function printDay(day) { if (typeof Sheet !== "undefined") return Sheet.open(day); sheetDay = day; print(); }
 
   return { sheetStats, page, openContract, openContracts, openAmend, saveAmend, markSigned, setTab, room, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
 })();

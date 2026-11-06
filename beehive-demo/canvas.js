@@ -67,7 +67,7 @@ const Canvas = (() => {
       '<span class="cardLabel">Daily sheet</span><h2>' + E(st.dayLabel) + "</h2>" +
       '<div class="hexRooms">' + st.rooms.map((r) => '<div><b>' + E(r.room.replace(/ Room$/, "")) + "</b><span>" + r.children + " kids · " + r.educators + " educator" + (r.educators === 1 ? "" : "s") + "</span></div>").join("") + "</div>" +
       '<p class="hexNote">' + (st.alerts ? st.alerts + " children with allergies or medical needs" : "No medical alerts") + (st.flags ? " · " + st.flags + " to sort out" : " · all set") + "</p>" +
-      '<div class="hexActions"><button class="button small" onclick="Centre.openFull()">Full sheet</button><button class="button small primary" onclick="Centre.printDay(\'' + st.day + '\')"><span data-icon="download"></span>PDF</button></div>';
+      '<div class="hexActions"><button class="button small primary" onclick="Sheet.open(\'' + st.day + '\')"><span data-icon="spark"></span>Open the sheet</button></div>';
     return hex("sheet", "sheet", p, inner);
   }
   const BEE = '<svg class="bee" viewBox="0 0 40 32" aria-hidden="true"><ellipse cx="13" cy="9" rx="8" ry="6" fill="#fff" opacity=".85" stroke="#c9b98f"/><ellipse cx="24" cy="8" rx="7" ry="5" fill="#fff" opacity=".85" stroke="#c9b98f"/><ellipse cx="20" cy="20" rx="12" ry="9" fill="#f2b632"/><path d="M15 12.5v15M21 11v18M27 12.5v15" stroke="#3b2f1e" stroke-width="3"/><circle cx="31" cy="18" r="1.4" fill="#3b2f1e"/></svg>';
