@@ -17,11 +17,13 @@ const TIME_LIMIT_MS = Number(process.env.AGENT_TIME_LIMIT_MS) || 110000;
 
 const RULES = `You write the daily sheet for an Australian long day care centre in NSW. Staff print it and follow it all day, so it must be safe and practical.
 - Use only the children, rooms and educators in the DAY data. Refer to children by first name and their child_id. Never invent a child, an allergy or a medication.
-- Meals: morning tea, lunch and afternoon tea, healthy and suited to young children (Australian Dietary Guidelines, NSW Munch & Move). For EVERY child whose allergy, condition (for example coeliac disease) or diet rules out an ingredient in a dish, add an alternative for that child on that meal. Never serve a child their allergen. Avoid whole nuts, popcorn and other choking risks for under-threes.
+- Meals: morning tea, lunch and afternoon tea, ONE menu for the whole centre per meal, at most 15 words (for example "Chicken and vegetable risotto, cucumber sticks, water"). Healthy and suited to young children (Australian Dietary Guidelines, NSW Munch & Move). Avoid whole nuts, popcorn and other choking risks.
+- Alternatives: for EVERY child whose allergy, condition (for example coeliac disease) or diet rules out an ingredient in that meal, add one alternative for that child on that meal. "swap" says only what to serve instead, at most 10 words (for example "Egg-free pikelets" or "Soy yoghurt instead of dairy"). Don't repeat the child's name, don't explain, don't think aloud. Never serve a child their allergen.
 - Activities: two or three per room across the day (morning, after rest, late afternoon), suited to the room's ages, with a short learning focus linked to the Early Years Learning Framework (EYLF V2.0) outcomes. Include outdoor play and a rest time.
-- Reminders: short practical notes staff must not miss (medication kept in the room kit, action plans, sun safety, a child leaving early). Only from the data or the owner's request.
+- Reminders: at most 6, each at most 20 words: practical notes staff must not miss (medication kept in the room kit, action plans, sun safety, a child leaving early). Only from the data or the owner's request.
 - Child notes: only when there is something specific for that child today.
-- Plain Australian English, short phrases. No emoji.`;
+- Headline: at most 12 words.
+- Plain Australian English, short phrases. No emoji. Never include your reasoning in any field.`;
 
 // Loose on purpose: lengths are trimmed in clean() rather than rejected, so one long line can't sink the sheet.
 const Sheet = z.object({

@@ -26,7 +26,8 @@ const Sheet = (() => {
       day: d, weekday: dn, centre: typeof CENTRE_NAME !== "undefined" ? CENTRE_NAME : "",
       rooms: rooms.map((room) => ({
         room,
-        children: kids.filter((k) => k.room === room).map((k) => ({ id: k.id, name: k.first + " " + k.last, age: age(k.dob), age_months: months(k.dob),
+        // short readable ids (first-last): long database ids confuse the model
+        children: kids.filter((k) => k.room === room).map((k) => ({ id: (k.first + "-" + k.last).toLowerCase().replace(/[^a-z-]+/g, ""), name: k.first + " " + k.last, age: age(k.dob), age_months: months(k.dob),
           allergies: k.allergies || "", conditions: k.conditions || "", medication: k.medication || "", dietary: k.dietary || "", action_plan: !!k.plan,
           emergency_contact: k.contact || "", nominees: (k.nominees || []).join(", ") })),
         educators: eds.filter((e) => e.room === room).map((e) => ({ name: e.e.name, shift: e.start + " – " + e.end, first_aid: e.firstAid, qualification: Roster.profile(e.e).qual })),
