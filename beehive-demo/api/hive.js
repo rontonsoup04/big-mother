@@ -98,7 +98,9 @@ async function runHive({ snapshot, model, timeLimitMs }) {
     stopWhen: stepCountIs(MAX_STEPS), maxRetries: 0, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
     onStepFinish: () => { timings.push({ step: "Claude step " + (timings.length + 1), ms: Date.now() - last }); last = Date.now(); },
   });
-  return { proposals: out, summary: (result.text || "").trim().slice(0, 300), model: m.modelId, timings };
+  // the status bar shows one sentence: keep the first line and drop any markdown
+  const summary = (result.text || "").trim().split(/\n+/)[0].replace(/[*_#`]/g, "").slice(0, 220);
+  return { proposals: out, summary, model: m.modelId, timings };
 }
 
 // ---------- HTTP ----------
