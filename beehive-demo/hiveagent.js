@@ -2,8 +2,8 @@
 //
 // Once a day (the first time the owner opens the Overview, or when they press Run again) beehive builds a
 // snapshot of the day ahead and asks the agent for at most five proposals: fill a roster gap, chase a
-// credential, message a family, or flag a decision. With the team passcode the agent is Claude
-// (api/hive.js); without it a built-in version applies the same rules, so the demo always works.
+// credential, message a family, or flag a decision. The agent is Claude (api/hive.js); if Claude can't be
+// reached, a built-in version applies the same rules, so the demo always works.
 // Proposals appear as cells on the Overview canvas. Nothing changes until the owner approves one.
 const Hive = (() => {
   const E = (s) => (typeof esc === "function" ? esc(s == null ? "" : s) : String(s == null ? "" : s));
@@ -87,15 +87,15 @@ const Hive = (() => {
     running = true;
     const s = snapshot();
     let r = builtin(s);
-    const pass = typeof Assistant !== "undefined" && Assistant.passcode ? Assistant.passcode() : "";
     let note = "";
-    if (pass) {
+    {
       try {
-        const res = await fetch("api/hive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: pass, snapshot: s }) });
+        const res = await fetch("api/hive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ snapshot: s }) });
+        if (res.status === 404) throw Object.assign(new Error(""), { quiet: true }); // not deployed here (e.g. a local static server)
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error || "Claude couldn’t answer (" + res.status + ").");
         r = { proposals: body.proposals || [], summary: body.summary || summaryLine(s, body.proposals || []), source: "claude", model: body.model };
-      } catch (e) { note = (e.message || String(e)) + " Showing beehive’s built-in check instead."; }
+      } catch (e) { if (!e.quiet) note = (e.message || String(e)) + " Showing beehive’s built-in check instead."; }
     }
     save({ on: today(), at: new Date().toISOString(), day: s.day, source: r.source, model: r.model || "", summary: r.summary, note,
       proposals: r.proposals.slice(0, MAX).map((p, i) => Object.assign({ id: "h" + Date.now().toString(36) + i, status: "open" }, p)) });

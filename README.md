@@ -137,7 +137,7 @@ The audit-readiness agent works over the checklist Sara approves (Staff Records,
 
 ## Beehive Compliance Agent
 
-Designed in [AGENT.md](AGENT.md) (Design Card, instructions and tests). On the **Compliance** page, Sara types an instruction (or leaves the default "Run the weekly credential check"), enters the team passcode and clicks **Run agent**. The agent checks every educator's WWCC, first aid, CPR and anaphylaxis, drafts personalised renewal reminders with an upload link and a follow-up date, and flags what Sara must decide (expired or missing credentials, renewals waiting for her review). Sara edits and approves each reminder; the educator then sees it on their certificates page. Nothing is sent without her approval.
+Designed in [AGENT.md](AGENT.md) (Design Card, instructions and tests). On the **Compliance** page, Sara types an instruction (or leaves the default "Run the weekly credential check"), and clicks **Run agent**. The agent checks every educator's WWCC, first aid, CPR and anaphylaxis, drafts personalised renewal reminders with an upload link and a follow-up date, and flags what Sara must decide (expired or missing credentials, renewals waiting for her review). Sara edits and approves each reminder; the educator then sees it on their certificates page. Nothing is sent without her approval.
 
 It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and Claude. Its system prompt is `beehive-demo/api/_agent-instructions.js`, generated from AGENT.md with `python3 tools/sync_agent_instructions.py`. Its only tools are: review credentials, save reminder drafts, flag for the owner. The database checks every draft (no reminders for current credentials, submitted renewals or duplicates), and the server stops after 5 tool calls.
 
@@ -146,7 +146,7 @@ It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and C
 2. In Vercel → **Settings → Environment Variables**, add:
    - `ANTHROPIC_API_KEY` = your Claude API key
    - `AGENT_MODEL` (optional) = defaults to `claude-haiku-5-5`; use `claude-sonnet-5-5` for stronger but slower answers
-   - `AGENT_PASSCODE` = a passcode your team shares (not a real password)
+   - Set a monthly spend limit at console.anthropic.com → **Settings → Limits**: the AI features don't need a passcode, so anyone with the site's link can use them (each visitor is limited to 30 AI calls per 10 minutes, see `api/_guard.js`).
    - `BEEHIVE_AGENT_KEY` = the agent key from the last row of `seed_demo.sql`
 3. Run `supabase/migrations/20261026110000_compliance_agent.sql` in Supabase, then redeploy on Vercel.
 
@@ -161,11 +161,11 @@ Use the invented demo data only: don't send real children's or staff details to 
 
 ## Ask beehive (Claude)
 
-**Ask beehive** (owner, top right) and **Draft with AI** (in a family reply) use Claude through `beehive-demo/api/ask.js`, a Vercel function with the same settings as the Compliance agent (`ANTHROPIC_API_KEY`, `AGENT_PASSCODE`, `BEEHIVE_AGENT_KEY`, optional `AGENT_MODEL`).
+**Ask beehive** (owner, top right) and **Draft with AI** (in a family reply) use Claude through `beehive-demo/api/ask.js`, a Vercel function with the same settings as the Compliance agent (`ANTHROPIC_API_KEY`, `BEEHIVE_AGENT_KEY`, optional `AGENT_MODEL`).
 
 - **Ask beehive** answers from beehive's own records through three read-only tools: the Overview data (`agent_overview`: readiness and how it's worked out, every requirement with status, priority, why and next action, staff renewals, audit tasks, regulation updates and decisions, compliance tasks, what's waiting for the owner), the compliance library (`agent_guidance`) and record search. It can't change anything and never sees children's medical details. Readiness questions also get links straight to the gaps.
 - **Draft with AI** writes a short message from the educator's note. It's saved as a draft and nothing is sent until a staff member approves it.
-- The first time, enter the team passcode (account menu → **AI settings**, or the Compliance agent). Without it, in the offline demo, or if Claude is unavailable, a built-in assistant answers from the same records with fixed rules and says so.
+- Signed in, these use Claude straight away (no passcode). In the offline demo, or if Claude is unavailable, a built-in assistant answers from the same records with fixed rules and says so.
 - Database functions: `supabase/migrations/20261031090000_ask_beehive.sql`.
 
 The agent never sends anything to a parent. Only receipts and reminders send automatically; every other message is a draft until a staff member approves it.

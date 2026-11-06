@@ -6,13 +6,13 @@
 //        anything is sent; the message is saved as a draft by the app, never sent from here.
 //
 // Uses the same settings as the Compliance agent (api/agent.js): ANTHROPIC_API_KEY, AGENT_MODEL,
-// AGENT_PASSCODE, BEEHIVE_AGENT_KEY. Free AI tiers aren't private: use invented data only.
+// BEEHIVE_AGENT_KEY. Free AI tiers aren't private: use invented data only.
 
 const { generateText, generateObject, tool, stepCountIs } = require("ai");
 const { z } = require("zod");
-const crypto = require("crypto");
 const { explainError } = require("./agent.js");
 const { modelFor } = require("./_model.js");
+const { tooMany } = require("./_guard.js");
 
 const SUPABASE_URL = process.env.BEEHIVE_SUPABASE_URL || "https://gaxkvceirdxqfpeeskwf.supabase.co";
 const SUPABASE_KEY = process.env.BEEHIVE_SUPABASE_KEY || "sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8"; // public by design
@@ -158,10 +158,6 @@ async function draft({ child, parent, note, model, timeLimitMs }) {
   return { text: (result.text || "").trim() };
 }
 
-function samePasscode(a, b) {
-  const x = Buffer.from(String(a || "")), y = Buffer.from(String(b || ""));
-  return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
-}
 async function readJson(req) {
   if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
   let raw = typeof req.body === "string" ? req.body : "";
@@ -178,8 +174,7 @@ function send(res, status, body) {
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { error: "Use POST." });
   const body = await readJson(req);
-  if (!process.env.AGENT_PASSCODE) return send(res, 500, { error: "Claude isn't set up yet: add AGENT_PASSCODE in Vercel's environment variables." });
-  if (!samePasscode(body.passcode, process.env.AGENT_PASSCODE)) return send(res, 401, { error: "Wrong passcode." });
+  if (tooMany(req)) return send(res, 429, { error: "Too many AI requests from this device. Wait a few minutes and try again." });
   if (!process.env.ANTHROPIC_API_KEY) return send(res, 500, { error: "Claude isn't set up yet: add ANTHROPIC_API_KEY in Vercel's environment variables." });
   try {
     if (body.mode === "draft") return send(res, 200, await draft(body));

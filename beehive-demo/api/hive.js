@@ -7,12 +7,12 @@
 // qualified or available, or a child or credential that doesn't exist. Nothing is applied here: the owner
 // approves each proposal in the app, and only then does the app make the change.
 //
-// Environment variables: ANTHROPIC_API_KEY, optional AGENT_MODEL (see api/_model.js), AGENT_PASSCODE.
+// Environment variables: ANTHROPIC_API_KEY, optional AGENT_MODEL (see api/_model.js). No passcode: api/_guard.js limits how often each visitor can call it.
 
 const { generateText, tool, stepCountIs } = require("ai");
 const { z } = require("zod");
-const crypto = require("crypto");
 const { modelFor } = require("./_model.js");
+const { tooMany } = require("./_guard.js");
 
 const MAX_PROPOSALS = 5;
 const MAX_STEPS = 6;
@@ -102,10 +102,6 @@ async function runHive({ snapshot, model, timeLimitMs }) {
 }
 
 // ---------- HTTP ----------
-function samePasscode(a, b) {
-  const x = Buffer.from(String(a || "")), y = Buffer.from(String(b || ""));
-  return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
-}
 async function readJson(req) {
   if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
   let raw = typeof req.body === "string" ? req.body : "";
@@ -122,8 +118,7 @@ function send(res, status, body) {
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { error: "Use POST." });
   const body = await readJson(req);
-  if (!process.env.AGENT_PASSCODE) return send(res, 500, { error: "The hive agent isn't set up yet: add AGENT_PASSCODE in Vercel's environment variables." });
-  if (!samePasscode(body.passcode, process.env.AGENT_PASSCODE)) return send(res, 401, { error: "Wrong passcode." });
+  if (tooMany(req)) return send(res, 429, { error: "Too many AI requests from this device. Wait a few minutes and try again." });
   if (!process.env.ANTHROPIC_API_KEY) return send(res, 500, { error: "Claude isn't set up yet: add ANTHROPIC_API_KEY in Vercel's environment variables." });
   if (!body.snapshot || typeof body.snapshot !== "object") return send(res, 400, { error: "Send the day snapshot." });
   try {

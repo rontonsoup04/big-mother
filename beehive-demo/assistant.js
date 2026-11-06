@@ -1,13 +1,10 @@
 // beehive AI assistant.
-// - Signed in with the team passcode, "Ask beehive" and "Draft with AI" use Claude on the server (api/ask.js),
+// - Signed in, "Ask beehive" and "Draft with AI" use Claude on the server (api/ask.js),
 //   which reads the centre's records through read-only tools.
-// - Otherwise (offline demo, no passcode, or Claude unavailable) a built-in assistant answers from the same
+// - Otherwise (offline demo, or Claude unavailable) a built-in assistant answers from the same
 //   records with fixed rules, so the demo still works. Every AI-drafted parent message needs staff approval.
 const Assistant = (() => {
-  const PASS_KEY = "beehive-agent-passcode"; // shared with the Compliance agent on the Compliance page
-  const getPass = () => { try { return sessionStorage.getItem(PASS_KEY) || ""; } catch (e) { return ""; } };
-  const setPass = (v) => { try { v ? sessionStorage.setItem(PASS_KEY, v) : sessionStorage.removeItem(PASS_KEY); } catch (e) {} };
-  const aiReady = () => typeof LIVE !== "undefined" && LIVE && !!getPass();
+  const aiReady = () => typeof LIVE !== "undefined" && LIVE;
   let open = false;
   let busy = false;
   let chat = []; // { from: "you" | "bot", text: html, plain: text, source: "claude" | "builtin" }
@@ -54,7 +51,6 @@ const Assistant = (() => {
   }
   function footNote() {
     if (typeof LIVE === "undefined" || !LIVE) return "Offline demo: built-in answers. Sign in to use Claude.";
-    if (!getPass()) return 'Built-in answers. <button class="textButton" onclick="Assistant.openSettings()">Add the team passcode</button> to use Claude.';
     return "Claude reads beehive’s records but can’t change anything. Check important answers against the record.";
   }
 
@@ -81,10 +77,9 @@ const Assistant = (() => {
     const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = ctl ? setTimeout(() => ctl.abort(), 130000) : null;
     try {
-      const res = await fetch("api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ passcode: getPass() }, payload)), signal: ctl ? ctl.signal : undefined });
+      const res = await fetch("api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: ctl ? ctl.signal : undefined });
       let body = {};
       try { body = await res.json(); } catch (e) { body = { error: res.status === 404 ? "Claude isn’t deployed on this site yet." : res.status === 504 ? "Claude took too long." : "Unexpected response (" + res.status + ")." }; }
-      if (res.status === 401) setPass("");
       if (!res.ok) throw new Error(body.error || "Claude couldn’t answer (" + res.status + ").");
       return body;
     } catch (e) {
@@ -243,21 +238,12 @@ const Assistant = (() => {
   function openSettings() {
     openModal(
       '<div class="modalHead"><div><h2>AI settings</h2><p>Ask beehive, Draft with AI and the Compliance agent use Claude on the server. Your Claude key never reaches the browser.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<div class="modalSection"><h3>Team passcode</h3><p>Saved on this device until you close the browser. It’s the same passcode as the Compliance agent.</p>' +
-      '<div class="assignLine"><input class="formControl" id="aiPass" type="password" placeholder="Team passcode" autocomplete="off" value="' + esc(getPass()) + '"><button class="button primary" onclick="Assistant.savePass()">Save</button></div>' +
-      '<p class="helpLine">Status: <b>' + (aiReady() ? "Claude on" : typeof LIVE !== "undefined" && LIVE ? "built-in answers (no passcode yet)" : "offline demo, built-in answers") + "</b></p></div>" +
+      '<div class="modalSection"><p class="helpLine">Status: <b>' + (aiReady() ? "Claude on (if ANTHROPIC_API_KEY is set in Vercel)" : "offline demo: Ask beehive uses built-in answers; the morning check still tries Claude") + "</b></p></div>" +
       '<div class="modalSection"><h3>Agent key for Vercel</h3><p>Claude reads this centre’s records with an agent key. Put it in Vercel as <code>BEEHIVE_AGENT_KEY</code>, then redeploy. Creating a new key stops the old one working.</p>' +
       '<div class="modalActions" style="justify-content:flex-start"><button class="button" onclick="Assistant.createKey()">Create agent key</button></div><div id="agentKeyOut"></div></div>' +
-      '<div class="modalSection"><h3>Vercel settings</h3><p><code>ANTHROPIC_API_KEY</code> (from console.anthropic.com), <code>AGENT_PASSCODE</code>, <code>BEEHIVE_AGENT_KEY</code> and, optionally, <code>AGENT_MODEL</code> (default claude-haiku-5-5).</p></div>' +
+      '<div class="modalSection"><h3>Vercel settings</h3><p><code>ANTHROPIC_API_KEY</code> (from console.anthropic.com), <code>BEEHIVE_AGENT_KEY</code> and, optionally, <code>AGENT_MODEL</code> (default claude-haiku-5-5).</p></div>' +
       '<div class="modalActions"><button class="button" onclick="closeModal()">Done</button></div>'
     );
-  }
-  function savePass() {
-    const v = ((document.getElementById("aiPass") || {}).value || "").trim();
-    setPass(v);
-    closeModal();
-    toast(v ? "Passcode saved. Ask beehive will use Claude." : "Passcode cleared. Ask beehive will use built-in answers.");
-    if (open) renderPanel();
   }
   async function createKey() {
     const out = document.getElementById("agentKeyOut");
@@ -278,5 +264,5 @@ const Assistant = (() => {
     );
   }
 
-  return { refresh, toggle, ask, draftReply, openSettings, openConnect: openSettings, savePass, createKey, copyKey, aiReady, callAI, passcode: getPass };
+  return { refresh, toggle, ask, draftReply, openSettings, openConnect: openSettings, createKey, copyKey, aiReady, callAI };
 })();

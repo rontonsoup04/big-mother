@@ -76,4 +76,4 @@ Runs on Claude (`beehive-demo/api/hive.js`, the Vercel AI SDK with the Anthropic
 8. **Why an agent:** The day's issues interact: a room short of ratio may also break the diploma rule, the best educator to add depends on their room, qualification and days, and a family message has to fit the child's situation. The agent weighs these together, writes the messages and explains each proposal. The checks that must always be right (ratios, the diploma rule, credential dates) stay as fixed rules in the snapshot and the tools, so a wrong judgement costs Sara one click, never a breach.
 
 ## Without Claude
-Without the team passcode (or if Claude can't be reached), `Hive.builtin` in `hiveagent.js` applies the same rules to the same snapshot and produces the same kinds of proposal with template messages, so the Overview always works.
+If Claude can't be reached (no API key yet, out of credit, or a local copy without the server), `Hive.builtin` in `hiveagent.js` applies the same rules to the same snapshot and produces the same kinds of proposal with template messages, so the Overview always works.

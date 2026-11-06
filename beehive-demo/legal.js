@@ -5,7 +5,7 @@
 // and by when. The owner can also paste the text of a new change (an ACECQA or NSW Early Learning
 // Commission notice, say) and the agent summarises it.
 //
-// Signed in with the team passcode, the summary comes from Claude (api/ask.js, mode "brief"). Otherwise a
+// Signed in, the summary comes from Claude (api/ask.js, mode "brief"). Otherwise a
 // built-in reader matches the text to the checklist with fixed rules, so the offline demo still works.
 // The agent never changes a policy or a requirement's status: it explains, the owner decides.
 const Legal = (() => {

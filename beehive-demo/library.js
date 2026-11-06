@@ -98,24 +98,18 @@ const Library = (() => {
   // ---------- beehive compliance agent (server: /api/agent, see AGENT.md) ----------
   let agentQueue = [];
   let agentRun = { busy: false, reply: "", actions: [], error: "" };
-  const PASS_KEY = "beehive-agent-passcode";
-  const getPass = () => { try { return sessionStorage.getItem(PASS_KEY) || ""; } catch (e) { return ""; } };
-  const setPass = (v) => { try { sessionStorage.setItem(PASS_KEY, v); } catch (e) {} };
   const PRIO = { high: "red", medium: "yellow", low: "neutral" };
   const KIND = { renewal: "Renewal", missing: "Missing", follow_up: "Follow-up", escalation: "Needs your decision" };
 
   async function runAgent() {
-    const pass = (document.getElementById("agentPass") || {}).value || "";
     const message = ((document.getElementById("agentAsk") || {}).value || "").trim() || "Run the weekly credential check.";
-    if (!pass) { agentRun = { busy: false, reply: "", actions: [], error: "Enter the team passcode first." }; return render(); }
-    setPass(pass);
     agentRun = { busy: true, reply: "", actions: [], error: "", message };
     render();
     // never leave the button spinning: give up after 2 minutes, and always redraw
     const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = ctl ? setTimeout(() => ctl.abort(), 130000) : null;
     try {
-      const res = await fetch("api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: pass, message }), signal: ctl ? ctl.signal : undefined });
+      const res = await fetch("api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }), signal: ctl ? ctl.signal : undefined });
       let body = {};
       try { body = await res.json(); } catch (e) {
         body = { error: res.status === 404 ? "The agent isn't deployed on this site yet (no /api/agent). Deploy the latest version on Vercel."
@@ -153,7 +147,6 @@ const Library = (() => {
       '<section class="card agentCard"><div class="agentHead"><span class="assistantMark">✦</span><div><h2>Compliance agent</h2>' +
       "<p>Checks every educator’s WWCC, first aid, CPR and anaphylaxis, drafts renewal reminders and flags what you need to decide. Nothing is sent until you approve it.</p></div></div>" +
       '<div class="agentForm"><input class="formControl" id="agentAsk" placeholder="Run the weekly credential check" value="' + esc(agentRun.message && agentRun.message !== "Run the weekly credential check." ? agentRun.message : "") + '" onkeydown="if(event.key===\'Enter\')Library.runAgent()">' +
-      '<input class="formControl agentPass" id="agentPass" type="password" placeholder="Team passcode" autocomplete="off" value="' + esc(getPass()) + '">' +
       '<button class="button primary" ' + (agentRun.busy ? "disabled" : "") + ' onclick="Library.runAgent()">' + (agentRun.busy ? "Running…" : "Run agent") + "</button></div>" +
       result +
       (escalations.length ? '<div class="agentList"><h3>Needs your decision (' + escalations.length + ")</h3>" + escalations.map((d) =>

@@ -17,13 +17,13 @@ Every AI prompt that shapes Beehive.
 **Pattern:** one narrow job: answer the owner's questions about this centre's compliance from its own records.
 **Tools (read-only):** `get_overview` (database function `agent_overview`), `get_guidance` (`agent_guidance`, the compliance library with official sources) and `search_records` (`agent_search`, without medical records). At most 4 steps; 50-second limit.
 **Instructions:** the `ASK_INSTRUCTIONS` constant in `beehive-demo/api/ask.js`. In short: use only facts from the tools, never invent names, dates or regulations; answer in one sentence then up to five bullets with exact requirement titles, why each matters and the next action; the agents already chase renewals and evidence, and email/SMS are simulated; guidance is not legal advice.
-**Fallback:** without the passcode, offline, or if Claude fails, `Assistant.ask` in `beehive-demo/assistant.js` answers with fixed rules over the same records and labels the answer "Built-in answer".
+**Fallback:** offline, or if Claude fails, `Assistant.ask` in `beehive-demo/assistant.js` answers with fixed rules over the same records and labels the answer "Built-in answer".
 
 **v2 (29 Oct 2026):** moved to Claude; reads the agents' requirement, renewal and regulation data.
 
 ## 2. Parent message drafts
 
-**Where it runs:** the **Draft with AI** button in a family reply. With the team passcode entered, the app asks Claude through `beehive-demo/api/ask.js` (mode `draft`, instructions in `DRAFT_INSTRUCTIONS`). Without it, `Assistant.draftReply` in `beehive-demo/assistant.js` uses a fixed template. Either way the result is a draft that staff approve.
+**Where it runs:** the **Draft with AI** button in a family reply. Signed in, the app asks Claude through `beehive-demo/api/ask.js` (mode `draft`, instructions in `DRAFT_INSTRUCTIONS`). Without it, `Assistant.draftReply` in `beehive-demo/assistant.js` uses a fixed template. Either way the result is a draft that staff approve.
 
 **What the app sends to Claude:** the child's first name, the parent's first name and the educator's note, with these instructions:
 

@@ -5,15 +5,14 @@
 // Environment variables (Vercel → Settings → Environment Variables, and .env.local for local runs):
 //   ANTHROPIC_API_KEY             Claude API key from console.anthropic.com   (server only)
 //   AGENT_MODEL                   optional, defaults to claude-haiku-5-5 (see api/_model.js)
-//   AGENT_PASSCODE                shared team passcode; the agent only runs if it matches
 //   BEEHIVE_AGENT_KEY             the centre's agent key (last row of seed_demo.sql)   (server only)
 //   AGENT_TIME_LIMIT_MS           optional, default 110000; keep it under maxDuration in vercel.json
 
 const { generateText, tool, stepCountIs } = require("ai");
 const { z } = require("zod");
-const crypto = require("crypto");
 const INSTRUCTIONS = require("./_agent-instructions.js");
 const { modelFor } = require("./_model.js");
+const { tooMany } = require("./_guard.js");
 
 const SUPABASE_URL = process.env.BEEHIVE_SUPABASE_URL || "https://gaxkvceirdxqfpeeskwf.supabase.co";
 const SUPABASE_KEY = process.env.BEEHIVE_SUPABASE_KEY || "sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8"; // public by design
@@ -178,10 +177,6 @@ function explainError(e) {
   return { error: "The AI agent couldn't finish: " + msg.slice(0, 300) + saved + where };
 }
 
-function samePasscode(a, b) {
-  const x = Buffer.from(String(a || "")), y = Buffer.from(String(b || ""));
-  return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
-}
 
 async function readJson(req) {
   if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
@@ -200,8 +195,7 @@ function send(res, status, body) {
 module.exports = async function agent(req, res) {
   if (req.method !== "POST") return send(res, 405, { error: "Use POST." });
   const body = await readJson(req);
-  if (!process.env.AGENT_PASSCODE) return send(res, 500, { error: "The agent isn't set up yet: add AGENT_PASSCODE in Vercel's environment variables." });
-  if (!samePasscode(body.passcode, process.env.AGENT_PASSCODE)) return send(res, 401, { error: "Wrong passcode." });
+  if (tooMany(req)) return send(res, 429, { error: "Too many AI requests from this device. Wait a few minutes and try again." });
   if (!process.env.ANTHROPIC_API_KEY) return send(res, 500, { error: "The agent isn't set up yet: add ANTHROPIC_API_KEY in Vercel's environment variables." });
   if (!process.env.BEEHIVE_AGENT_KEY) return send(res, 500, { error: "The agent isn't set up yet: add BEEHIVE_AGENT_KEY (the centre's agent key) in Vercel's environment variables." });
   const host = req.headers["x-forwarded-host"] || req.headers.host || "";
