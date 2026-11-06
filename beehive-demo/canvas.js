@@ -44,8 +44,16 @@ const Canvas = (() => {
   const SLOTS = [[452, 14], [452 + W + 10, 14], [452 + (W + 10) / 2, 14 + H * 0.75 + 8], [452 + (W + 10) * 1.5, 14 + H * 0.75 + 8], [452, 14 + (H * 0.75 + 8) * 2], [452 + W + 10, 14 + (H * 0.75 + 8) * 2]];
   const hex = (id, cls, pos, inner, i) =>
     '<article class="hexCard ' + cls + '" id="cc-' + id + '" style="left:' + pos.x + "px;top:" + pos.y + "px;--i:" + (i || 0) + '" onpointerdown="Canvas.drag(event,\'' + id + '\')"><div class="hexBorder"><div class="hexInner">' + inner + "</div></div></article>";
+  // Cells the owner moved keep their spot; every other cell takes the next free slot, so none overlap.
+  function placeAll(list, pos) {
+    const used = Object.entries(pos).filter(([id]) => list.some((c) => c.id === id) || id === "sheet").map(([, p]) => p);
+    const free = SLOTS.filter(([x, y]) => !used.some((p) => Math.abs(p.x - x) < W * 0.8 && Math.abs(p.y - y) < H * 0.6));
+    const out = {};
+    list.forEach((c) => { out[c.id] = pos[c.id] || (free.length ? (([x, y]) => ({ x, y }))(free.shift()) : { x: SLOTS[0][0], y: SLOTS[0][1] }); });
+    return out;
+  }
   function card(c, i, pos) {
-    const p = pos[c.id] || { x: SLOTS[i % SLOTS.length][0], y: SLOTS[i % SLOTS.length][1] };
+    const p = pos[c.id];
     return hex(c.id, c.tone, p,
       '<span class="cardLabel">' + E(c.label) + "</span>" + (c.openAct ? '<button class="hexTitle" onclick="' + c.openAct + '">' + E(c.title) + "</button>" : "<h3>" + E(c.title) + "</h3>") + "<p>" + E(c.detail) + "</p>" +
       '<div class="hexActions"><button class="button small primary" onclick="' + (c.review ? c.openAct : c.act) + '">' + E(c.btn) + "</button>" +
@@ -72,7 +80,7 @@ const Canvas = (() => {
         new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }) + ". " + (n ? n + (n === 1 ? " thing" : " things") + " to handle in the hive. beehive is taking care of the rest." : "The hive is calm. Nothing needs you today."),
         (Object.keys(s.pos).length || s.done.length ? '<button class="button" onclick="Canvas.reset()">Tidy the hive</button>' : "")) +
       (typeof Hive !== "undefined" ? Hive.statusBar() : "") +
-      '<div class="canvas hive" id="canvas"><div class="beePath">' + BEE + "</div>" + sheetCard(s.pos) + list.map((c, i) => card(c, i, s.pos)).join("") +
+      '<div class="canvas hive" id="canvas"><div class="beePath">' + BEE + "</div>" + sheetCard(s.pos) + (() => { const placed = placeAll(list, s.pos); return list.map((c, i) => card(c, i, placed)).join(""); })() +
       (n ? "" : hex("calm", "calm", { x: SLOTS[0][0], y: SLOTS[0][1] }, '<span class="cardLabel">All clear</span><h3>Nothing to handle</h3><p>Every credential, requirement and roster is in order.</p>')) +
       "</div>" +
       '<p class="footnote">Drag any cell to rearrange your hive. Tick a cell when it’s handled and it flies off for the day.</p>'
