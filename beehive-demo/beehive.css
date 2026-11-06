@@ -785,3 +785,16 @@ p.small, .small { font-size: var(--t-sm); }
 .moreLink { display: block; padding: 10px 0 0; }
 .chev svg { width: 16px; height: 16px; display: block; }
 .mobileNav button > [data-icon] { display: flex; }
+
+/* Roster */
+.rosterSummary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s4); margin-bottom: var(--s5); }
+.rosterSummary div { padding: var(--s4) 0; border-top: 1px solid var(--line); }
+.rosterSummary b { display: block; font-size: var(--t-xl); font-weight: 600; }
+.rosterSummary b.bad { color: var(--red, #b42318); }
+.rosterSummary small { color: var(--ink-3); font-size: var(--t-sm); }
+.rosterGapList { margin: 6px 0 0 18px; font-size: var(--t-sm); }
+.rosterTable { margin-top: var(--s2); }
+.legalTabs .updateBadge:empty { display: none; }
+@media (max-width: 680px) { .rosterSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rosterTable { table-layout: fixed; }
+.rosterTable th:nth-child(1) { width: 32%; } .rosterTable th:nth-child(2) { width: 22%; } .rosterTable th:nth-child(3) { width: 16%; }

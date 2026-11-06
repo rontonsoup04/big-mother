@@ -438,6 +438,10 @@ function setNav() {
     navCurrent =
       current === "staff-upload"
         ? "staff"
+        : current === "audit" || current === "updates"
+        ? "legal"
+        : current === "compliance"
+        ? "centre"
         : current === "family-form"
           ? "family-medical"
           : current;
@@ -465,11 +469,12 @@ function setNav() {
   if (pb) pb.style.display = LIVE ? "none" : "";
   let crumb = {
     overview: "Overview",
-    updates: "Regulation updates",
-    compliance: "Compliance",
-    staff: "Staff certifications",
+    updates: "Legal · Regulation updates",
+    compliance: "Centre",
+    roster: "Roster",
+    staff: "Staff",
     "staff-upload": isEducator() ? "My certificates" : "Upload a certificate",
-    audit: "Audit readiness",
+    audit: "Legal · Audit readiness",
     family: "Home",
     "family-medical": "Medical profile",
     "family-form": "Update medical details",
@@ -482,6 +487,8 @@ function setNav() {
   let regOpen = auditOn() ? AuditAgent.data().updates.filter((u) => u.status !== "reviewed").length : LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
   document.querySelectorAll(".updateBadge").forEach((el) => badge(el, regOpen ? 1 : 0));
   let cb = document.getElementById("complianceBadge");
+  let rb = document.getElementById("rosterBadge");
+  if (rb) { let gaps = rosterGaps().length; rb.textContent = gaps || ""; rb.classList.toggle("alert", gaps > 0); }
   if (cb && typeof Library !== "undefined") {
     let due = Library.taskList().filter((t) => t.state === "overdue" || t.state === "due_soon").length + Library.agentDraftCount();
     cb.textContent = due || "";
@@ -1411,8 +1418,10 @@ function render() {
   root.innerHTML =
     current === "overview"
       ? overviewPage()
+      : current === "roster"
+      ? rosterPage()
       : current === "updates"
-        ? updatesPage()
+        ? legalTabs() + updatesPage()
         : current === "compliance"
         ? Library.page()
         : current === "staff"
@@ -1427,7 +1436,7 @@ function render() {
                   ? familyFormPage()
                   : current === "family-messages"
                     ? familyMessagesPage()
-                    : auditPage();
+                    : legalTabs() + auditPage();
   if (typeof fillIcons === "function") fillIcons(document);
   if (typeof Assistant !== "undefined") Assistant.refresh();
   if (document.getElementById("selectedCount"))
@@ -1678,3 +1687,75 @@ function toast(message) {
   toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
 }
 Live.boot();
+
+// ---------------------------------------------------------------------------------------------
+// Legal: audit readiness and regulation updates share one section with a tab strip.
+function legalTabs() {
+  let tab = (id, label, badge) =>
+    '<button class="filterButton ' + (current === id ? "active" : "") + '" onclick="go(\'' + id + '\')">' + label + (badge || "") + "</button>";
+  return '<div class="areaFilters legalTabs" role="tablist">' + tab("audit", "Audit readiness") + tab("updates", "Regulation updates", ' <b class="updateBadge"></b>') + "</div>";
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roster: who is in each room today, and whether their credentials let them count.
+// Shifts are sample data in the offline demo. Reg 151 requires a record of the rooms and times
+// each educator works directly with children, with their WWCC number.
+var ROSTER_SHIFTS = [["6:30 am", "3:00 pm"], ["7:30 am", "4:00 pm"], ["9:00 am", "5:30 pm"], ["10:00 am", "6:30 pm"]];
+var FIRST_AID_SET = ["First Aid", "CPR", "Anaphylaxis"];
+function rosterToday() {
+  if (!ROSTER_SHIFTS) return [];
+  return educators.map((e, i) => {
+    let cert = (t) => e.certs.find((c) => c.type === t);
+    let ok = (t) => { let c = cert(t); return !!c && c.days >= 0; };
+    let shift = ROSTER_SHIFTS[i % ROSTER_SHIFTS.length];
+    return { e, start: shift[0], end: shift[1], wwcc: ok("WWCC"), firstAid: FIRST_AID_SET.every(ok), lapsed: FIRST_AID_SET.filter((t) => !ok(t)) };
+  });
+}
+function rosterRooms() {
+  let rooms = {};
+  rosterToday().forEach((r) => (rooms[r.e.room] = rooms[r.e.room] || []).push(r));
+  return rooms;
+}
+function rosterGaps() {
+  let gaps = [];
+  rosterToday().forEach((r) => { if (!r.wwcc) gaps.push({ room: r.e.room, text: r.e.name + " has no current WWCC and can’t work with children." }); });
+  Object.entries(rosterRooms()).forEach(([room, list]) => {
+    if (!list.some((r) => r.firstAid && r.wwcc)) gaps.push({ room, text: room + " has no educator with current first aid, CPR and anaphylaxis training on shift (Reg 136)." });
+  });
+  return gaps;
+}
+function rosterPage() {
+  let rooms = rosterRooms(), gaps = rosterGaps(), today = rosterToday();
+  let counted = today.filter((r) => r.firstAid && r.wwcc).length;
+  let summary =
+    '<div class="rosterSummary"><div><b class="num">' + today.length + "</b><small>Educators on today</small></div>" +
+    '<div><b class="num">' + Object.keys(rooms).length + "</b><small>Rooms</small></div>" +
+    '<div><b class="num">' + counted + "</b><small>Count towards first aid cover</small></div>" +
+    '<div><b class="num ' + (gaps.length ? "bad" : "") + '">' + gaps.length + "</b><small>Gaps to fix</small></div></div>";
+  let callout = gaps.length
+    ? '<div class="callout"><div><b>Fix before the shift starts</b><ul class="rosterGapList">' + gaps.map((g) => "<li>" + esc(g.text) + "</li>").join("") + "</ul></div></div>"
+    : "";
+  let roomBlocks = Object.entries(rooms)
+    .map(([room, list]) => {
+      let covered = list.some((r) => r.firstAid && r.wwcc);
+      return (
+        '<section class="section"><div class="sectionHead"><h2>' + esc(room) + '<span class="count">' + list.length + "</span></h2>" +
+        statusTag(covered ? "green" : "red", covered ? "First aid covered" : "No first aid cover") + "</div>" +
+        '<table class="staffTable rosterTable"><thead><tr><th>Educator</th><th>Shift</th><th>WWCC</th><th>First aid cover</th></tr></thead><tbody>' +
+        list
+          .map((r) =>
+            '<tr onclick="staffDetail(\'' + r.e.id + '\')"><td><div class="staffPerson"><b>' + esc(r.e.name) + "</b><small>" + esc(r.e.role) + "</small></div></td>" +
+            '<td data-label="Shift" class="num">' + r.start + " – " + r.end + "</td>" +
+            '<td data-label="WWCC">' + statusTag(r.wwcc ? "green" : "red", r.wwcc ? "Current" : "Not current") + "</td>" +
+            '<td data-label="First aid cover">' + statusTag(r.firstAid ? "green" : "yellow", r.firstAid ? "Counts" : "Doesn’t count: " + r.lapsed.join(", ") + " lapsed") + "</td></tr>")
+          .join("") +
+        "</tbody></table></section>"
+      );
+    })
+    .join("");
+  return (
+    header("Roster", "Who is in each room today, and whether their credentials let them count.") +
+    summary + callout + roomBlocks +
+    '<p class="footnote">' + (LIVE ? "" : "Offline demo: shifts are sample data. ") + "This roster doubles as your record of educators working directly with children (Reg 151): rooms, times and WWCC for each educator.</p>"
+  );
+}
