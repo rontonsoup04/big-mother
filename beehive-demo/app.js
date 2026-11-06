@@ -327,6 +327,8 @@ let educators =
   saved.educators ||
   BASE_EDUCATORS.map((e) => ({ ...e, certs: e.certs.map((c) => ({ ...c })) }));
 let pendingSubmission = saved.pendingSubmission || null;
+// Educators who have left: kept on file for 3 years after their last day (Reg 183(2)(f)). Filled by staffrec.js or live.js.
+let formerEducators = [];
 let familyMedical = saved.familyMedical || {
   childName: "Maya Patel",
   room: "Banksia Room",
@@ -1121,12 +1123,13 @@ function staffPortalPage() {
     reminderTotal = educators.filter((e) => e.alertState && /prompt/i.test(e.alertState)).length;
   if (agentOn() || (LIVE && typeof StaffAgent !== "undefined" && StaffAgent.data().error))
     return (
-      header("Staff", "Every educator’s credentials. beehive chases renewals for you.", '<button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
+      header("Staff", "Every educator’s credentials. beehive chases renewals for you.", '<button class="button" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button><button class="button primary" onclick="StaffRecords.openAdd()">Add educator</button>') +
       followUpsCard() +
       '<section class="section"><div class="sectionHead"><h2>All educators<span class="count">' + educators.length + "</span></h2>" +
       '<input id="staffSearch" class="staffSearch" type="search" placeholder="Search educators or credentials" aria-label="Search staff" oninput="searchStaff(this.value)"></div>' +
       '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Asthma</th><th>Follow-up</th></tr></thead><tbody id="staffRows">' +
       staffRows() + "</tbody></table></div></section>" +
+      (typeof StaffRecords !== "undefined" ? StaffRecords.formerSection() : "") +
       '<p class="footnote">' + (LIVE ? "" : "Offline demo: sample educators. ") + "Email and SMS are simulated: messages are recorded with recipient and time but not delivered.</p>"
     );
   return (
@@ -1203,7 +1206,9 @@ function openStaffDetail(id) {
     '<div class="modalHead"><div><h2>' + esc(e.name) + "</h2><p>" + esc(e.room) + ", " + esc(e.role) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<p class="modalSection">' + statusTag(staffStatus(e), staffStatus(e) === "green" ? "All credentials current" : staffStatus(e) === "yellow" ? "Renewal coming up" : "Expired or missing credential") + (agentOn() ? "" : '<span class="muted" style="margin-left:12px">' + esc(e.alertState || "No reminder sent") + "</span>") + "</p>" +
       rows + pending +
+      (typeof StaffRecords !== "undefined" ? StaffRecords.detailExtras(e) : "") +
       '<div class="modalActions"><button class="button" onclick="closeModal()">Close</button></div>',
+    "wide",
   );
 }
 function reviewSubmission() {

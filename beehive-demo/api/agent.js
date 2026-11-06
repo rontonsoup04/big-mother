@@ -1,10 +1,10 @@
 // Beehive Compliance Agent: server-only Vercel function at /api/agent (see AGENT.md).
-// Runs Gemini through the Vercel AI SDK with three tools: review credentials, save reminder
+// Runs Claude through the Vercel AI SDK with three tools: review credentials, save reminder
 // drafts, flag for the owner. It has no tool that can send, approve or change records.
 //
 // Environment variables (Vercel → Settings → Environment Variables, and .env.local for local runs):
-//   GOOGLE_GENERATIVE_AI_API_KEY  Gemini key from aistudio.google.com   (server only)
-//   AGENT_MODEL                   optional, defaults to gemini-3.8-flash (Google retired gemini-2.5-flash for new keys)
+//   ANTHROPIC_API_KEY             Claude API key from console.anthropic.com   (server only)
+//   AGENT_MODEL                   optional, defaults to claude-haiku-5-5 (see api/_model.js)
 //   AGENT_PASSCODE                shared team passcode; the agent only runs if it matches
 //   BEEHIVE_AGENT_KEY             the centre's agent key (last row of seed_demo.sql)   (server only)
 //   AGENT_TIME_LIMIT_MS           optional, default 110000; keep it under maxDuration in vercel.json
@@ -13,6 +13,7 @@ const { generateText, tool, stepCountIs } = require("ai");
 const { z } = require("zod");
 const crypto = require("crypto");
 const INSTRUCTIONS = require("./_agent-instructions.js");
+const { modelFor } = require("./_model.js");
 
 const SUPABASE_URL = process.env.BEEHIVE_SUPABASE_URL || "https://gaxkvceirdxqfpeeskwf.supabase.co";
 const SUPABASE_KEY = process.env.BEEHIVE_SUPABASE_KEY || "sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8"; // public by design
@@ -98,8 +99,8 @@ function buildTools(ctx) {
   };
 }
 
-// Gemini only sees what it can act on: the staff agent is already chasing renewals it has sent a request for,
-// and the database would discard a second reminder anyway. Fewer, shorter rows keep the Gemini call quick.
+// Claude only sees what it can act on: the staff agent is already chasing renewals it has sent a request for,
+// and the database would discard a second reminder anyway. Fewer, shorter rows keep the Claude call quick.
 const MAX_FOCUS = 8;
 function focusReview(review) {
   const all = (review && review.needs_attention) || [];
@@ -108,7 +109,7 @@ function focusReview(review) {
   for (const r of all) {
     if (r.draft_already_waiting || r.escalation_open) { waiting.push(r.staff + " (" + r.certificate + ")"); continue; }
     // The staff agent emails or texts educators and follows up on its own, so a beehive login isn't needed
-    // and its follow-ups aren't Gemini's job.
+    // and its follow-ups aren't Claude's job.
     const urgent = r.status === "expired" || r.status === "missing" || r.renewal_submitted;
     if (r.last_reminder_sent && !urgent) { chasing++; continue; }
     act.push({ staff: r.staff, certificate: r.certificate, status: r.status, expiry_date: r.expiry_date, days_left: r.days_left,
@@ -130,14 +131,10 @@ const TIME_LIMIT_MS = Number(process.env.AGENT_TIME_LIMIT_MS) || 110000;
 
 async function runAgent({ message, uploadLink, model, fetchImpl, timeLimitMs }) {
   const ctx = { calls: 0, saved: 0, escalated: 0, log: [], fetch: fetchImpl, uploadLink, timings: [] };
-  const modelId = process.env.AGENT_MODEL || "gemini-3.8-flash";
-  if (!model) {
-    const { google } = require("@ai-sdk/google");
-    model = google(modelId);
-  }
-  // Gemini 3 models think before answering; "low" is the fastest level this model accepts ("minimal" is refused).
-  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: process.env.AGENT_THINKING || "low" } } } : undefined;
-  // Read the credentials first (a quick database call), so Gemini needs two calls instead of four:
+  const m = modelFor(model);
+  model = m.model;
+  const providerOptions = m.providerOptions;
+  // Read the credentials first (a quick database call), so Claude needs two calls instead of four:
   // one to save drafts and escalations together, one to write the summary.
   const t0 = Date.now();
   const review = focusReview(await rpc("agent_credential_review", {}, fetchImpl));
@@ -154,11 +151,11 @@ async function runAgent({ message, uploadLink, model, fetchImpl, timeLimitMs }) 
       providerOptions,
       maxRetries: 0, // a rate limit shows straight away instead of a silent wait
       abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
-      onStepFinish: () => { ctx.timings.push({ step: "Gemini step " + ctx.timings.length, ms: Date.now() - last }); last = Date.now(); },
+      onStepFinish: () => { ctx.timings.push({ step: "Claude step " + ctx.timings.length, ms: Date.now() - last }); last = Date.now(); },
     });
     return { reply: result.text || "(The agent finished without a summary.)", actions: ctx.log, drafts_saved: ctx.saved, escalated: ctx.escalated, timings: ctx.timings, seconds: Math.round((Date.now() - t0) / 1000) };
   } catch (e) {
-    ctx.timings.push({ step: "Gemini step " + ctx.timings.length + " (unfinished)", ms: Date.now() - last });
+    ctx.timings.push({ step: "Claude step " + ctx.timings.length + " (unfinished)", ms: Date.now() - last });
     e.timings = ctx.timings; e.saved = ctx.saved;
     throw e;
   }
@@ -170,10 +167,14 @@ function explainError(e) {
   const where = e && e.timings && e.timings.length ? " Timing: " + e.timings.map((t) => t.step + " " + (t.ms / 1000).toFixed(1) + "s").join(", ") + "." : "";
   const saved = e && e.saved ? " " + e.saved + " draft" + (e.saved === 1 ? " was" : "s were") + " saved before it stopped." : "";
   const status = e && (e.statusCode || (e.lastError && e.lastError.statusCode));
+  if (status === 401 || /invalid x-api-key|authentication_error/i.test(msg))
+    return { error: "Claude rejected the API key: check ANTHROPIC_API_KEY in Vercel's environment variables." + where };
+  if (status === 400 && /credit balance/i.test(msg))
+    return { error: "Your Anthropic account is out of API credit: add credit at console.anthropic.com → Billing." + where };
   if (status === 429 || /quota|rate.?limit|resource.?exhausted|too many requests/i.test(msg))
-    return { error: "Gemini’s usage limit was reached (free tier). Wait a minute and try again." + saved + where };
+    return { error: "Claude’s rate limit was reached. Wait a minute and try again." + saved + where };
   if ((e && (e.name === "TimeoutError" || e.name === "AbortError")) || /aborted|timed? ?out/i.test(msg))
-    return { error: "Gemini took too long, so the agent stopped." + saved + where + " Try again, or ask for something narrower, like “Only check WWCC”." };
+    return { error: "Claude took too long, so the agent stopped." + saved + where + " Try again, or ask for something narrower, like “Only check WWCC”." };
   return { error: "The AI agent couldn't finish: " + msg.slice(0, 300) + saved + where };
 }
 
@@ -201,7 +202,7 @@ module.exports = async function agent(req, res) {
   const body = await readJson(req);
   if (!process.env.AGENT_PASSCODE) return send(res, 500, { error: "The agent isn't set up yet: add AGENT_PASSCODE in Vercel's environment variables." });
   if (!samePasscode(body.passcode, process.env.AGENT_PASSCODE)) return send(res, 401, { error: "Wrong passcode." });
-  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) return send(res, 500, { error: "The agent isn't set up yet: add GOOGLE_GENERATIVE_AI_API_KEY in Vercel's environment variables." });
+  if (!process.env.ANTHROPIC_API_KEY) return send(res, 500, { error: "The agent isn't set up yet: add ANTHROPIC_API_KEY in Vercel's environment variables." });
   if (!process.env.BEEHIVE_AGENT_KEY) return send(res, 500, { error: "The agent isn't set up yet: add BEEHIVE_AGENT_KEY (the centre's agent key) in Vercel's environment variables." });
   const host = req.headers["x-forwarded-host"] || req.headers.host || "";
   const proto = req.headers["x-forwarded-proto"] || "https";

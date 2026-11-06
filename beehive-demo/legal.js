@@ -5,7 +5,7 @@
 // and by when. The owner can also paste the text of a new change (an ACECQA or NSW Early Learning
 // Commission notice, say) and the agent summarises it.
 //
-// Signed in with the team passcode, the summary comes from Gemini (api/ask.js, mode "brief"). Otherwise a
+// Signed in with the team passcode, the summary comes from Claude (api/ask.js, mode "brief"). Otherwise a
 // built-in reader matches the text to the checklist with fixed rules, so the offline demo still works.
 // The agent never changes a policy or a requirement's status: it explains, the owner decides.
 const Legal = (() => {
@@ -28,7 +28,7 @@ const Legal = (() => {
   };
   const MONTHS = "january|february|march|april|may|june|july|august|september|october|november|december";
 
-  let briefs = []; // summaries of changes the owner pasted in this session: { id, title, source, gemini, ... }
+  let briefs = []; // summaries of changes the owner pasted in this session: { id, title, source, ... }
   let busy = false;
 
   const reqItems = () => (typeof items !== "undefined" ? items.filter((x) => !x.omitted) : []);
@@ -38,7 +38,7 @@ const Legal = (() => {
     return x.status === "green" ? ["green", "On track"] : x.status === "yellow" ? ["yellow", "Review due"] : ["red", "Gap"];
   };
 
-  // ---------- the built-in reader (offline demo, or Gemini not connected) ----------
+  // ---------- the built-in reader (offline demo, or Claude not connected) ----------
   function affected(text) {
     const t = " " + String(text || "").toLowerCase() + " ";
     return reqItems().filter((x) => TOPICS[x.id] && TOPICS[x.id].test(t));
@@ -75,14 +75,14 @@ const Legal = (() => {
     busy = true; render();
     let b;
     try {
-      if (typeof Assistant !== "undefined" && Assistant.geminiReady()) {
+      if (typeof Assistant !== "undefined" && Assistant.aiReady()) {
         const reqs = reqItems().map((x) => ({ title: x.title, area: x.area, status: reqStatus(x)[1] }));
-        const g = await Assistant.callGemini({ mode: "brief", title, text, requirements: reqs });
-        b = Object.assign({ source: "gemini" }, g);
+        const g = await Assistant.callAI({ mode: "brief", title, text, requirements: reqs });
+        b = Object.assign({ source: "claude" }, g);
       } else b = builtinBrief(title, text);
     } catch (e) {
       b = builtinBrief(title, text);
-      b.note = (e && e.message ? e.message : "Gemini couldn’t answer") + " This summary uses beehive’s built-in reader instead.";
+      b.note = (e && e.message ? e.message : "Claude couldn’t answer") + " This summary uses beehive’s built-in reader instead.";
     }
     b.id = "b" + Date.now();
     b.text = text;
@@ -127,7 +127,7 @@ const Legal = (() => {
   }
   function briefCard(b) {
     return (
-      '<article class="brief"><p class="updateMeta"><span class="status neutral">Summarised by ' + (b.source === "gemini" ? "Gemini" : "beehive’s built-in reader") + "</span><span>Not yet tracked</span></p>" +
+      '<article class="brief"><p class="updateMeta"><span class="status neutral">Summarised by ' + (b.source === "claude" ? "Claude" : "beehive’s built-in reader") + "</span><span>Not yet tracked</span></p>" +
       "<h2>" + E(b.title) + "</h2>" + (b.note ? '<p class="muted small">' + E(b.note) + "</p>" : "") +
       '<div class="briefGrid"><div><h3>What changed</h3><p>' + E(b.whatChanged) + "</p></div>" +
       "<div><h3>Requirements it touches</h3>" + (b.affects && b.affects.length ? '<ul class="briefList">' + b.affects.map((t) => "<li>" + E(t) + "</li>").join("") + "</ul>" : "<p>None clearly matched.</p>") + "</div>" +

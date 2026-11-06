@@ -15,6 +15,7 @@ PENDING = [
     "supabase/migrations/20261030090000_integration.sql",
     "supabase/migrations/20261031090000_ask_beehive.sql",
     "supabase/migrations/20261106090000_asthma_required.sql",
+    "supabase/migrations/20261106120000_staff_records.sql",
     "supabase/seed_demo.sql",
 ]
 
@@ -28,6 +29,7 @@ HEADER = """-- =================================================================
 --   4. the integration that joins them into one system
 --   5. read-only data for Ask beehive (Gemini)
 --   5b. asthma training as a required credential
+--   5c. staff records: qualifications, usual days, documents and former educators
 --   6. the demo data (this RESETS the demo centre: Sara, Priya, Mia and all demo records)
 --
 -- It's safe to run again: every step checks what already exists, and the demo data is rebuilt each time.

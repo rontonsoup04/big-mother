@@ -154,7 +154,7 @@ export function watchMedicalFlags(onChange) {
 
 /**
  * Draft a message from a short staff note. Today this uses a simple template.
- * To use an AI model instead, call it here (the web app uses Gemini through beehive-demo/api/ask.js)
+ * To use an AI model instead, call it here (the web app uses Claude through beehive-demo/api/ask.js)
  * and return its text. Staff always review before sending.
  */
 export function draftMessageText({ childFirstName, parentFirstName, note, trigger = "manual" }) {

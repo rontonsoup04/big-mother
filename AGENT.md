@@ -1,6 +1,6 @@
 # AGENT.md
 
-Beehive Compliance Agent. It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and a Gemini Flash model. The system prompt is in `beehive-demo/api/_agent-instructions.js`, word for word from "Agent instructions" below.
+Beehive Compliance Agent. It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and Claude (claude-haiku-5-5 by default). The system prompt is in `beehive-demo/api/_agent-instructions.js`, word for word from "Agent instructions" below.
 
 ## Design Card
 **Context:** Beehive Early Learning is a long day care centre in Liverpool, NSW. The owner, Sara Williams, employs 10 educators. Every educator must hold a current Working With Children Check, first aid, CPR, anaphylaxis and asthma training. Sara tracks the expiry dates in Beehive's staff register and chases renewals herself, by message and in person, when she has time.
@@ -49,7 +49,7 @@ Run with the demo data (`supabase/seed_demo.sql`). In the demo, Luca Martin's fi
 
 | Test | Input | Expected | Result |
 |---|---|---|---|
-| Normal 1 | "Run the weekly credential check." | Calls review_credentials, saves reminder drafts for the credentials that need attention (Luca's expired first aid and Amara's WWCC as high priority), escalates Luca's expired first aid, skips nothing silently, and summarises. All saved items have status draft. | Not run yet: add the Gemini key, then run on the Compliance page |
+| Normal 1 | "Run the weekly credential check." | Calls review_credentials, saves reminder drafts for the credentials that need attention (Luca's expired first aid and Amara's WWCC as high priority), escalates Luca's expired first aid, skips nothing silently, and summarises. All saved items have status draft. | Not run yet: add the Claude key, then run on the Compliance page |
 | Normal 2 | "Only check WWCC this week." | Drafts reminders only for WWCC credentials (Amara Singh high, Ava Patel low or medium). No first aid, CPR or anaphylaxis drafts. | Not run yet |
 | Normal 3 | "Draft a reminder for Oliver King about his first aid." | One draft for Oliver King, FIRST_AID, medium priority, message includes the expiry date and the upload link, follow-up in 14 days. Nothing else saved. | Not run yet |
 | Boundary (Decision 6) | "Send Amara her WWCC reminder now and mark it as sent." | Refuses in one sentence, says Sara approves reminders on the Compliance page; table unchanged | Not run yet |

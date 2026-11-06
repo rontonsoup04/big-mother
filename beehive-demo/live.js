@@ -102,6 +102,7 @@ const Live = (() => {
     LIVE = false;
     hideLogin();
     document.body.classList.remove("educatorMode", "liveMode");
+    if (typeof StaffRecords !== "undefined") StaffRecords.applyOffline();
     if (typeof StaffAgent !== "undefined") StaffAgent.loadOffline();
     if (typeof AuditAgent !== "undefined") AuditAgent.loadOffline();
     render();
@@ -211,7 +212,7 @@ const Live = (() => {
     const [rows, kids, staffRows, certRows, subs, meds, thread, regs, drafts] = await Promise.all([
       q(sb.from("v_checklist_status").select("*")),
       q(sb.from("children").select("id, first_name, last_name, date_of_birth, room, emergency_contact").eq("is_active", true).order("first_name")),
-      q(sb.from("staff").select("id, full_name, position, room, is_active, user_id").eq("is_active", true).order("full_name")),
+      q(sb.from("staff").select("*").order("full_name")),
       q(sb.from("v_certificate_reminders").select("*")),
       leader ? q(sb.from("certificate_submissions").select("*, staff(full_name), certificate_types(code)").eq("status", "pending").order("submitted_at"))
              : q(sb.from("certificate_submissions").select("*, staff(full_name), certificate_types(code)").eq("status", "pending").order("submitted_at")),
@@ -256,8 +257,15 @@ const Live = (() => {
       }));
 
     // Staff certification register
+    // Every document on each educator's file (qualifications, training, other documents), for the Staff page.
+    const docRows = await q(sb.from("staff_certificates").select("*, certificate_types(code, name)")).catch(() => []);
+    const docsFor = (sid) => (docRows || []).filter((d) => d.staff_id === sid).map((d) => ({ id: d.id, code: d.certificate_types && d.certificate_types.code, kind: d.certificate_types && d.certificate_types.name,
+      title: d.title || "", number: d.certificate_number || "", issued: d.issue_date || "", expires: d.expiry_date || "", fileName: d.document_url ? String(d.document_url).split("/").pop().replace(/^\d+-/, "") : "", filePath: d.document_url || "" }));
+    const extra = (s) => ({ email: s.email || "", phone: s.phone || "", qualification: s.qualification || "", days: s.work_days || undefined, startedOn: s.started_on || "", leftOn: s.left_on || "", docs: docsFor(s.id) });
+    formerEducators = staffRows.filter((s) => !s.is_active && !/owner/i.test(s.position || ""))
+      .map((s) => Object.assign({ id: s.id, name: s.full_name, role: s.position, room: s.room || "—", certs: [] }, extra(s)));
     educators = staffRows
-      .filter((s) => certRows.some((c) => c.staff_id === s.id))
+      .filter((s) => s.is_active && !/owner/i.test(s.position || "") && s.user_id !== ME.id)
       .map((s) => {
         const mine = certRows.filter((c) => c.staff_id === s.id);
         const certs = CERT_ORDER.map((code) => {
@@ -268,7 +276,7 @@ const Live = (() => {
         const states = mine.map((c) => c.alert_state).filter(Boolean);
         const pick = states.find((x) => x.startsWith("Renewal submitted")) || states.find((x) => x.startsWith("Follow up")) ||
           states.find((x) => x.startsWith("Renewal prompt")) || states.find((x) => x.startsWith("Approved")) || "";
-        return { id: s.id, userId: s.user_id, name: s.full_name, initials: initials(s.full_name), role: s.position, room: s.room || "—", alertState: pick, certs };
+        return Object.assign({ id: s.id, userId: s.user_id, name: s.full_name, initials: initials(s.full_name), role: s.position, room: s.room || "—", alertState: pick, certs }, extra(s));
       });
 
     // Certificate waiting for approval
@@ -436,6 +444,43 @@ const Live = (() => {
     closeModal();
     await reload();
   }
+  // ---------- staff records: add educators, documents, and record a leaving date ----------
+  const CODE_BY_KIND = { WWCC: "WWCC", "First aid": "FIRST_AID", CPR: "CPR", Anaphylaxis: "ANAPHYLAXIS", Asthma: "ASTHMA", Qualification: "QUALIFICATION", "Child protection training": "CHILD_PROTECTION", Other: "OTHER" };
+  // Optional columns from the staff_records migration: if it hasn't been run yet, save without them.
+  async function tolerant(run, rowWith, rowWithout) {
+    try { return await q(run(rowWith)); } catch (e) { if (/column|schema cache/i.test(e.message || "")) return q(run(rowWithout)); throw e; }
+  }
+  async function addEducator(e) {
+    const base = { centre_id: ME.centre.id, full_name: e.name, email: e.email || "", phone: e.phone || "", position: e.role, room: e.room };
+    const row = await busy(() => tolerant((r) => sb.from("staff").insert(r).select("id").single(),
+      Object.assign({}, base, { qualification: e.qualification || "", work_days: e.days, started_on: e.startedOn || null }), base), e.name + " added. beehive will ask them for their credentials.");
+    await reload();
+    return row && row.id;
+  }
+  async function saveDocument(staffId, d, file) {
+    const types = await q(sb.from("certificate_types").select("id, code"));
+    const code = CODE_BY_KIND[d.kind] || "OTHER";
+    const type = types.find((t) => t.code === code) || types.find((t) => t.code === "OTHER");
+    if (!type) throw new Error("This document type isn't set up yet. Run the latest live_setup.sql.");
+    const path = file ? await upload("staff", file) : null;
+    const base = { staff_id: staffId, certificate_type_id: type.id, certificate_number: d.number || "", issue_date: d.issued || null, expiry_date: d.expires || null };
+    if (path) base.document_url = path;
+    // a required credential replaces the one on file; anything else is added alongside
+    const required = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS", "ASTHMA"].includes(type.code);
+    const existing = required ? (await q(sb.from("staff_certificates").select("id").eq("staff_id", staffId).eq("certificate_type_id", type.id)))[0] : null;
+    await busy(() => existing
+      ? tolerant((r) => sb.from("staff_certificates").update(r).eq("id", existing.id), Object.assign({}, base, { title: d.title || "" }), base)
+      : tolerant((r) => sb.from("staff_certificates").insert(r), Object.assign({}, base, { title: d.title || "" }), base), "Saved to the staff record.");
+    if (code === "QUALIFICATION" && d.title) await tolerant((r) => sb.from("staff").update(r).eq("id", staffId), { qualification: d.title }, {}).catch(() => {});
+    await reload();
+  }
+  async function markLeft(staffId, date) {
+    await busy(() => tolerant((r) => sb.from("staff").update(r).eq("id", staffId), { is_active: false, left_on: date }, { is_active: false }),
+      "Moved to former educators. Their records stay on file for 3 years.");
+    await reload();
+  }
+  async function docUrl(path) { return signedUrl(path); }
+
   async function logDrill(id) {
     if (typeof AuditAgent !== "undefined" && AuditAgent.active()) return AuditAgent.openDrillForm(id);
     await busy(() => q(sb.from("evidence").insert({ centre_id: ME.centre.id, checklist_item_id: id, title: "Evacuation drill logged", recorded_on: todayISO(), uploaded_by: ME.id })),
@@ -610,7 +655,7 @@ const Live = (() => {
   }
 
   return {
-    children: () => children,
+    children: () => children, addEducator, saveDocument, markLeft, docUrl,
     boot, signIn, signOut, fillDemo, goOffline, resetOffline, showLogin, reload,
     completeTask, approveChecklist, editBaseline, uploadEvidence, logDrill, acceptUpdate, markUpdateReviewed, runExpiryCheck,
     submitCertificate, approveCertificate, submitFamilyUpdate, sendFamilyMessage, sendOwnerReply, acknowledgeFamilyUpdate,

@@ -1,6 +1,6 @@
 # Beehive
 
-Childcare compliance and family communication for long day care centres. Web app (works on desktop and phone screens) backed by Supabase, with AI agents that run on Google Gemini.
+Childcare compliance and family communication for long day care centres. Web app (works on desktop and phone screens) backed by Supabase, with AI agents that run on Google Claude.
 
 **Authors:** Hani Lum · Aryan Talwar · Ricky An · Emilija Gliguroska
 
@@ -114,7 +114,7 @@ The staff agent, the audit agent and the compliance assistant share one set of r
 
 - **Shared records.** Staff, credentials, certificate uploads, evidence, compliance tasks, regulation reviews and agent tasks each live in one table. Audit requirements about credentials are worked out from the staff register, so renewing a credential updates the requirement and readiness with nothing entered twice. Any change to these records re-checks the requirements in the same save (database triggers), and the activity entry says what caused the change, for example "Jack Wilson's Anaphylaxis training was verified".
 - **Linked both ways.** A credential renewal shows the audit requirement it counts towards; a credential requirement lists the renewals the staff agent is handling.
-- **One reminder system.** The compliance assistant (Gemini) won't draft a reminder the staff agent is already sending; an approved draft goes out through the staff agent's renewal (same message history and follow-up schedule), and its escalations land on that renewal. The old expiry check runs the staff agent.
+- **One reminder system.** The compliance assistant (Claude) won't draft a reminder the staff agent is already sending; an approved draft goes out through the staff agent's renewal (same message history and follow-up schedule), and its escalations land on that renewal. The old expiry check runs the staff agent.
 - **Regulation decisions use the right workflow.** "Policy needs updating" on a document requirement asks for the updated policy (upload, check, verify). On a requirement checked from beehive's own records (credentials, medical, incidents, child records) it creates an owner action that points to that workflow and is closed by the owner.
 - **One Overview.** A summary strip (open issues detected, actions done this week, waiting on staff, need you), one "Needs your attention" list (decisions first, then to-dos beehive proposed), one prioritised "What beehive detected" list across credentials, requirements and regulation changes, who beehive is waiting on, and the activity feed. The strip, the list and the bell use the same list, so the numbers always agree.
 - **Honest activity.** The feed holds only the agents' own records with real timestamps, in five states (Monitoring, Action taken, Waiting, Owner review, Resolved). Simulated messages are labelled *Simulated message*, seeded examples *Demo history*, and suggestions *Proposed*. Every entry links to its record or task.
@@ -139,26 +139,33 @@ The audit-readiness agent works over the checklist Sara approves (Staff Records,
 
 Designed in [AGENT.md](AGENT.md) (Design Card, instructions and tests). On the **Compliance** page, Sara types an instruction (or leaves the default "Run the weekly credential check"), enters the team passcode and clicks **Run agent**. The agent checks every educator's WWCC, first aid, CPR and anaphylaxis, drafts personalised renewal reminders with an upload link and a follow-up date, and flags what Sara must decide (expired or missing credentials, renewals waiting for her review). Sara edits and approves each reminder; the educator then sees it on their certificates page. Nothing is sent without her approval.
 
-It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and Gemini. Its system prompt is `beehive-demo/api/_agent-instructions.js`, generated from AGENT.md with `python3 tools/sync_agent_instructions.py`. Its only tools are: review credentials, save reminder drafts, flag for the owner. The database checks every draft (no reminders for current credentials, submitted renewals or duplicates), and the server stops after 5 tool calls.
+It runs on the server (`beehive-demo/api/agent.js`) with the Vercel AI SDK and Claude. Its system prompt is `beehive-demo/api/_agent-instructions.js`, generated from AGENT.md with `python3 tools/sync_agent_instructions.py`. Its only tools are: review credentials, save reminder drafts, flag for the owner. The database checks every draft (no reminders for current credentials, submitted renewals or duplicates), and the server stops after 5 tool calls.
 
 **Set up (once):**
-1. Get a Gemini API key at aistudio.google.com (**Get API key → Create API key**) and note the name of a current Flash model.
+1. Get a Claude API key at console.anthropic.com (**API keys → Create key**) and add some credit under **Billing**. A Claude.ai Pro or Max subscription doesn't include API access; the Console account is separate.
 2. In Vercel → **Settings → Environment Variables**, add:
-   - `GOOGLE_GENERATIVE_AI_API_KEY` = your Gemini key
-   - `AGENT_MODEL` = the Flash model name from AI Studio (e.g. `gemini-3.8-flash`)
+   - `ANTHROPIC_API_KEY` = your Claude API key
+   - `AGENT_MODEL` (optional) = defaults to `claude-haiku-5-5`; use `claude-sonnet-5-5` for stronger but slower answers
    - `AGENT_PASSCODE` = a passcode your team shares (not a real password)
    - `BEEHIVE_AGENT_KEY` = the agent key from the last row of `seed_demo.sql`
 3. Run `supabase/migrations/20261026110000_compliance_agent.sql` in Supabase, then redeploy on Vercel.
 
-Free AI tiers aren't private: only use the invented demo data.
+Use the invented demo data only: don't send real children's or staff details to any AI service until the centre has agreed to it.
 
-## Ask beehive (Gemini)
+## Staff records and contracts
 
-**Ask beehive** (owner, top right) and **Draft with AI** (in a family reply) use Gemini through `beehive-demo/api/ask.js`, a Vercel function with the same settings as the Compliance agent (`GOOGLE_GENERATIVE_AI_API_KEY`, `AGENT_PASSCODE`, `BEEHIVE_AGENT_KEY`, optional `AGENT_MODEL`).
+- **Staff → Add educator** adds a new educator (role, room, qualification, usual days). The staff agent then asks them for any required credential that isn't on file.
+- Open an educator to **Add document**: required credentials (WWCC, first aid, CPR, anaphylaxis, asthma) replace the one on file; qualifications, child protection training and other documents are kept alongside. A qualification counts towards the roster's 50% diploma rule.
+- **This educator is leaving** moves them to **Former educators**: off the roster and the reminders, with their records kept for 3 years after their last day (Reg 183(2)(f)). Live mode needs `supabase/migrations/20261106120000_staff_records.sql` (included in `live_setup.sql`).
+- **Centre → Contracts → Change the agreement** amends a child's agreement (room, days, allergies, medical conditions, medication, diet, authorised nominees, other terms). The child's record, the daily sheet and the roster's ratios update straight away; the amended PDF shows the change and waits for the parent's signature. Amendments are stored in the browser for now.
+
+## Ask beehive (Claude)
+
+**Ask beehive** (owner, top right) and **Draft with AI** (in a family reply) use Claude through `beehive-demo/api/ask.js`, a Vercel function with the same settings as the Compliance agent (`ANTHROPIC_API_KEY`, `AGENT_PASSCODE`, `BEEHIVE_AGENT_KEY`, optional `AGENT_MODEL`).
 
 - **Ask beehive** answers from beehive's own records through three read-only tools: the Overview data (`agent_overview`: readiness and how it's worked out, every requirement with status, priority, why and next action, staff renewals, audit tasks, regulation updates and decisions, compliance tasks, what's waiting for the owner), the compliance library (`agent_guidance`) and record search. It can't change anything and never sees children's medical details. Readiness questions also get links straight to the gaps.
 - **Draft with AI** writes a short message from the educator's note. It's saved as a draft and nothing is sent until a staff member approves it.
-- The first time, enter the team passcode (account menu → **AI settings**, or the Compliance agent). Without it, in the offline demo, or if Gemini is unavailable, a built-in assistant answers from the same records with fixed rules and says so.
+- The first time, enter the team passcode (account menu → **AI settings**, or the Compliance agent). Without it, in the offline demo, or if Claude is unavailable, a built-in assistant answers from the same records with fixed rules and says so.
 - Database functions: `supabase/migrations/20261031090000_ask_beehive.sql`.
 
 The agent never sends anything to a parent. Only receipts and reminders send automatically; every other message is a draft until a staff member approves it.
@@ -184,17 +191,17 @@ beehive-demo/          The web app
   beehive.css          The design system and all styles
   icons.js             Line icons and the hexagon brand mark
   live.js              Supabase sign-in, loading and saving (live mode)
-  assistant.js         Ask beehive, Draft with AI, AI settings (Gemini via api/ask.js, built-in fallback)
+  assistant.js         Ask beehive, Draft with AI, AI settings (Claude via api/ask.js, built-in fallback)
   library.js           Compliance library page, item guidance, search
   library-data.js      Offline copy of the library (generated)
   agent.js             Staff compliance agent: renewals, activity feed, review, upload link (plus the offline engine)
   audit.js             Audit-readiness agent: requirements, gaps, evidence review, regulation reviews (plus the offline engine)
   extract.js           Reads certificates in the browser (pdf.js, Tesseract) and makes demo sample certificates
   config.js            Supabase URL + publishable key
-  api/agent.js         Beehive Compliance Agent (Vercel function, Gemini via the AI SDK)
+  api/agent.js         Beehive Compliance Agent (Vercel function, Claude via the AI SDK)
   api/_agent-instructions.js  Its system prompt, generated from AGENT.md
-  api/ask.js           Ask beehive and Draft with AI (Vercel function, Gemini via the AI SDK)
-  vercel.json          Gives the Gemini functions up to 2 minutes
+  api/ask.js           Ask beehive and Draft with AI (Vercel function, Claude via the AI SDK)
+  vercel.json          Gives the Claude functions up to 2 minutes
   package.json         Server dependencies (ai, @ai-sdk/google, zod)
 supabase/migrations/   Database schema, views, functions and security rules
 supabase/seed_demo.sql Demo data for the web app

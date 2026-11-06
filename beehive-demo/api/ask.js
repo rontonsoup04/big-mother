@@ -1,17 +1,18 @@
-// "Ask beehive" and "Draft with AI": Gemini, server-side at /api/ask (Vercel function).
+// "Ask beehive" and "Draft with AI": Claude, server-side at /api/ask (Vercel function).
 //
 // ask:   answers the owner's question from beehive's own records through three read-only tools
 //        (the Overview data, the compliance library, record search). It can't change anything.
 // draft: writes a short message to a family from the educator's note. Staff always review it before
 //        anything is sent; the message is saved as a draft by the app, never sent from here.
 //
-// Uses the same settings as the Compliance agent (api/agent.js): GOOGLE_GENERATIVE_AI_API_KEY, AGENT_MODEL,
+// Uses the same settings as the Compliance agent (api/agent.js): ANTHROPIC_API_KEY, AGENT_MODEL,
 // AGENT_PASSCODE, BEEHIVE_AGENT_KEY. Free AI tiers aren't private: use invented data only.
 
 const { generateText, generateObject, tool, stepCountIs } = require("ai");
 const { z } = require("zod");
 const crypto = require("crypto");
 const { explainError } = require("./agent.js");
+const { modelFor } = require("./_model.js");
 
 const SUPABASE_URL = process.env.BEEHIVE_SUPABASE_URL || "https://gaxkvceirdxqfpeeskwf.supabase.co";
 const SUPABASE_KEY = process.env.BEEHIVE_SUPABASE_KEY || "sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8"; // public by design
@@ -118,12 +119,6 @@ function buildTools(ctx) {
   };
 }
 
-function modelFor(model) {
-  const modelId = process.env.AGENT_MODEL || "gemini-3.8-flash";
-  if (!model) { const { google } = require("@ai-sdk/google"); model = google(modelId); }
-  const providerOptions = /gemini-3/.test(modelId) ? { google: { thinkingConfig: { thinkingLevel: process.env.AGENT_THINKING || "low" } } } : undefined;
-  return { model, providerOptions };
-}
 
 // One question, with the last few turns for context. `model` and `fetchImpl` can be swapped in tests.
 async function ask({ question, history, model, fetchImpl, timeLimitMs }) {
@@ -132,7 +127,7 @@ async function ask({ question, history, model, fetchImpl, timeLimitMs }) {
   const messages = (Array.isArray(history) ? history : []).slice(-6)
     .filter((h) => h && (h.role === "user" || h.role === "assistant") && typeof h.text === "string" && h.text.trim())
     .map((h) => ({ role: h.role, content: h.text.slice(0, 1500) }));
-  // The overview goes in up front (a quick database call), so most questions need a single Gemini call.
+  // The overview goes in up front (a quick database call), so most questions need a single Claude call.
   const t0 = Date.now();
   const overview = await rpc("agent_overview", {}, fetchImpl);
   ctx.timings = [{ step: "beehive overview", ms: Date.now() - t0 }];
@@ -142,11 +137,11 @@ async function ask({ question, history, model, fetchImpl, timeLimitMs }) {
     const result = await generateText({
       model: m.model, providerOptions: m.providerOptions, system: ASK_INSTRUCTIONS, messages, tools: buildTools(ctx),
       stopWhen: stepCountIs(MAX_STEPS), maxRetries: 0, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
-      onStepFinish: () => { ctx.timings.push({ step: "Gemini step " + ctx.timings.length, ms: Date.now() - last }); last = Date.now(); },
+      onStepFinish: () => { ctx.timings.push({ step: "Claude step " + ctx.timings.length, ms: Date.now() - last }); last = Date.now(); },
     });
     return { answer: (result.text || "").trim() || "I couldn’t find an answer in beehive’s records.", tools: ctx.used, timings: ctx.timings };
   } catch (e) {
-    ctx.timings.push({ step: "Gemini step " + ctx.timings.length + " (unfinished)", ms: Date.now() - last });
+    ctx.timings.push({ step: "Claude step " + ctx.timings.length + " (unfinished)", ms: Date.now() - last });
     e.timings = ctx.timings;
     throw e;
   }
@@ -183,9 +178,9 @@ function send(res, status, body) {
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { error: "Use POST." });
   const body = await readJson(req);
-  if (!process.env.AGENT_PASSCODE) return send(res, 500, { error: "Gemini isn't set up yet: add AGENT_PASSCODE in Vercel's environment variables." });
+  if (!process.env.AGENT_PASSCODE) return send(res, 500, { error: "Claude isn't set up yet: add AGENT_PASSCODE in Vercel's environment variables." });
   if (!samePasscode(body.passcode, process.env.AGENT_PASSCODE)) return send(res, 401, { error: "Wrong passcode." });
-  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) return send(res, 500, { error: "Gemini isn't set up yet: add GOOGLE_GENERATIVE_AI_API_KEY in Vercel's environment variables." });
+  if (!process.env.ANTHROPIC_API_KEY) return send(res, 500, { error: "Claude isn't set up yet: add ANTHROPIC_API_KEY in Vercel's environment variables." });
   try {
     if (body.mode === "draft") return send(res, 200, await draft(body));
     if (body.mode === "roster") return send(res, 200, await explainRoster(body));
@@ -193,12 +188,12 @@ module.exports = async function handler(req, res) {
       if (String(body.text || "").trim().length < 40) return send(res, 400, { error: "Paste the text of the change first." });
       return send(res, 200, await brief(body));
     }
-    if (!process.env.BEEHIVE_AGENT_KEY) return send(res, 500, { error: "Gemini can't read beehive yet: add BEEHIVE_AGENT_KEY (the centre's agent key) in Vercel's environment variables." });
+    if (!process.env.BEEHIVE_AGENT_KEY) return send(res, 500, { error: "Claude can't read beehive yet: add BEEHIVE_AGENT_KEY (the centre's agent key) in Vercel's environment variables." });
     if (!String(body.question || "").trim()) return send(res, 400, { error: "Ask a question." });
     return send(res, 200, await ask(body));
   } catch (e) {
     const out = explainError(e);
-    return send(res, 502, { error: out.error.replace("The AI agent couldn't finish", "Gemini couldn't answer").replace(" Try again, or ask for something narrower, like “Only check WWCC”.", " Try again, or ask something narrower.").replace(", so the agent stopped", "") });
+    return send(res, 502, { error: out.error.replace("The AI agent couldn't finish", "Claude couldn't answer").replace(" Try again, or ask for something narrower, like “Only check WWCC”.", " Try again, or ask something narrower.").replace(", so the agent stopped", "") });
   }
 };
 module.exports.ask = ask;

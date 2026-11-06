@@ -67,12 +67,28 @@ const Centre = (() => {
   ];
 
   // ---------- data access ----------
-  function children() {
+  function baseChildren() {
     if (typeof LIVE !== "undefined" && LIVE && typeof Live !== "undefined" && Live.children) {
       return (Live.children() || []).map((k) => ({ id: k.id, first: k.first_name, last: k.last_name, dob: k.date_of_birth || "", room: k.room || "", days: ALL_WEEK, contact: k.emergency_contact || "",
         ...liveMedical(k.medical), missing: [], live: true }));
     }
     return SAMPLE_CHILDREN;
+  }
+  // Contract amendments change the child's record: room, days, medical and dietary needs, nominees.
+  const AMEND_STORE = "beehive-contract-amendments-v1";
+  const AMEND_FIELDS = ["room", "days", "allergies", "conditions", "medication", "dietary", "nominees"];
+  function amendments() { try { return JSON.parse(localStorage.getItem(AMEND_STORE) || "{}"); } catch (e) { return {}; } }
+  function saveAmendments(a) { try { localStorage.setItem(AMEND_STORE, JSON.stringify(a)); } catch (e) {} }
+  function children() {
+    const all = amendments();
+    return baseChildren().map((k) => {
+      const list = all[k.id] || [];
+      if (!list.length) return k;
+      const out = Object.assign({}, k, { amendments: list });
+      list.forEach((a) => AMEND_FIELDS.forEach((f) => { if (a.changes && a.changes[f] !== undefined) out[f] = a.changes[f]; }));
+      out.plan = /anaphyla|asthma/i.test(out.conditions || "") ? (k.plan || list.some((a) => a.changes && a.changes.conditions !== undefined)) : false;
+      return out;
+    });
   }
   const none = (v) => (!v || /^(none|nil|n\/a|-)$/i.test(String(v).trim()) ? "" : String(v).trim());
   const liveMedical = (m) => {
@@ -165,12 +181,13 @@ const Centre = (() => {
   ];
   const parentOf = (k) => String(k.contact || "").split("·")[0].trim() || "Parent";
   const signedDate = (k) => { const d = new Date(); d.setDate(d.getDate() - 40 - (k.first.length * 9)); return d; };
-  const unsigned = (k, c) => c === "enrolment" && k.missing.some((m) => /enrolment agreement/i.test(m));
+  const pendingAmend = (k, c) => (k.amendments || []).filter((a) => a.contract === c && !a.signedOn);
+  const unsigned = (k, c) => (c === "enrolment" && k.missing.some((m) => /enrolment agreement/i.test(m))) || pendingAmend(k, c).length > 0;
   function contractListHtml(k) {
     return '<div class="contractList">' + CONTRACTS.map((c) => {
       const open = unsigned(k, c.id);
       return '<button class="contractRow" onclick="Centre.openContract(\'' + E(k.id) + "','" + c.id + '\')"><span class="pdfIcon">PDF</span><span class="rowMain"><b>' + E(c.title) + "</b><small>" +
-        (open ? "Sent to " + E(parentOf(k)) + ", waiting for their signature" : "Signed by " + E(typeof OWNER_NAME !== "undefined" ? OWNER_NAME : "the centre") + " and " + E(parentOf(k)) + ", " + signedDate(k).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })) +
+        (pendingAmend(k, c.id).length ? "Amended " + fmtDate(pendingAmend(k, c.id).slice(-1)[0].on) + ": sent to " + E(parentOf(k)) + " to sign" : open ? "Sent to " + E(parentOf(k)) + ", waiting for their signature" : ((k.amendments || []).some((a) => a.contract === c.id) ? "Amended and re-signed · " : "") + "Signed by " + E(typeof OWNER_NAME !== "undefined" ? OWNER_NAME : "the centre") + " and " + E(parentOf(k)) + ", " + signedDate(k).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })) +
         '</small></span><span class="status ' + (open ? "crit" : "green") + '">' + (open ? "Awaiting signature" : "Signed") + "</span></button>";
     }).join("") + "</div>";
   }
@@ -178,7 +195,67 @@ const Centre = (() => {
     const k = children().find((x) => x.id === id);
     if (!k) return;
     openModal('<div class="modalHead"><div><h2>' + E(k.first + " " + k.last) + "’s contracts</h2><p>Agreements between " + E(typeof CENTRE_NAME !== "undefined" ? CENTRE_NAME : "the centre") + " and " + E(parentOf(k)) + '. Click one to view the PDF.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<div class="modalSection">' + contractListHtml(k) + "</div>");
+      '<div class="modalSection">' + contractListHtml(k) + "</div>" +
+      ((k.amendments || []).length ? '<div class="modalSection"><h3>Changes to the agreements</h3>' + k.amendments.slice().reverse().map((a, i) =>
+        '<div class="amendRow"><div><b>' + E(fmtDate(a.on)) + " · " + E((CONTRACTS.find((c) => c.id === a.contract) || {}).title || "") + "</b><small>" + E(describe(a)) + "</small></div>" +
+        (a.signedOn ? '<span class="status green">Signed by ' + E(parentOf(k)) + "</span>" : '<button class="button small" onclick="Centre.markSigned(\'' + E(k.id) + "'," + (k.amendments.length - 1 - i) + ')">Mark signed by parent</button>') + "</div>").join("") + "</div>" : "") +
+      '<div class="formActions"><button class="button primary" onclick="Centre.openAmend(\'' + E(k.id) + '\')">Change the agreement</button></div>');
+  }
+  // ---------- change an agreement (and with it, the child's record) ----------
+  const LABEL = { room: "Room", days: "Days of care", allergies: "Allergies", conditions: "Medical conditions", medication: "Medication", dietary: "Dietary needs", nominees: "Authorised nominees" };
+  function describe(a) {
+    const parts = Object.entries(a.changes || {}).map(([f, v]) => LABEL[f] + ": " + (Array.isArray(v) ? v.join(", ") : v || "none"));
+    if (a.terms) parts.push("New terms: " + a.terms);
+    return parts.join(" · ") || "No changes";
+  }
+  function openAmend(id) {
+    const k = children().find((x) => x.id === id);
+    if (!k) return;
+    const fieldHtml = (label, control, hint) => '<label class="formField"><span class="formLabel">' + label + "</span>" + control + (hint ? '<small class="muted">' + hint + "</small>" : "") + "</label>";
+    const txt = (idn, v, ph) => '<input class="formControl" id="' + idn + '" value="' + E(v || "") + '" placeholder="' + E(ph || "") + '">';
+    openModal(
+      '<div class="modalHead"><div><h2>Change ' + E(k.first) + "’s agreement</h2><p>Changes update " + E(k.first) + "’s record straight away (child list, daily sheet and roster ratios) and the agreement goes to " + E(parentOf(k)) + ' to sign.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="formGrid">' +
+        fieldHtml("Agreement", '<select class="formControl" id="amContract">' + CONTRACTS.map((c) => '<option value="' + c.id + '">' + E(c.title) + "</option>").join("") + "</select>") +
+        fieldHtml("Room", '<select class="formControl" id="amRoom">' + rooms().map((r) => "<option" + (r === k.room ? " selected" : "") + ">" + E(r) + "</option>").join("") + "</select>") +
+        fieldHtml("Days of care", '<div class="dayPicks" id="amDays">' + ALL_WEEK.map((d) => '<label><input type="checkbox" value="' + d + '"' + (k.days.includes(d) ? " checked" : "") + ">" + d + "</label>").join("") + "</div>") +
+        fieldHtml("Allergies", txt("amAllergies", k.allergies, "e.g. Peanuts")) +
+        fieldHtml("Medical conditions", txt("amConditions", k.conditions, "e.g. Asthma"), "Anaphylaxis or asthma needs an action plan and a trained educator in the room.") +
+        fieldHtml("Medication", txt("amMedication", k.medication, "e.g. Ventolin inhaler (as needed)")) +
+        fieldHtml("Dietary needs", txt("amDietary", k.dietary, "e.g. Dairy-free")) +
+        fieldHtml("Authorised nominees for collection", txt("amNominees", (k.nominees || []).join(", "), "Names, separated by commas")) +
+      "</div>" +
+      '<label class="formField"><span class="formLabel">Other terms (optional)</span><textarea class="formControl" id="amTerms" rows="2" placeholder="e.g. Late pick-up on Thursdays until 6:45 pm"></textarea></label>' +
+      '<div class="formActions"><button class="button" onclick="Centre.openContracts(\'' + E(k.id) + '\')">Cancel</button><button class="button primary" onclick="Centre.saveAmend(\'' + E(k.id) + '\')">Save and send to parent</button></div>', "wide");
+  }
+  function saveAmend(id) {
+    const k = children().find((x) => x.id === id);
+    if (!k) return;
+    const v = (x) => ((document.getElementById(x) || {}).value || "").trim();
+    const days = Array.from(document.querySelectorAll("#amDays input:checked")).map((x) => x.value);
+    if (!days.length) return toast("Pick at least one day of care.");
+    const next = { room: v("amRoom"), days, allergies: v("amAllergies"), conditions: v("amConditions"), medication: v("amMedication"), dietary: v("amDietary"),
+      nominees: v("amNominees") ? v("amNominees").split(",").map((x) => x.trim()).filter(Boolean) : [] };
+    const changes = {};
+    Object.keys(next).forEach((f) => { const before = f === "nominees" ? (k.nominees || []).join(",") : f === "days" ? k.days.join(",") : k[f] || ""; const after = Array.isArray(next[f]) ? next[f].join(",") : next[f]; if (before !== after) changes[f] = next[f]; });
+    const terms = v("amTerms");
+    if (!Object.keys(changes).length && !terms) return toast("Nothing has changed yet.");
+    const all = amendments();
+    all[id] = (all[id] || []).concat([{ contract: v("amContract"), on: new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" }), changes, terms, signedOn: null }]);
+    saveAmendments(all);
+    const anaph = /anaphyla|asthma/i.test(next.conditions) && !/anaphyla|asthma/i.test(k.conditions || "");
+    render();
+    openContracts(id);
+    toast(k.first + "’s record is updated and the amended agreement was sent to " + parentOf(k) + " to sign (simulated)." + (anaph ? " Check the room has a trained educator on every shift." : ""));
+  }
+  function markSigned(id, index) {
+    const all = amendments();
+    if (!all[id] || !all[id][index]) return;
+    all[id][index].signedOn = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
+    saveAmendments(all);
+    render();
+    openContracts(id);
+    toast("Recorded as signed by the parent.");
   }
   function openChild(id) {
     const k = children().find((x) => x.id === id);
@@ -186,14 +263,8 @@ const Centre = (() => {
     const row = (label, value) => '<div class="modalMeta"><span>' + label + "</span><b>" + E(value || "None recorded") + "</b></div>";
     openModal(
       '<div class="modalHead"><div><h2>' + E(k.first + " " + k.last) + "</h2><p>" + E(k.room) + ", " + E(ageLabel(k.dob)) + ", " + (k.days.length === 5 ? "Mon–Fri" : E(k.days.join(", "))) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<div class="modalSection"><h3>Contracts</h3><div class="contractList">' +
-        CONTRACTS.map((c) => {
-          const open = unsigned(k, c.id);
-          return '<button class="contractRow" onclick="Centre.openContract(\'' + E(k.id) + "','" + c.id + '\')"><span class="pdfIcon">PDF</span><span class="rowMain"><b>' + E(c.title) + "</b><small>" +
-            (open ? "Sent to " + E(parentOf(k)) + ", waiting for their signature" : "Signed by " + E(typeof OWNER_NAME !== "undefined" ? OWNER_NAME : "the centre") + " and " + E(parentOf(k)) + ", " + signedDate(k).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })) +
-            '</small></span><span class="status ' + (open ? "crit" : "green") + '">' + (open ? "Awaiting signature" : "Signed") + "</span></button>";
-        }).join("") + "</div></div>" +
-      '<div class="modalSection"><h3>Record</h3>' + row("Allergies", k.allergies) + row("Medical conditions", k.conditions) + row("Medication", k.medication) + row("Dietary needs", k.dietary) + row("Emergency contact", k.contact) +
+      '<div class="modalSection"><div class="sectionHead"><h3>Contracts</h3><button class="button small" onclick="Centre.openAmend(\'' + E(k.id) + '\')">Change the agreement</button></div>' + contractListHtml(k) + "</div>" +
+      '<div class="modalSection"><h3>Record</h3>' + row("Allergies", k.allergies) + row("Medical conditions", k.conditions) + row("Medication", k.medication) + row("Dietary needs", k.dietary) + row("Emergency contact", k.contact) + row("Authorised nominees", (k.nominees || []).join(", ")) +
       row("Enrolment record", k.missing.length ? "Missing: " + k.missing.join(", ") : "Complete") + "</div>", "wide"
     );
   }
@@ -219,7 +290,7 @@ const Centre = (() => {
       ["1. Care", "The Service will provide education and care in line with the Education and Care Services National Law and Regulations, the National Quality Framework and the Service’s policies, which the Parent has been given access to."],
       ["2. Booked days", "Fees apply to booked days, including public holidays and absences, unless the Service closes. Changes to booked days need 2 weeks’ written notice."],
       ["3. Health and wellbeing", "The Parent will keep the child’s medical, allergy and immunisation details current and tell the Service of any change straight away. Medical details recorded: " + ([k.allergies && "allergy to " + k.allergies.toLowerCase(), k.conditions, k.dietary && k.dietary.toLowerCase()].filter(Boolean).join("; ") || "none") + "."],
-      ["4. Collection", "Only the Parent or an authorised nominee recorded on the enrolment form may collect the child. Photo ID may be requested."],
+      ["4. Collection", "Only the Parent or an authorised nominee" + ((k.nominees || []).length ? " (" + k.nominees.join(", ") + ")" : " recorded on the enrolment form") + " may collect the child. Photo ID may be requested."],
       ["5. Policies", "The Service will give at least 14 days’ notice of any change to a policy that affects fees or the way fees are collected (Reg 172)."],
       ["6. Ending care", "Either party may end this agreement with 2 weeks’ written notice."],
     ] : cid === "fees" ? [
@@ -232,9 +303,11 @@ const Centre = (() => {
       ["1. Medication", "Educators may give medication only with the Parent’s written authorisation for each dose, as recorded in the medication record (Regs 92–93)." + (k.medication ? " Current medication: " + k.medication + "." : "")],
       ["2. Emergency treatment", "The Parent consents to the Service seeking medical treatment, ambulance transport and hospital care for the child in an emergency (Reg 161)."],
       ["3. Excursions", "Regular outings within the local area are authorised; other excursions will be authorised separately (Regs 100–102)."],
-      ["4. Collection", "Authorised nominees: as listed on the enrolment record (Reg 160)."],
+      ["4. Collection", "Authorised nominees: " + ((k.nominees || []).join(", ") || "as listed on the enrolment record") + " (Reg 160)."],
       ["5. Photos", "Photos of the child may be shared privately with the family through the beehive family app only."],
     ];
+    const ams = (k.amendments || []).filter((a) => a.contract === cid);
+    if (ams.length) clauses.push(["Amendments", ams.map((a) => fmtDate(a.on) + ": " + describe(a) + (a.signedOn ? " (signed " + fmtDate(a.signedOn) + ")" : " (awaiting the Parent’s signature)")).join("  ")]);
     clauses.forEach(([h, t]) => { line(h, 11, true, 1); line(t, 10, false, 4); });
     y = Math.max(y + 6, 236);
     if (y > 250) { doc.addPage(); y = 30; }
@@ -377,5 +450,5 @@ const Centre = (() => {
   }
   function printDay(day) { sheetDay = day; print(); }
 
-  return { sheetStats, page, openContract, openContracts, setTab, room, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
+  return { sheetStats, page, openContract, openContracts, openAmend, saveAmend, markSigned, setTab, room, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
 })();

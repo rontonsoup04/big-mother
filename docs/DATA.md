@@ -67,7 +67,7 @@ Rules built into the database:
 
 | Step | Call |
 |---|---|
-| Draft from a note | `draftMessageText({ childFirstName, parentFirstName, note, trigger })` (template for now; the web app uses Gemini through beehive-demo/api/ask.js) → `createMessageDraft({...})` |
+| Draft from a note | `draftMessageText({ childFirstName, parentFirstName, note, trigger })` (template for now; the web app uses Claude through beehive-demo/api/ask.js) → `createMessageDraft({...})` |
 | Review queue | `getMessageDrafts()`, `updateDraft(id, body)`, `cancelDraft(id)` |
 | Send | `approveAndSend(id, finalBody)` (an incident message also marks the parent as notified) |
 | Automatic reminder | `requestDocument(childId, "updated immunisation history statement")` |
@@ -85,5 +85,5 @@ Owner/director: `loadDemoData()` then `loadBeehiveDemo()`. The centre ends up ab
 
 - Sending SMS/email (reminders and messages are recorded and shown in-app; connect Twilio/Resend or Power Automate)
 - Reading the expiry date from a certificate photo (needs a vision model; `extractedByAi` flag is ready)
-- Calling an AI model (Gemini) for checklist wording and regulation summaries
+- Calling an AI model (Claude) for checklist wording and regulation summaries
 - PDF rendering of `getAuditReportData()`

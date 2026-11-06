@@ -6,7 +6,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@ai-sdk/google": "2.0.102",
+    "@ai-sdk/anthropic": "2.0.112",
     "ai": "5.0.273",
     "zod": "3.25.76"
   }

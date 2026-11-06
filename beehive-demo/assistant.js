@@ -1,16 +1,16 @@
 // beehive AI assistant.
-// - Signed in with the team passcode, "Ask beehive" and "Draft with AI" use Gemini on the server (api/ask.js),
+// - Signed in with the team passcode, "Ask beehive" and "Draft with AI" use Claude on the server (api/ask.js),
 //   which reads the centre's records through read-only tools.
-// - Otherwise (offline demo, no passcode, or Gemini unavailable) a built-in assistant answers from the same
+// - Otherwise (offline demo, no passcode, or Claude unavailable) a built-in assistant answers from the same
 //   records with fixed rules, so the demo still works. Every AI-drafted parent message needs staff approval.
 const Assistant = (() => {
   const PASS_KEY = "beehive-agent-passcode"; // shared with the Compliance agent on the Compliance page
   const getPass = () => { try { return sessionStorage.getItem(PASS_KEY) || ""; } catch (e) { return ""; } };
   const setPass = (v) => { try { v ? sessionStorage.setItem(PASS_KEY, v) : sessionStorage.removeItem(PASS_KEY); } catch (e) {} };
-  const geminiReady = () => typeof LIVE !== "undefined" && LIVE && !!getPass();
+  const aiReady = () => typeof LIVE !== "undefined" && LIVE && !!getPass();
   let open = false;
   let busy = false;
-  let chat = []; // { from: "you" | "bot", text: html, plain: text, source: "gemini" | "builtin" }
+  let chat = []; // { from: "you" | "bot", text: html, plain: text, source: "claude" | "builtin" }
 
   // ---------- floating button + panel ----------
   function refresh() {
@@ -34,7 +34,7 @@ const Assistant = (() => {
     const panel = document.getElementById("assistantPanel");
     const head =
       '<div class="assistantHead"><span class="assistantMark">✦</span><div><b>Ask beehive</b><small>' +
-      (geminiReady() ? "Gemini, reading your centre’s records" : "Built-in answers from your centre’s records") +
+      (aiReady() ? "Claude, reading your centre’s records" : "Built-in answers from your centre’s records") +
       '</small></div><button class="closeButton" aria-label="Close assistant" onclick="Assistant.toggle(false)">×</button></div>';
     const chips = ["What is stopping us from being audit ready?", "What should I fix first?", "What is beehive waiting on?", "What compliance is overdue?", "What does the law say about sleep?", "Which certificates expire soon?"];
     panel.innerHTML =
@@ -43,7 +43,7 @@ const Assistant = (() => {
       (chat.length
         ? chat.map(bubble).join("")
         : bubble({ from: "bot", text: "Hi " + esc(firstName(OWNER_NAME)) + ", ask me about audit readiness, staff credentials, regulation updates or a record for a spot check." })) +
-      (busy ? '<div class="assistantMsg bot"><span class="reading"><span class="hx"></span>' + (geminiReady() ? "Gemini is checking your records…" : "Checking…") + "</span></div>" : "") +
+      (busy ? '<div class="assistantMsg bot"><span class="reading"><span class="hx"></span>' + (aiReady() ? "Claude is checking your records…" : "Checking…") + "</span></div>" : "") +
       '</div><div class="assistantChips">' +
       chips.map((c) => '<button class="chip" onclick="Assistant.ask(\'' + c.replace(/'/g, "\\'") + "')\">" + c + "</button>").join("") +
       '</div><form class="assistantInput" onsubmit="event.preventDefault();Assistant.ask(document.getElementById(\'assistantText\').value)">' +
@@ -53,16 +53,16 @@ const Assistant = (() => {
     body.scrollTop = body.scrollHeight;
   }
   function footNote() {
-    if (typeof LIVE === "undefined" || !LIVE) return "Offline demo: built-in answers. Sign in to use Gemini.";
-    if (!getPass()) return 'Built-in answers. <button class="textButton" onclick="Assistant.openSettings()">Add the team passcode</button> to use Gemini.';
-    return "Gemini reads beehive’s records but can’t change anything. Check important answers against the record.";
+    if (typeof LIVE === "undefined" || !LIVE) return "Offline demo: built-in answers. Sign in to use Claude.";
+    if (!getPass()) return 'Built-in answers. <button class="textButton" onclick="Assistant.openSettings()">Add the team passcode</button> to use Claude.';
+    return "Claude reads beehive’s records but can’t change anything. Check important answers against the record.";
   }
 
   function bubble(m) {
-    return '<div class="assistantMsg ' + m.from + '">' + m.text + (m.from === "bot" && m.source ? '<small class="srcNote">' + (m.source === "gemini" ? "Gemini" : "Built-in answer") + "</small>" : "") + "</div>";
+    return '<div class="assistantMsg ' + m.from + '">' + m.text + (m.from === "bot" && m.source ? '<small class="srcNote">' + (m.source === "claude" ? "Claude" : "Built-in answer") + "</small>" : "") + "</div>";
   }
 
-  // Gemini's plain text -> safe HTML (paragraphs and "- " bullet lists only)
+  // Claude's plain text -> safe HTML (paragraphs and "- " bullet lists only)
   function formatAnswer(text) {
     const lines = String(text || "").split(/\n+/);
     let html = "", inList = false;
@@ -77,18 +77,18 @@ const Assistant = (() => {
     if (inList) html += "</ul>";
     return html;
   }
-  async function callGemini(payload) {
+  async function callAI(payload) {
     const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = ctl ? setTimeout(() => ctl.abort(), 130000) : null;
     try {
       const res = await fetch("api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ passcode: getPass() }, payload)), signal: ctl ? ctl.signal : undefined });
       let body = {};
-      try { body = await res.json(); } catch (e) { body = { error: res.status === 404 ? "Gemini isn’t deployed on this site yet." : res.status === 504 ? "Gemini took too long." : "Unexpected response (" + res.status + ")." }; }
+      try { body = await res.json(); } catch (e) { body = { error: res.status === 404 ? "Claude isn’t deployed on this site yet." : res.status === 504 ? "Claude took too long." : "Unexpected response (" + res.status + ")." }; }
       if (res.status === 401) setPass("");
-      if (!res.ok) throw new Error(body.error || "Gemini couldn’t answer (" + res.status + ").");
+      if (!res.ok) throw new Error(body.error || "Claude couldn’t answer (" + res.status + ").");
       return body;
     } catch (e) {
-      if (e && e.name === "AbortError") throw new Error("Gemini didn’t answer within 2 minutes.");
+      if (e && e.name === "AbortError") throw new Error("Claude didn’t answer within 2 minutes.");
       throw e;
     } finally { if (timer) clearTimeout(timer); }
   }
@@ -111,17 +111,17 @@ const Assistant = (() => {
     note.textContent = "✦ Drafting…";
     let text, source;
     try {
-      if (geminiReady()) {
-        text = (await callGemini({ mode: "draft", child, parent, note: staffNote })).text;
+      if (aiReady()) {
+        text = (await callAI({ mode: "draft", child, parent, note: staffNote })).text;
         if (!text) throw new Error("empty draft");
-        source = "Gemini";
+        source = "Claude";
       } else {
         text = templateDraft(child, parent, staffNote);
         source = "built-in template";
       }
     } catch (e) {
       text = templateDraft(child, parent, staffNote);
-      source = "built-in template, because Gemini wasn’t available: " + (e.message || e);
+      source = "built-in template, because Claude wasn’t available: " + (e.message || e);
     }
     input.value = text;
     if (LIVE && ownerThread) {
@@ -159,17 +159,17 @@ const Assistant = (() => {
     if (!qtext || busy) return;
     const history = chat.filter((m) => m.plain).slice(-6).map((m) => ({ role: m.from === "you" ? "user" : "assistant", text: m.plain }));
     chat.push({ from: "you", text: esc(qtext), plain: qtext });
-    if (geminiReady()) {
+    if (aiReady()) {
       busy = true; renderPanel();
       try {
-        const r = await callGemini({ mode: "ask", question: qtext, history });
+        const r = await callAI({ mode: "ask", question: qtext, history });
         const links = /stopping|blocking|audit.?ready|not ready|fix first|gap|priorit|readiness/i.test(qtext) ? blockerLinks() : "";
-        chat.push({ from: "bot", text: formatAnswer(r.answer) + links, plain: r.answer, source: "gemini" });
+        chat.push({ from: "bot", text: formatAnswer(r.answer) + links, plain: r.answer, source: "claude" });
         busy = false; renderPanel();
         return;
       } catch (e) {
         busy = false;
-        chat.push({ from: "bot", text: '<small class="srcNote">Gemini wasn’t available (' + esc(e.message || String(e)) + "). Here’s the built-in answer instead.</small>", source: "" });
+        chat.push({ from: "bot", text: '<small class="srcNote">Claude wasn’t available (' + esc(e.message || String(e)) + "). Here’s the built-in answer instead.</small>", source: "" });
       }
     }
     const answer = await builtinAnswer(qtext);
@@ -242,13 +242,13 @@ const Assistant = (() => {
   // ---------- AI settings (owner) ----------
   function openSettings() {
     openModal(
-      '<div class="modalHead"><div><h2>AI settings</h2><p>Ask beehive, Draft with AI and the Compliance agent use Gemini on the server. Your Gemini key never reaches the browser.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalHead"><div><h2>AI settings</h2><p>Ask beehive, Draft with AI and the Compliance agent use Claude on the server. Your Claude key never reaches the browser.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<div class="modalSection"><h3>Team passcode</h3><p>Saved on this device until you close the browser. It’s the same passcode as the Compliance agent.</p>' +
       '<div class="assignLine"><input class="formControl" id="aiPass" type="password" placeholder="Team passcode" autocomplete="off" value="' + esc(getPass()) + '"><button class="button primary" onclick="Assistant.savePass()">Save</button></div>' +
-      '<p class="helpLine">Status: <b>' + (geminiReady() ? "Gemini on" : typeof LIVE !== "undefined" && LIVE ? "built-in answers (no passcode yet)" : "offline demo, built-in answers") + "</b></p></div>" +
-      '<div class="modalSection"><h3>Agent key for Vercel</h3><p>Gemini reads this centre’s records with an agent key. Put it in Vercel as <code>BEEHIVE_AGENT_KEY</code>, then redeploy. Creating a new key stops the old one working.</p>' +
+      '<p class="helpLine">Status: <b>' + (aiReady() ? "Claude on" : typeof LIVE !== "undefined" && LIVE ? "built-in answers (no passcode yet)" : "offline demo, built-in answers") + "</b></p></div>" +
+      '<div class="modalSection"><h3>Agent key for Vercel</h3><p>Claude reads this centre’s records with an agent key. Put it in Vercel as <code>BEEHIVE_AGENT_KEY</code>, then redeploy. Creating a new key stops the old one working.</p>' +
       '<div class="modalActions" style="justify-content:flex-start"><button class="button" onclick="Assistant.createKey()">Create agent key</button></div><div id="agentKeyOut"></div></div>' +
-      '<div class="modalSection"><h3>Vercel settings</h3><p><code>GOOGLE_GENERATIVE_AI_API_KEY</code> (from aistudio.google.com), <code>AGENT_PASSCODE</code>, <code>BEEHIVE_AGENT_KEY</code> and, optionally, <code>AGENT_MODEL</code> (default gemini-3.8-flash).</p></div>' +
+      '<div class="modalSection"><h3>Vercel settings</h3><p><code>ANTHROPIC_API_KEY</code> (from console.anthropic.com), <code>AGENT_PASSCODE</code>, <code>BEEHIVE_AGENT_KEY</code> and, optionally, <code>AGENT_MODEL</code> (default claude-haiku-5-5).</p></div>' +
       '<div class="modalActions"><button class="button" onclick="closeModal()">Done</button></div>'
     );
   }
@@ -256,7 +256,7 @@ const Assistant = (() => {
     const v = ((document.getElementById("aiPass") || {}).value || "").trim();
     setPass(v);
     closeModal();
-    toast(v ? "Passcode saved. Ask beehive will use Gemini." : "Passcode cleared. Ask beehive will use built-in answers.");
+    toast(v ? "Passcode saved. Ask beehive will use Claude." : "Passcode cleared. Ask beehive will use built-in answers.");
     if (open) renderPanel();
   }
   async function createKey() {
@@ -278,5 +278,5 @@ const Assistant = (() => {
     );
   }
 
-  return { refresh, toggle, ask, draftReply, openSettings, openConnect: openSettings, savePass, createKey, copyKey, geminiReady, callGemini };
+  return { refresh, toggle, ask, draftReply, openSettings, openConnect: openSettings, savePass, createKey, copyKey, aiReady, callAI };
 })();

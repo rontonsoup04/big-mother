@@ -1006,3 +1006,24 @@ a.button { text-decoration: none; display: inline-flex; align-items: center; gap
 .switch input:checked + span { background: var(--honey); }
 .switch input:checked + span::after { transform: translateX(14px); }
 .switch input:focus-visible + span { box-shadow: var(--focus); }
+
+/* Staff records */
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--s4); }
+.formField { display: grid; }
+.formField .formLabel { margin-top: var(--s3); }
+.dayPicks { display: flex; gap: var(--s3); flex-wrap: wrap; padding-top: 6px; font-size: var(--t-sm); }
+.dayPicks label { display: inline-flex; gap: 4px; align-items: center; }
+.docList { display: grid; gap: var(--s2); margin-top: var(--s2); }
+.docRow { display: flex; gap: var(--s3); align-items: center; padding: var(--s2) var(--s3); border: 1px solid var(--line); border-radius: var(--r-md); }
+.docRow .rowMain { flex: 1; display: grid; gap: 2px; }
+.docRow small { color: var(--ink-3); font-size: var(--t-xs); }
+.docRow .pdfIcon { width: 28px; height: 34px; font-size: 9px; }
+.modalSection .sectionHead h3 .count { color: var(--ink-3); font-weight: 500; margin-left: 6px; }
+.dangerText { color: var(--red) !important; }
+.formerSection .staffTable tbody tr { opacity: .85; }
+@media (max-width: 680px) { .formGrid { grid-template-columns: 1fr; } }
+.amendRow { display: flex; gap: var(--s3); align-items: center; justify-content: space-between; padding: var(--s2) 0; border-bottom: 1px solid var(--line); }
+.amendRow > div { display: grid; gap: 2px; }
+.amendRow small { color: var(--ink-3); font-size: var(--t-xs); }
+.modalSection .sectionHead { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.formerSection small.days { display: block; color: var(--ink-3); }

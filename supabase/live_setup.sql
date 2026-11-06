@@ -8,6 +8,7 @@
 --   4. the integration that joins them into one system
 --   5. read-only data for Ask beehive (Gemini)
 --   5b. asthma training as a required credential
+--   5c. staff records: qualifications, usual days, documents and former educators
 --   6. the demo data (this RESETS the demo centre: Sara, Priya, Mia and all demo records)
 --
 -- It's safe to run again: every step checks what already exists, and the demo data is rebuilt each time.
@@ -2326,6 +2327,23 @@ create or replace function public._required_cert_codes()
 returns text[] language sql immutable as $$ select array['WWCC', 'FIRST_AID', 'CPR', 'ANAPHYLAXIS', 'ASTHMA'] $$;
 
 -- ============================================================================
+-- supabase/migrations/20261106120000_staff_records.sql
+-- ============================================================================
+-- Staff records for the Staff page: qualification, usual days, start and leaving dates, and any document per educator.
+-- Educators who leave stay on file (is_active = false, left_on set) for at least 3 years (Reg 183(2)(f)).
+alter table public.staff
+  add column if not exists qualification text not null default '',
+  add column if not exists work_days text[] not null default '{Mon,Tue,Wed,Thu,Fri}',
+  add column if not exists started_on date,
+  add column if not exists left_on date;
+
+-- Any other document on an educator's file (an employment contract, a police check, a course certificate).
+insert into public.certificate_types (code, name, expires, reminder_days)
+values ('OTHER', 'Other document', false, 0)
+on conflict (code) do nothing;
+alter table public.staff_certificates add column if not exists title text not null default '';
+
+-- ============================================================================
 -- supabase/seed_demo.sql
 -- ============================================================================
 -- ============================================================================
@@ -2430,6 +2448,31 @@ begin
       (v_staff, (select id from public.certificate_types where code = 'ANAPHYLAXIS'), '22578VIC',  current_date + s.d_ana - 1095, current_date + s.d_ana),
       (v_staff, (select id from public.certificate_types where code = 'ASTHMA'),      '22556VIC',  current_date + s.d_ast - 1095, current_date + s.d_ast);
   end loop;
+
+  -- ---------- staff records: qualifications, usual days, documents and a former educator ----------
+  update public.staff st set qualification = q.qual, work_days = q.days, started_on = current_date - q.started
+    from (values
+      ('Mia Chen', 'Early childhood teacher', '{Mon,Tue,Wed,Thu,Fri}'::text[], 2100), ('Noah Williams', 'Diploma', '{Mon,Tue,Wed,Thu,Fri}'::text[], 1500),
+      ('Ava Patel', 'Diploma', '{Mon,Tue,Wed,Thu}'::text[], 900), ('Luca Martin', 'Working towards Certificate III', '{Mon,Tue,Wed,Thu,Fri}'::text[], 120),
+      ('Ella Brooks', 'Diploma', '{Mon,Tue,Wed,Thu,Fri}'::text[], 1300), ('Oliver King', 'Diploma', '{Mon,Tue,Wed,Thu,Fri}'::text[], 700),
+      ('Zara Ali', 'Diploma', '{Wed,Thu,Fri}'::text[], 1000), ('Leo Thompson', 'Certificate III', '{Mon,Tue,Wed}'::text[], 600),
+      ('Amara Singh', 'Diploma', '{Mon,Tue,Wed,Thu,Fri}'::text[], 800), ('Jack Wilson', 'Certificate III', '{Mon,Tue,Thu,Fri}'::text[], 1100)
+    ) as q(name, qual, days, started)
+   where st.centre_id = c_centre and st.full_name = q.name;
+  insert into public.staff_certificates (staff_id, certificate_type_id, certificate_number, title, issue_date)
+  select st.id, (select id from public.certificate_types where code = 'QUALIFICATION'),
+         case when st.qualification like 'Early%' then '' when st.qualification like '%iploma%' then 'CHC50121' else 'CHC30121' end,
+         case when st.qualification like 'Early%' then 'Bachelor of Early Childhood Education' else st.qualification end, st.started_on - 60
+    from public.staff st where st.centre_id = c_centre and st.qualification <> '';
+  -- Hannah left about 8 months ago: off the roster and the reminders, but her record stays for 3 years (Reg 183).
+  insert into public.staff (centre_id, full_name, email, position, room, is_active, qualification, started_on, left_on)
+  values (c_centre, 'Hannah Kim', 'hannah@example.com', 'Educator', 'Banksia Room', false, 'Diploma', current_date - 1180, current_date - 236)
+  returning id into v_staff;
+  insert into public.staff_certificates (staff_id, certificate_type_id, certificate_number, title, issue_date, expiry_date) values
+    (v_staff, (select id from public.certificate_types where code = 'WWCC'),          'WWC0661204E', 'Working with Children Check', current_date - 1200, current_date + 625),
+    (v_staff, (select id from public.certificate_types where code = 'FIRST_AID'),     'HLTAID012', 'HLTAID012 Provide First Aid', current_date - 700, current_date + 395),
+    (v_staff, (select id from public.certificate_types where code = 'QUALIFICATION'), 'CHC50121', 'Diploma', current_date - 1400, null),
+    (v_staff, (select id from public.certificate_types where code = 'OTHER'),         '', 'Employment contract and separation letter', current_date - 236, null);
 
   -- ---------- staff compliance agent: contact details and a few days of history ----------
   -- Phone numbers are invented. Leo has no email, so the agent texts him (simulated SMS).

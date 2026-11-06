@@ -296,9 +296,28 @@ const StaffAgent = (() => {
       const subs = subsPending.map((x) => Object.assign({}, x, { staffName: (staff(x.staffId) || {}).name, typeName: TYPE[x.code] }));
       return { tasks, feed, messages, subs, lastRun: S.runs[S.runs.length - 1] || null };
     }
+    // Staff records: a new educator, a credential recorded by the owner, an educator who has left.
+    function addStaff(e) {
+      if (staff(e.id)) return;
+      S.staff.push({ id: e.id, name: e.name, room: e.room, role: e.role, email: e.email || "", phone: e.phone || "", certs: {} });
+      save();
+    }
+    function setCert(id, code, c) {
+      const s = staff(id);
+      if (!s) return;
+      s.certs[code] = { expiry: c.expiry, issue: c.issue || null, number: c.number || "", verifiedAt: now().toISOString() };
+      S.tasks.filter((t) => t.staffId === id && t.code === code && t.state !== "resolved").forEach((t) => { t.state = "resolved"; t.resolvedAt = now().toISOString(); t.resolution = "Recorded by the owner"; });
+      save();
+    }
+    function removeStaff(id) {
+      S.tasks.filter((t) => t.staffId === id && t.state !== "resolved").forEach((t) => { t.state = "resolved"; t.resolvedAt = now().toISOString(); t.resolution = "Educator left the service"; });
+      S.subs.filter((x) => x.staffId === id && x.status === "pending").forEach((x) => (x.status = "withdrawn"));
+      S.staff = S.staff.filter((s) => s.id !== id);
+      save();
+    }
     function certsFor(id) { const s = staff(id); return s ? s.certs : {}; }
     function contactFor(id) { const s = staff(id); return s ? { email: s.email, phone: s.phone } : {}; }
-    return { load, run, submit, verify, ack, sendNow, uploadInfo, view, reset, certsFor, contactFor };
+    return { load, run, submit, verify, ack, sendNow, uploadInfo, view, reset, certsFor, contactFor, addStaff, setCert, removeStaff };
   })();
 
   // =====================================================================================
@@ -312,6 +331,10 @@ const StaffAgent = (() => {
     syncEducators();
     return r;
   }
+  // Offline staff records: keep the agent's store in step with the educator list.
+  function addEducator(e) { Engine.load(educators); Engine.addStaff(e); loadOffline(); }
+  function recordCredential(id, code, c) { Engine.load(educators); Engine.setCert(id, code, c); loadOffline(); }
+  function removeEducator(id) { Engine.load(educators); Engine.removeStaff(id); loadOffline(); }
   function syncEducators() {
     if (isLive() || typeof educators === "undefined") return;
     educators.forEach((e) => {
@@ -992,7 +1015,7 @@ const StaffAgent = (() => {
 
   return {
     // data
-    loadOffline, loadLive, active, data: () => data, counts, decisions, priorityOf, certPriority, PRIO, SHORT, TYPE,
+    loadOffline, loadLive, active, addEducator, recordCredential, removeEducator, data: () => data, counts, decisions, priorityOf, certPriority, PRIO, SHORT, TYPE,
     // rendering
     overviewSummary, renewalsCompact, feedHtml: () => feedHtml(feedLimit), staffSection, staffState, staffDetailHtml, prioTag, stateTag, uploadWidget, educatorRequests, setupNote,
     // actions
