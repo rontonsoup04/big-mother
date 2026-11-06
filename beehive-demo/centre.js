@@ -90,11 +90,11 @@ const Centre = (() => {
   // Builds the sheet for one day: per room, the children booked in, the educators on shift and what to fix.
   function buildSheet(day) {
     const dn = dayName(day);
-    const staffToday = typeof rosterToday === "function" ? rosterToday() : [];
+    const staffToday = typeof Roster !== "undefined" ? Roster.forDay(day) : [];
     const out = { day, rooms: [], flags: [] };
     rooms().forEach((room) => {
       const kids = children().filter((k) => k.room === room && k.days.includes(dn));
-      const eds = staffToday.filter((r) => r.e.room === room);
+      const eds = staffToday.filter((r) => r.room === room);
       const working = eds.filter((r) => r.wwcc);
       const youngest = kids.reduce((m, k) => Math.min(m, months(k.dob) == null ? 999 : months(k.dob)), 999);
       const rule = ratioFor(youngest === 999 ? null : youngest);
@@ -109,9 +109,11 @@ const Centre = (() => {
       if (asthmaKids.length && !eds.some((x) => x.wwcc && hasCert(x, "Asthma"))) r.flags.push(room + ": " + asthmaKids.map((k) => k.first).join(", ") + " has asthma but no rostered educator has current asthma training.");
       eds.filter((x) => !x.wwcc).forEach((x) => r.flags.push(room + ": " + x.e.name + " has no current WWCC and can’t work with children today."));
       kids.filter((k) => k.missing.length).forEach((k) => r.flags.push(room + ": " + k.first + " " + k.last + "’s enrolment record is missing " + k.missing.join(", ").toLowerCase() + "."));
+      if (!staffToday.length) r.flags = [];
       out.rooms.push(r);
       out.flags = out.flags.concat(r.flags);
     });
+    if (!staffToday.length) out.flags = ["No roster for " + fmtDay(day) + " yet. Create one on the Roster page so beehive can check ratios and first aid cover."];
     return out;
   }
 

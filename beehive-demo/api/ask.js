@@ -63,6 +63,21 @@ async function brief({ title, text, requirements, model, timeLimitMs }) {
   return object;
 }
 
+const ROSTER_INSTRUCTIONS = `You explain a weekly roster that beehive's rules engine built for an Australian long day care centre (NSW) to the centre owner.
+- Use only the roster data in the message. Never invent educators, numbers or rules.
+- Cover: how each day meets ratios and the 50% diploma rule (Reg 126: at least half the educators needed for ratio hold a diploma or above, or are working towards one), first aid cover in each room, anyone moved out of their home room and why, and any issue the data lists that still needs the owner.
+- 3 to 6 short bullet points ("- " at the start of each line), plain Australian English, no headings, no emoji.`;
+
+async function explainRoster({ week, days, model, timeLimitMs }) {
+  const m = modelFor(model);
+  const result = await generateText({
+    model: m.model, providerOptions: m.providerOptions, system: ROSTER_INSTRUCTIONS,
+    prompt: "Week starting " + String(week || "").slice(0, 10) + ":\n" + JSON.stringify(Array.isArray(days) ? days.slice(0, 7) : []).slice(0, 12000),
+    maxRetries: 0, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
+  });
+  return { text: (result.text || "").trim() };
+}
+
 async function rpc(fn, body, fetchImpl) {
   const res = await (fetchImpl || fetch)(SUPABASE_URL + "/rest/v1/rpc/" + fn, {
     method: "POST",
@@ -173,6 +188,7 @@ module.exports = async function handler(req, res) {
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) return send(res, 500, { error: "Gemini isn't set up yet: add GOOGLE_GENERATIVE_AI_API_KEY in Vercel's environment variables." });
   try {
     if (body.mode === "draft") return send(res, 200, await draft(body));
+    if (body.mode === "roster") return send(res, 200, await explainRoster(body));
     if (body.mode === "brief") {
       if (String(body.text || "").trim().length < 40) return send(res, 400, { error: "Paste the text of the change first." });
       return send(res, 200, await brief(body));
@@ -188,3 +204,4 @@ module.exports = async function handler(req, res) {
 module.exports.ask = ask;
 module.exports.draft = draft;
 module.exports.brief = brief;
+module.exports.explainRoster = explainRoster;

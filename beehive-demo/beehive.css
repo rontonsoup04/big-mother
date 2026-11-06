@@ -843,3 +843,27 @@ p.small, .small { font-size: var(--t-sm); }
   .dailySheetPrint .sheetAlert { color: #000; font-weight: 600; }
 }
 .childTable small.days { display: block; margin-top: 2px; }
+
+/* Roster */
+.weekNav { display: flex; gap: 4px; }
+.dayChecks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s3); margin-bottom: var(--s5); }
+.dayCheck { display: grid; gap: 6px; align-content: start; padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.dayCheck.good { border-color: #b9d8c0; }
+.dayCheck.bad { border-color: #e9b8b2; background: var(--red-tint); }
+.dayCheck small { color: var(--ink-3); font-size: var(--t-xs); }
+.aiNote { border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s4); margin-bottom: var(--s5); }
+.aiNoteHead { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.aiNoteHead small { margin-left: auto; color: var(--ink-3); font-size: var(--t-xs); }
+.aiNoteHead [data-icon] { width: 18px; height: 18px; color: var(--honey); display: inline-flex; }
+.aiNote ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: var(--t-sm); }
+.emptyRoster { padding: var(--s4) 0; }
+.rosterGrid { table-layout: fixed; min-width: 900px; }
+.rosterGrid th:first-child { width: 220px; }
+.rosterGrid tbody tr { cursor: default; }
+.rosterGrid tbody tr:hover { background: transparent; }
+.rosterCell select { width: 100%; font: inherit; font-size: var(--t-xs); padding: 6px 4px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--ink-3); }
+.rosterCell.on select { color: var(--ink); border-color: var(--honey); background: var(--honey-tint); }
+.rosterCell.away select { opacity: .55; }
+.rosterCell small { display: block; color: var(--ink-3); font-size: 11px; margin-top: 2px; }
+.dipTag { display: inline-block; font-size: 10px; padding: 0 5px; border-radius: var(--r-sm); background: var(--honey-tint); color: var(--ink-2); border: 1px solid #ecd9ae; }
+@media (max-width: 900px) { .dayChecks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
