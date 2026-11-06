@@ -197,6 +197,18 @@ const Roster = (() => {
     setWeek(data);
     render();
   }
+  // For the hive agent: add one shift on any date (its own week), keeping everything else.
+  function addShift(date, id, room, shift) {
+    const start = mondayOf(new Date(date + "T00:00:00"));
+    ensureWeek(start);
+    const all = load();
+    const data = all[start] || {};
+    data[date] = data[date] || {};
+    data[date][id] = { room, shift: shift || "mid" };
+    all[start] = data;
+    save(all);
+  }
+  function dayEntries(date) { const d = week(mondayOf(new Date(date + "T00:00:00"))) || {}; return d[date] || {}; }
   function shiftWeek(n) { weekStart = addDays(weekStart, 7 * n); render(); }
 
   // ---------- what the rest of beehive reads ----------
@@ -283,5 +295,5 @@ const Roster = (() => {
     const checks = WEEKDAYS.map((_, i) => check(addDays(start, i), data[addDays(start, i)]));
     return { exists: true, ok: checks.filter((c) => c.ok).length, issues: checks.reduce((n, c) => n + c.issues.length, 0), start };
   }
-  return { weekStatus, copyLast, toggleAuto, page, edit, create, clearWeek, change, shiftWeek, forDay, check, build, issueCount, profile, isDiploma };
+  return { addShift, dayEntries, demand, rosterable, blockers, dayOf, weekStatus, copyLast, toggleAuto, page, edit, create, clearWeek, change, shiftWeek, forDay, check, build, issueCount, profile, isDiploma };
 })();

@@ -278,5 +278,5 @@ const Assistant = (() => {
     );
   }
 
-  return { refresh, toggle, ask, draftReply, openSettings, openConnect: openSettings, savePass, createKey, copyKey, aiReady, callAI };
+  return { refresh, toggle, ask, draftReply, openSettings, openConnect: openSettings, savePass, createKey, copyKey, aiReady, callAI, passcode: getPass };
 })();

@@ -943,7 +943,7 @@ a.button { text-decoration: none; display: inline-flex; align-items: center; gap
 @media (max-width: 680px) { .shiftOptions { grid-template-columns: 1fr; } }
 
 /* Overview: the hive canvas */
-.canvas.hive { position: relative; height: 560px; border-radius: var(--r-lg); overflow: hidden; border: 1px solid #f0dfb8;
+.canvas.hive { position: relative; height: 660px; border-radius: var(--r-lg); overflow: hidden; border: 1px solid #f0dfb8;
   background-color: #fffaf0;
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0 56 16v32L28 64 0 48V16zM28 64v33' fill='none' stroke='%23f1e2bf' stroke-width='1.2'/%3E%3C/svg%3E"),
@@ -1027,3 +1027,14 @@ a.button { text-decoration: none; display: inline-flex; align-items: center; gap
 .amendRow small { color: var(--ink-3); font-size: var(--t-xs); }
 .modalSection .sectionHead { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
 .formerSection small.days { display: block; color: var(--ink-3); }
+
+/* Morning hive agent */
+.hiveBar { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); margin-bottom: var(--s3); border: 1px solid #f0dfb8; border-radius: var(--r-lg); background: #fffaf0; }
+.hiveBar > div { flex: 1; display: grid; gap: 2px; }
+.hiveBar small { color: var(--ink-3); font-size: var(--t-xs); }
+.hexCard.agent .hexBorder { background: linear-gradient(160deg, #b8a0e8, #7b5cc4); }
+.hexCard.agent .hexInner { background: #fbf9ff; }
+.hexCard.agent .cardLabel { color: #6a4fb3; border-color: #ddd2f3; }
+.hexTitle { background: none; border: 0; padding: 0; font: inherit; font-size: var(--t-sm); font-weight: 650; line-height: 1.25; color: var(--ink); cursor: pointer; text-decoration: underline; text-decoration-color: rgba(0,0,0,.15); text-underline-offset: 3px; }
+.hexTitle:hover { text-decoration-color: currentColor; }
+.hexCard .tick.no:hover { background: var(--red); border-color: var(--red); color: #fff; }

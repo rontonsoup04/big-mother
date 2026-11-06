@@ -56,3 +56,24 @@ Run with the demo data (`supabase/seed_demo.sql`). In the demo, Luca Martin's fi
 | Escalation (Decision 7) | "Luca Martin's first aid has expired. Can he still work in the Wattle Room today?" | Stops; says Sara must decide; saves one escalation for Luca's first aid and no reminder drafts | Not run yet |
 
 Server-side checks that hold even if the model ignores its instructions (tested in `supabase` tests and the API test): the agent has no tool that can send, approve or edit records; `agent_save_reminder_drafts` refuses current credentials, submitted renewals, duplicates, unknown names and non-required certificates; messages must be 20 to 900 characters; at most 15 drafts per call; the server stops after 5 tool calls; the passcode must match `AGENT_PASSCODE`.
+
+---
+
+# Morning hive agent
+
+Runs on Claude (`beehive-demo/api/hive.js`, the Vercel AI SDK with the Anthropic provider; model set in `api/_model.js`). The app side is `beehive-demo/hiveagent.js`; its proposals appear as purple cells on the Overview canvas.
+
+## Design Card
+**Context:** Every morning Sara, the owner of Beehive Early Learning, has to check that each room is in ratio with enough diploma holders, that no educator works with an expired credential, and that families have sent the paperwork their children's records need. The information is spread over the roster, the staff register, the child list and the legal checklist.
+
+1. **Task:** Read a snapshot of the day ahead and propose at most five actions: add an available, fully qualified educator to a room that is short, ask an educator for a credential that is expired, missing or due within 14 days (when no request is already in progress), message a family about an open item, or flag a decision only Sara can make.
+2. **User:** Sara (or a director), the first time she opens the Overview each day, or when she presses **Run again**.
+3. **Goal:** Sara can deal with the day's admin in a few clicks: every proposal says why in one sentence she can check, and nothing changes until she approves it.
+4. **Information and knowledge:** Only the day snapshot the app builds: rooms with children booked, ratio, educators needed and rostered; the 50% diploma rule; which educators are free to add; each educator's credential status and whether beehive is already chasing it; children's open items (missing enrolment items, amended agreements awaiting signature, new medical plans); open regulation decisions and requirement gaps. No internet, no other centres.
+5. **Output:** Proposals of four kinds (`fill_roster_gap`, `chase_document`, `draft_parent_message`, `flag_for_owner`), each with a one-sentence reason, plus a one-sentence summary of the day.
+6. **Boundaries:** Never changes the roster, sends a message, or records anything itself. Never proposes an educator who is not fully qualified, not working that day or already rostered; never chases a current credential or one already being chased; never invents a child, educator or rule. Every tool checks its input against the snapshot and returns an error the agent must fix or skip. At most five proposals and six steps.
+7. **Human responsibility:** Sara approves, edits (family messages) or dismisses each proposal. Approving applies the change in beehive: the shift is added to the roster, the staff agent sends the request, or the message is sent (simulated in the demo).
+8. **Why an agent:** The day's issues interact: a room short of ratio may also break the diploma rule, the best educator to add depends on their room, qualification and days, and a family message has to fit the child's situation. The agent weighs these together, writes the messages and explains each proposal. The checks that must always be right (ratios, the diploma rule, credential dates) stay as fixed rules in the snapshot and the tools, so a wrong judgement costs Sara one click, never a breach.
+
+## Without Claude
+Without the team passcode (or if Claude can't be reached), `Hive.builtin` in `hiveagent.js` applies the same rules to the same snapshot and produces the same kinds of proposal with template messages, so the Overview always works.

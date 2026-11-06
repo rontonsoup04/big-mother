@@ -32,7 +32,12 @@ const Canvas = (() => {
     if (kidsMissing.length) out.push({ id: "records", tone: "warn", label: "Centre", title: kidsMissing.length + " enrolment record" + (kidsMissing.length === 1 ? "" : "s") + " incomplete", detail: kidsMissing.map((k) => k.first + ": " + k.missing[0].toLowerCase()).join(" · "), act: "go('compliance')", btn: "Open" });
     return out;
   }
-  function items() { const s = load(); return candidates().filter((c) => !s.done.includes(c.id)).slice(0, MAX); }
+  // The agent's proposals come first; the rest of the hive fills any space left.
+  function items() {
+    const s = load();
+    const agent = typeof Hive !== "undefined" ? Hive.cells() : [];
+    return agent.slice(0, 4).concat(candidates().filter((c) => !s.done.includes(c.id))).slice(0, 5);
+  }
 
   // Honeycomb layout (px from the canvas's top-left): the daily sheet as a big cell, things to handle around it.
   const W = 210, H = 242; // a pointy-top hexagon: height = width × 1.155
@@ -42,8 +47,9 @@ const Canvas = (() => {
   function card(c, i, pos) {
     const p = pos[c.id] || { x: SLOTS[i % SLOTS.length][0], y: SLOTS[i % SLOTS.length][1] };
     return hex(c.id, c.tone, p,
-      '<span class="cardLabel">' + E(c.label) + "</span><h3>" + E(c.title) + "</h3><p>" + E(c.detail) + "</p>" +
-      '<div class="hexActions"><button class="button small primary" onclick="' + c.act + '">' + E(c.btn) + '</button><button class="tick" title="Done for today" aria-label="Done for today" onclick="Canvas.done(\'' + c.id + '\')">✓</button></div>',
+      '<span class="cardLabel">' + E(c.label) + "</span>" + (c.openAct ? '<button class="hexTitle" onclick="' + c.openAct + '">' + E(c.title) + "</button>" : "<h3>" + E(c.title) + "</h3>") + "<p>" + E(c.detail) + "</p>" +
+      '<div class="hexActions"><button class="button small primary" onclick="' + (c.review ? c.openAct : c.act) + '">' + E(c.btn) + "</button>" +
+        (c.altAct ? '<button class="tick no" title="Not now" aria-label="Not now" onclick="' + c.altAct + '">×</button>' : '<button class="tick" title="Done for today" aria-label="Done for today" onclick="Canvas.done(\'' + c.id + '\')">✓</button>') + "</div>",
       i + 1);
   }
   function sheetCard(pos) {
@@ -51,19 +57,21 @@ const Canvas = (() => {
     const st = typeof Centre !== "undefined" ? Centre.sheetStats() : null;
     const inner = !st ? "" :
       '<span class="cardLabel">Daily sheet</span><h2>' + E(st.dayLabel) + "</h2>" +
-      '<div class="hexRooms">' + st.rooms.map((r) => '<div><b>' + E(r.room.replace(/ Room$/, "")) + "</b><span>" + r.children + " kids · " + r.educators + " educators</span></div>").join("") + "</div>" +
+      '<div class="hexRooms">' + st.rooms.map((r) => '<div><b>' + E(r.room.replace(/ Room$/, "")) + "</b><span>" + r.children + " kids · " + r.educators + " educator" + (r.educators === 1 ? "" : "s") + "</span></div>").join("") + "</div>" +
       '<p class="hexNote">' + (st.alerts ? st.alerts + " children with allergies or medical needs" : "No medical alerts") + (st.flags ? " · " + st.flags + " to sort out" : " · all set") + "</p>" +
       '<div class="hexActions"><button class="button small" onclick="Centre.openFull()">Full sheet</button><button class="button small primary" onclick="Centre.printDay(\'' + st.day + '\')"><span data-icon="download"></span>PDF</button></div>';
     return hex("sheet", "sheet", p, inner);
   }
   const BEE = '<svg class="bee" viewBox="0 0 40 32" aria-hidden="true"><ellipse cx="13" cy="9" rx="8" ry="6" fill="#fff" opacity=".85" stroke="#c9b98f"/><ellipse cx="24" cy="8" rx="7" ry="5" fill="#fff" opacity=".85" stroke="#c9b98f"/><ellipse cx="20" cy="20" rx="12" ry="9" fill="#f2b632"/><path d="M15 12.5v15M21 11v18M27 12.5v15" stroke="#3b2f1e" stroke-width="3"/><circle cx="31" cy="18" r="1.4" fill="#3b2f1e"/></svg>';
   function page() {
+    if (typeof Hive !== "undefined" && !Hive.isRunning()) setTimeout(() => Hive.run(false), 0);
     const s = load(), list = items();
     const n = list.length;
     return (
       header(greeting() + ", " + E(firstName(OWNER_NAME)),
         new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }) + ". " + (n ? n + (n === 1 ? " thing" : " things") + " to handle in the hive. beehive is taking care of the rest." : "The hive is calm. Nothing needs you today."),
         (Object.keys(s.pos).length || s.done.length ? '<button class="button" onclick="Canvas.reset()">Tidy the hive</button>' : "")) +
+      (typeof Hive !== "undefined" ? Hive.statusBar() : "") +
       '<div class="canvas hive" id="canvas"><div class="beePath">' + BEE + "</div>" + sheetCard(s.pos) + list.map((c, i) => card(c, i, s.pos)).join("") +
       (n ? "" : hex("calm", "calm", { x: SLOTS[0][0], y: SLOTS[0][1] }, '<span class="cardLabel">All clear</span><h3>Nothing to handle</h3><p>Every credential, requirement and roster is in order.</p>')) +
       "</div>" +

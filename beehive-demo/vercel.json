@@ -5,6 +5,9 @@
     },
     "api/ask.js": {
       "maxDuration": 120
+    },
+    "api/hive.js": {
+      "maxDuration": 120
     }
   }
 }
