@@ -184,7 +184,7 @@ const Legal = (() => {
 
   // ---------- the Legal page: spot check requirements and ACECQA requirements on one page ----------
   function today() { const d = new Date(); while ([0, 6].includes(d.getDay())) d.setDate(d.getDate() + 1); return d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" }); }
-  function byId(id) { return reqItems().find((x) => x.id === id); }
+  function byId(id) { return reqItems().find((x) => x.id === id || x.key === id); }
   function itemRow(id, label, why) {
     const x = byId(id);
     if (!x) return null;
