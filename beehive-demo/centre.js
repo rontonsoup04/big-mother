@@ -233,5 +233,37 @@ const Centre = (() => {
     return tabs() + (tab === "daily" ? dailyPage() : tab === "policies" ? policiesPage() : tab === "contracts" ? contractsPage() : childrenPage());
   }
 
-  return { page, setTab, room, search, openChild, setDay, print, buildSheet, children };
+  // ---------- Overview ----------
+  function stats() {
+    const kids = children();
+    return { children: kids.length, incomplete: kids.filter((k) => k.missing.length).length,
+      contractsDue: typeof LIVE !== "undefined" && LIVE ? 0 : SAMPLE_CONTRACTS.filter((c) => daysTo(c.ends) <= c.notice).length };
+  }
+  function sheetSummary(s) {
+    return '<div class="sheetRooms">' + s.rooms.map((r) =>
+      '<div class="sheetRoom"><b>' + E(r.room) + "</b><small>" + r.kids.length + " children · " + r.eds.length + " educators · 1:" + r.rule.per + "</small>" +
+      (r.kids.filter((k) => alertText(k)).length ? '<small class="sheetAlert">' + r.kids.filter((k) => alertText(k)).map((k) => k.first + " (" + (k.allergies || k.conditions || k.dietary) + ")").join(", ") + "</small>" : "") + "</div>").join("") + "</div>" +
+      (s.flags.length ? '<ul class="rosterGapList sheetFlags">' + s.flags.slice(0, 4).map((f) => "<li>" + E(f) + "</li>").join("") + (s.flags.length > 4 ? "<li>" + (s.flags.length - 4) + " more on the full sheet</li>" : "") + "</ul>" : '<p class="muted small">Nothing to sort out: every room is in ratio with trained educators on shift.</p>');
+  }
+  function overviewSection() {
+    const day = nextWeekday(), s = buildSheet(day);
+    return '<section class="section dailyOverview"><div class="sectionHead"><h2>Daily sheet · ' + E(fmtDay(day)) + "</h2>" +
+      '<div class="buttonRow"><button class="textButton" onclick="Centre.openFull()">Open</button><button class="button small" onclick="Centre.printDay(\'' + day + '\')"><span data-icon="download"></span>Print or save as PDF</button></div></div>' +
+      sheetSummary(s) + "</section>";
+  }
+  // Shown on sign-in: today's sheet, ready to print.
+  function popup() {
+    const day = nextWeekday(), s = buildSheet(day);
+    const total = s.rooms.reduce((n, r) => n + r.kids.length, 0);
+    openModal(
+      '<div class="modalHead"><div><h2>Your daily sheet</h2><p>' + E(fmtDay(day)) + ". " + total + " children booked, " + s.flags.length + " thing" + (s.flags.length === 1 ? "" : "s") + ' to sort out.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalSection">' + sheetSummary(s) + "</div>" +
+      '<div class="formActions"><button class="button" onclick="closeModal();Centre.openFull()">See the full sheet</button><button class="button primary" onclick="Centre.printDay(\'' + day + '\')"><span data-icon="download"></span>Print or save as PDF</button></div>' +
+      '<p class="footnote">beehive shows this each time you sign in. It’s also on your Overview.</p>', "wide");
+    if (typeof fillIcons === "function") fillIcons(document.getElementById("modalRoot"));
+  }
+  function openFull() { tab = "daily"; sheetDay = null; go("compliance"); }
+  function printDay(day) { sheetDay = day; print(); }
+
+  return { page, setTab, room, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
 })();

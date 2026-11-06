@@ -594,7 +594,7 @@ const StaffAgent = (() => {
       '<section class="section" id="waiting"><div class="sectionHead"><h2>Waiting on staff<span class="count">' + list.length + "</span></h2><p>beehive follows up automatically</p></div>" +
       (list.length ? list.slice(0, 6).map((x) =>
         '<button class="row" onclick="' + x.act + '"><span class="rowMain"><b>' + E(x.who || "Staff") + "</b><small>" + E(x.what) + (x.since ? ", asked " + E(relTime(x.since).toLowerCase()) : "") + '</small></span><span class="rowMeta">' + (x.next ? (x.next <= today() ? "Follow-up today" : "Follow-up " + E(fmtShort(x.next))) : "") + "</span></button>").join("") +
-        (list.length > 6 ? '<p class="muted small">' + (list.length - 6) + " more in Staff certifications and Audit readiness</p>" : "")
+        (list.length > 6 ? '<p class="muted small">' + (list.length - 6) + " more in Staff and Legal</p>" : "")
         : '<p class="empty">No one owes beehive a response.</p>') + "</section>"
     );
   }
@@ -606,7 +606,7 @@ const StaffAgent = (() => {
       '<div class="credGroup"><p class="subhead"><span>' + PRIO[p].label + ' <span class="muted">' + prioRange(p) + '</span></span><span class="muted num">' + l.length + "</span></p>" +
       l.slice(0, max).map((t) =>
         '<button class="row" onclick="' + taskAction(t).act + '"><span class="rowMain"><b>' + E(t.staffName) + "</b><small>" + E(SHORT[t.code]) + ", " + E(t.reason) + "</small></span>" + stateTag(t.state) + "</button>").join("") +
-      (l.length > max ? '<button class="textButton moreLink" onclick="go(\'staff\')">' + (l.length - max) + " more in Staff certifications</button>" : "") + "</div>").join("");
+      (l.length > max ? '<button class="textButton moreLink" onclick="go(\'staff\')">' + (l.length - max) + " more in Staff</button>" : "") + "</div>").join("");
   }
   function prioRange(p) { return p === "critical" ? "expired or missing" : p === "high" ? "7 days or less" : p === "medium" ? "30 days or less" : "within 60 days"; }
 

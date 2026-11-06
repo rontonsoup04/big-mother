@@ -91,7 +91,7 @@ const Live = (() => {
     try { session = (await sb.auth.getSession()).data.session; } catch (e) {}
     sb.auth.onAuthStateChange((event) => { if (event === "SIGNED_OUT") { stopRealtime(); LIVE = false; showLogin(); } });
     if (session) {
-      try { await startLive(); } catch (e) { showLogin(e.message); }
+      try { await startLive(); showDailySheet(); } catch (e) { showLogin(e.message); }
     } else if (get("beehive-mode") === "offline") offline();
     else showLogin();
   }
@@ -106,6 +106,18 @@ const Live = (() => {
     if (typeof AuditAgent !== "undefined") AuditAgent.loadOffline();
     render();
     typeof Assistant !== "undefined" && Assistant.refresh();
+    showDailySheet();
+  }
+  // The daily sheet pops up whenever the owner or a director signs in (or opens the offline demo),
+  // and once when a saved session is reopened in a new browser session.
+  function showDailySheet(force) {
+    if (typeof Centre === "undefined") return;
+    if (LIVE && !(ME && (ME.role === "owner" || ME.role === "director"))) return;
+    if (typeof isFamily === "function" && isFamily()) return;
+    let seen = false;
+    try { seen = sessionStorage.getItem("beehive-daily-shown") === "1"; sessionStorage.setItem("beehive-daily-shown", "1"); } catch (e) {}
+    if (seen && !force) return;
+    setTimeout(() => Centre.popup(), 50);
   }
 
   function showLogin(message) {
@@ -147,6 +159,7 @@ const Live = (() => {
       await q(sb.auth.signInWithPassword({ email, password }));
       set("beehive-mode", "live");
       await startLive();
+      showDailySheet(true);
     } catch (e) {
       err.textContent = e.message;
       btn.disabled = false; btn.textContent = "Sign in";
@@ -157,7 +170,7 @@ const Live = (() => {
     set("beehive-mode", null);
     await sb.auth.signOut();
   }
-  function goOffline() { offline(); }
+  function goOffline() { try { sessionStorage.removeItem("beehive-daily-shown"); } catch (e) {} offline(); }
   function resetOffline() {
     if (typeof Library !== "undefined") Library.resetOffline();
     if (typeof StaffAgent !== "undefined") StaffAgent.reset();

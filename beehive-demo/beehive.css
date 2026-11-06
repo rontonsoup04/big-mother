@@ -867,3 +867,22 @@ p.small, .small { font-size: var(--t-sm); }
 .rosterCell small { display: block; color: var(--ink-3); font-size: 11px; margin-top: 2px; }
 .dipTag { display: inline-block; font-size: 10px; padding: 0 5px; border-radius: var(--r-sm); background: var(--honey-tint); color: var(--ink-2); border: 1px solid #ecd9ae; }
 @media (max-width: 900px) { .dayChecks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Overview: sections at a glance and the daily sheet */
+.sectionCards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s3); margin-bottom: var(--s5); }
+.sectionCard { display: grid; gap: 4px; text-align: left; padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); font: inherit; color: var(--ink); cursor: pointer; }
+.sectionCard:hover { background: var(--hover); }
+.sectionCardHead { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: var(--t-sm); font-weight: 500; }
+.sectionCardHead [data-icon] { width: 18px; height: 18px; display: inline-flex; }
+.sectionCard b { font-size: var(--t-xl); font-weight: 600; }
+.sectionCard small { color: var(--ink-3); font-size: var(--t-xs); }
+.sectionCard.bad { border-left: 3px solid var(--red); }
+.sectionCard.warn { border-left: 3px solid var(--honey); }
+.sectionCard.good { border-left: 3px solid #4f8a5b; }
+.sheetRooms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); margin: var(--s3) 0; }
+.sheetRoom { display: grid; gap: 2px; padding: var(--s3) 0; border-top: 1px solid var(--line); }
+.sheetRoom small { color: var(--ink-3); font-size: var(--t-xs); }
+.sheetRoom small.sheetAlert { color: var(--red); }
+.sheetFlags { font-size: var(--t-sm); }
+.dailyOverview .sectionHead { align-items: center; }
+@media (max-width: 900px) { .sectionCards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sheetRooms { grid-template-columns: 1fr; } }

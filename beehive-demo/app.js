@@ -859,13 +859,33 @@ function timelineHtml() {
     '<div class="tlLegend"><span><i class="hx" style="color:var(--green)"></i>Done</span><span><i class="hx" style="color:#d9a54a"></i>In progress</span><span><i class="hx" style="color:var(--line-2)"></i>Monitoring</span></div>'
   );
 }
+// The four sections at a glance, then the daily sheet, at the top of the Overview.
+function sectionCards() {
+  let creds = certRows();
+  let expired = creds.filter((x) => x.c.days < 0).length, soon = creds.filter((x) => x.c.days >= 0 && x.c.days <= 30).length;
+  let legalOpen = typeof Legal !== "undefined" ? Legal.openCount() : 0, gaps = approved ? countStatus("red") : 0;
+  let tasks = typeof Library !== "undefined" ? Library.taskList() : [];
+  let overdue = tasks.filter((t) => t.state === "overdue").length;
+  let cs = typeof Centre !== "undefined" ? Centre.stats() : { children: 0, incomplete: 0, contractsDue: 0 };
+  let rs = typeof Roster !== "undefined" ? Roster.weekStatus() : { exists: false, ok: 0, issues: 0 };
+  let card = (nav, icon, title, tone, big, line, go_) =>
+    '<button class="sectionCard ' + tone + '" onclick="' + go_ + '"><span class="sectionCardHead"><span data-icon="' + icon + '"></span>' + title + '</span><b class="num">' + big + "</b><small>" + line + "</small></button>";
+  return (
+    '<div class="sectionCards">' +
+    card("staff", "staff", "Staff", expired ? "bad" : soon ? "warn" : "good", expired ? expired : soon, expired ? "expired or missing credential" + (expired === 1 ? "" : "s") + (soon ? ", " + soon + " due within 30 days" : "") : soon ? "credential" + (soon === 1 ? "" : "s") + " due within 30 days" : "every credential current", "go('staff')") +
+    card("legal", "legal", "Legal", legalOpen || gaps ? "bad" : approved ? "good" : "warn", approved ? legalOpen + gaps : "Draft", approved ? (legalOpen ? legalOpen + " change" + (legalOpen === 1 ? "" : "s") + " to review" : "no changes to review") + (gaps ? ", " + gaps + " requirement gap" + (gaps === 1 ? "" : "s") : "") : "approve your requirements checklist", approved ? "go('legal')" : "go('audit')") +
+    card("centre", "centre", "Centre", overdue || cs.incomplete ? "bad" : cs.contractsDue ? "warn" : "good", cs.children, "children enrolled" + (cs.incomplete ? ", " + cs.incomplete + " incomplete record" + (cs.incomplete === 1 ? "" : "s") : "") + (overdue ? ", " + overdue + " task" + (overdue === 1 ? "" : "s") + " overdue" : "") + (cs.contractsDue ? ", " + cs.contractsDue + " contract" + (cs.contractsDue === 1 ? "" : "s") + " to renew" : ""), "go('compliance')") +
+    card("roster", "roster", "Roster", !rs.exists ? "warn" : rs.issues ? "bad" : "good", rs.exists ? rs.ok + "/5" : "None", rs.exists ? "days compliant this week" + (rs.issues ? ", " + rs.issues + " issue" + (rs.issues === 1 ? "" : "s") : "") : "no roster this week yet", "go('roster')") +
+    "</div>" + (typeof Centre !== "undefined" ? Centre.overviewSection() : "")
+  );
+}
 function overviewPage() {
   let decisions = decisionItems();
   let creds = certRows();
   let expired = creds.filter((x) => x.c.days < 0), soon = creds.filter((x) => x.c.days >= 0 && x.c.days <= 14), later = creds.filter((x) => x.c.days > 14);
   let credRow = (x) =>
     '<button class="row" onclick="openStaffDetail(\'' + x.e.id + '\')"><span class="rowMain"><b>' + esc(x.e.name) + "</b><small>" + esc(x.c.type) + ", " + esc(x.e.room) + '</small></span><span class="rowMeta num">' + (x.c.days < 0 ? "Expired " + esc(x.c.expiry) : x.c.days + " days") + "</span>" + statusTag(certStatus(x.c), x.c.days < 0 ? "Expired" : x.e.alertState && /prompt sent/i.test(x.e.alertState) ? "Reminder sent" : "No reminder yet") + "</button>";
-  let group = (title, list, max) => (list.length ? '<div class="credGroup"><p class="subhead"><span>' + title + '</span><span class="muted num">' + list.length + "</span></p>" + list.slice(0, max).map(credRow).join("") + (list.length > max ? '<button class="textButton moreLink" onclick="go(\'staff\')">' + (list.length - max) + " more in Staff certifications</button>" : "") + "</div>" : "");
+  let group = (title, list, max) => (list.length ? '<div class="credGroup"><p class="subhead"><span>' + title + '</span><span class="muted num">' + list.length + "</span></p>" + list.slice(0, max).map(credRow).join("") + (list.length > max ? '<button class="textButton moreLink" onclick="go(\'staff\')">' + (list.length - max) + " more in Staff</button>" : "") + "</div>" : "");
   let regPending = LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
   let tasks = typeof Library !== "undefined" ? Library.taskList() : [];
   let overdue = tasks.filter((t) => t.state === "overdue").length, dueSoon = tasks.filter((t) => t.state === "due_soon").length;
@@ -879,6 +899,7 @@ function overviewPage() {
         today + ". " + (att.length ? att.length + (att.length === 1 ? " thing needs" : " things need") + " you; beehive is handling the rest." : "Nothing needs you right now; beehive is handling the rest."),
         '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>',
       ) +
+      sectionCards() +
       StaffAgent.overviewSummary() +
       '<section class="section decisions" id="attention"><div class="sectionHead"><h2>Needs your attention<span class="count">' + att.length + "</span></h2><p>Decisions first, then to-dos beehive proposed</p></div>" +
       (dec.length ? dec.map(decisionRow).join("") : "") +
@@ -901,6 +922,7 @@ function overviewPage() {
       today + ". " + (decisions.length ? decisions.length + (decisions.length === 1 ? " decision is" : " decisions are") + " waiting for you." : "Nothing needs your decision right now."),
       '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>',
     ) +
+    sectionCards() +
     '<section class="section decisions"><div class="sectionHead"><h2>Needs your decision<span class="count">' + decisions.length + "</span></h2></div>" +
     (decisions.length ? decisions.map(decisionRow).join("") : '<p class="empty">You’re all caught up. beehive will flag anything that needs you.</p>') +
     "</section>" +

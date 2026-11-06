@@ -181,5 +181,6 @@ const Legal = (() => {
     return '<div class="areaFilters legalTabs" role="tablist">' + tab("legal", "Briefing", n) + tab("audit", "ACECQA requirements") + tab("legal-safety", "Safety and premises") + tab("updates", "Regulation updates") + "</div>";
   }
 
-  return { briefingPage, safetyPage, tabs, summarise, track, dismiss, example, builtinBrief };
+  function openCount() { return updates().reduce((k, o) => k + o.reviews.filter((r) => !r.decision).length, 0); }
+  return { openCount, briefingPage, safetyPage, tabs, summarise, track, dismiss, example, builtinBrief };
 })();

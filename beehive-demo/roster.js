@@ -261,5 +261,12 @@ const Roster = (() => {
       "Ratio counts are per day, not per hour: check opening and closing times on the daily sheet. The roster is also your record of educators working directly with children (Reg 151).</p>";
   }
 
-  return { page, create, clearWeek, change, shiftWeek, forDay, check, build, issueCount, profile, isDiploma };
+  // This week at a glance for the Overview: { exists, compliant days, issues }.
+  function weekStatus() {
+    const start = mondayOf(new Date()), data = week(start);
+    if (!data) return { exists: false, ok: 0, issues: 0, start };
+    const checks = WEEKDAYS.map((_, i) => check(addDays(start, i), data[addDays(start, i)]));
+    return { exists: true, ok: checks.filter((c) => c.ok).length, issues: checks.reduce((n, c) => n + c.issues.length, 0), start };
+  }
+  return { weekStatus, page, create, clearWeek, change, shiftWeek, forDay, check, build, issueCount, profile, isDiploma };
 })();
