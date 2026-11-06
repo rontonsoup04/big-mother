@@ -13,7 +13,7 @@ const Extract = (() => {
     pdf: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
     pdfWorker: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
   };
-  const TYPE_NAMES = { WWCC: "Working with Children Check", FIRST_AID: "First aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis training" };
+  const TYPE_NAMES = { WWCC: "Working with Children Check", FIRST_AID: "First aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis training", ASTHMA: "Emergency asthma management training" };
   const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
   const loaded = {};
 
@@ -101,6 +101,7 @@ const Extract = (() => {
   function detectType(t) {
     const s = t.toLowerCase();
     if (/anaphyla|22578vic|22300vic|adrenaline auto/.test(s)) return "ANAPHYLAXIS";
+    if (/asthma|22556vic|22282vic/.test(s)) return "ASTHMA";
     if (/working with children|\bwwc\s?\d|wwcc|children'?s guardian/.test(s)) return "WWCC";
     if (/hltaid0?1[12]|hltaid004|first\s*aid/.test(s)) return "FIRST_AID";
     if (/hltaid0?09|cardiopulmonary|\bcpr\b/.test(s)) return "CPR";
@@ -203,6 +204,7 @@ const Extract = (() => {
     FIRST_AID: ["HLTAID012", "Provide First Aid in an education and care setting", 1095],
     CPR: ["HLTAID009", "Provide cardiopulmonary resuscitation", 365],
     ANAPHYLAXIS: ["22578VIC", "Course in First Aid Management of Anaphylaxis", 1095],
+    ASTHMA: ["22556VIC", "Course in the Management of Asthma Risks and Emergencies in the Workplace", 1095],
     WWCC: ["WWC", "Working with Children Check clearance", 1825],
   };
   // variant: correct | wrong_name | no_expiry | unreadable | old

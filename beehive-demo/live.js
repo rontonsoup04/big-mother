@@ -10,8 +10,8 @@ const Live = (() => {
     safety_premises: "Safety & Premises",
     policies_procedures: "Policies & Procedures",
   };
-  const CERT_LABEL = { WWCC: "WWCC", FIRST_AID: "First Aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis" };
-  const CERT_ORDER = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS"];
+  const CERT_LABEL = { WWCC: "WWCC", FIRST_AID: "First Aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis", ASTHMA: "Asthma" };
+  const CERT_ORDER = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS", "ASTHMA"];
   const TRIGGER_LABEL = { manual: "Message", incident: "Incident", daily_summary: "Daily summary", medical: "Medical", document_request: "Document request" };
   const DEMO_LOGINS = [
     { email: "sara@beehive.demo", label: "Sara, owner" },

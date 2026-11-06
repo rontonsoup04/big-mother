@@ -11,17 +11,17 @@
 // Priority (one definition, used everywhere): Critical = expired or missing, High = 7 days or less,
 // Medium = 30 days or less, Monitor = later (the agent watches from 60 days out).
 const StaffAgent = (() => {
-  const REQUIRED = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS"];
-  const TYPE = { WWCC: "Working with Children Check", FIRST_AID: "First aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis training" };
-  const SHORT = { WWCC: "WWCC", FIRST_AID: "First Aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis" };
-  const CODE_OF = { WWCC: "WWCC", "First Aid": "FIRST_AID", CPR: "CPR", Anaphylaxis: "ANAPHYLAXIS" };
+  const REQUIRED = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS", "ASTHMA"];
+  const TYPE = { WWCC: "Working with Children Check", FIRST_AID: "First aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis training", ASTHMA: "Emergency asthma management training" };
+  const SHORT = { WWCC: "WWCC", FIRST_AID: "First Aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis", ASTHMA: "Asthma" };
+  const CODE_OF = { WWCC: "WWCC", "First Aid": "FIRST_AID", CPR: "CPR", Anaphylaxis: "ANAPHYLAXIS", Asthma: "ASTHMA" };
   const WINDOW = 60;
   const PRIO = { critical: { label: "Critical", cls: "crit", rank: 4 }, high: { label: "High", cls: "high", rank: 3 }, medium: { label: "Medium", cls: "medium", rank: 2 }, monitor: { label: "Monitor", cls: "monitor", rank: 1 } };
   const TASK_STATE = { monitoring: "Monitoring", waiting: "Waiting", owner_review: "Owner review", resolved: "Resolved" };
   const FEED_CLASS = { Monitoring: "watch", "Action taken": "progress", Waiting: "waiting", "Owner review": "needs", Resolved: "done" };
   const STATE_CLASS = { Monitoring: "monitor", "Action taken": "action", Waiting: "medium", "Owner review": "crit", Resolved: "green" };
   const FOLLOW_UP = { critical: 1, high: 2, medium: 5, monitor: 14 };
-  const STORE = "beehive-agent-v1";
+  const STORE = "beehive-agent-v2";
 
   let data = { available: false, mode: "", error: "", tasks: [], feed: [], messages: [], subs: [], lastRun: null };
   let feedFilter = "All";

@@ -17,7 +17,7 @@ const INSTRUCTIONS = require("./_agent-instructions.js");
 const SUPABASE_URL = process.env.BEEHIVE_SUPABASE_URL || "https://gaxkvceirdxqfpeeskwf.supabase.co";
 const SUPABASE_KEY = process.env.BEEHIVE_SUPABASE_KEY || "sb_publishable_X1bMxONpsKg5Oz0vuHJ6tw_av4VKfE8"; // public by design
 const MAX_TOOL_CALLS = 5;
-const CERTS = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS"];
+const CERTS = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS", "ASTHMA"];
 
 async function rpc(fn, body, fetchImpl) {
   const res = await (fetchImpl || fetch)(SUPABASE_URL + "/rest/v1/rpc/" + fn, {
@@ -44,7 +44,7 @@ function buildTools(ctx) {
   };
   return {
     review_credentials: tool({
-      description: "Read the educators' required credentials (WWCC, FIRST_AID, CPR, ANAPHYLAXIS) that are expired, missing or expiring within their reminder window, with days left, last reminder sent, whether a renewal was submitted and whether a draft or escalation is already waiting.",
+      description: "Read the educators' required credentials (WWCC, FIRST_AID, CPR, ANAPHYLAXIS, ASTHMA) that are expired, missing or expiring within their reminder window, with days left, last reminder sent, whether a renewal was submitted and whether a draft or escalation is already waiting.",
       inputSchema: z.object({}),
       execute: async () => {
         const entry = guard("review_credentials");

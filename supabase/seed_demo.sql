@@ -97,7 +97,8 @@ begin
       (v_staff, (select id from public.certificate_types where code = 'WWCC'),        'WWC' || (1000000 + floor(random() * 8999999))::int || 'E', current_date + s.d_wwcc - 1825, current_date + s.d_wwcc),
       (v_staff, (select id from public.certificate_types where code = 'FIRST_AID'),   'HLTAID012', current_date + s.d_fa - 1095,  current_date + s.d_fa),
       (v_staff, (select id from public.certificate_types where code = 'CPR'),         'HLTAID009', current_date + s.d_cpr - 365,  current_date + s.d_cpr),
-      (v_staff, (select id from public.certificate_types where code = 'ANAPHYLAXIS'), '22578VIC',  current_date + s.d_ana - 1095, current_date + s.d_ana);
+      (v_staff, (select id from public.certificate_types where code = 'ANAPHYLAXIS'), '22578VIC',  current_date + s.d_ana - 1095, current_date + s.d_ana),
+      (v_staff, (select id from public.certificate_types where code = 'ASTHMA'),      '22556VIC',  current_date + (s.d_wwcc % 500) + 12 - 1095, current_date + (s.d_wwcc % 500) + 12);
   end loop;
 
   -- Renewal prompts already sent for Mia (30 days) and Noah (7 days), as shown in the prototype.

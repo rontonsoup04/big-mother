@@ -181,6 +181,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "24 Nov 2026", days: 30 },
       { type: "CPR", expiry: "24 Nov 2026", days: 30 },
       { type: "Anaphylaxis", expiry: "08 May 2027", days: 195 },
+      { type: "Asthma", expiry: "17 Apr 2028", days: 540 },
     ],
   },
   {
@@ -195,6 +196,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "12 Apr 2027", days: 169 },
       { type: "CPR", expiry: "12 Apr 2027", days: 169 },
       { type: "Anaphylaxis", expiry: "01 Nov 2026", days: 7 },
+      { type: "Asthma", expiry: "09 Dec 2027", days: 410 },
     ],
   },
   {
@@ -209,6 +211,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "16 Mar 2027", days: 142 },
       { type: "CPR", expiry: "16 Mar 2027", days: 142 },
       { type: "Anaphylaxis", expiry: "20 Aug 2027", days: 299 },
+      { type: "Asthma", expiry: "17 Nov 2026", days: 23 },
     ],
   },
   {
@@ -223,6 +226,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "09 Sep 2026", days: -46 },
       { type: "CPR", expiry: "11 Nov 2026", days: 17 },
       { type: "Anaphylaxis", expiry: "21 Apr 2027", days: 178 },
+      { type: "Asthma", expiry: "25 Oct 2027", days: 365 },
     ],
   },
   {
@@ -237,6 +241,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "14 May 2027", days: 201 },
       { type: "CPR", expiry: "14 May 2027", days: 201 },
       { type: "Anaphylaxis", expiry: "06 Feb 2027", days: 104 },
+      { type: "Asthma", expiry: "06 Nov 2026", days: 12 },
     ],
   },
   {
@@ -251,6 +256,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "24 Nov 2026", days: 30 },
       { type: "CPR", expiry: "29 Nov 2026", days: 35 },
       { type: "Anaphylaxis", expiry: "02 Jun 2027", days: 220 },
+      { type: "Asthma", expiry: "21 Aug 2027", days: 300 },
     ],
   },
   {
@@ -265,6 +271,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "24 Dec 2026", days: 60 },
       { type: "CPR", expiry: "12 Dec 2026", days: 48 },
       { type: "Anaphylaxis", expiry: "19 Jan 2027", days: 86 },
+      { type: "Asthma", expiry: "25 Feb 2028", days: 488 },
     ],
   },
   {
@@ -279,6 +286,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "09 Feb 2027", days: 107 },
       { type: "CPR", expiry: "09 Feb 2027", days: 107 },
       { type: "Anaphylaxis", expiry: "09 Feb 2027", days: 107 },
+      { type: "Asthma", expiry: "24 Mar 2027", days: 150 },
     ],
   },
   {
@@ -293,6 +301,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "05 May 2027", days: 192 },
       { type: "CPR", expiry: "05 May 2027", days: 192 },
       { type: "Anaphylaxis", expiry: "15 May 2027", days: 202 },
+      { type: "Asthma", expiry: "12 Jul 2027", days: 260 },
     ],
   },
   {
@@ -307,6 +316,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "21 Jan 2027", days: 88 },
       { type: "CPR", expiry: "21 Jan 2027", days: 88 },
       { type: "Anaphylaxis", expiry: "15 Jun 2027", days: 233 },
+      { type: "Asthma", expiry: "28 Jan 2027", days: 95 },
     ],
   },
 ];
@@ -369,7 +379,7 @@ function syncLibrarySources() {
 function findItemByKey(k) { return items.find((x) => (x.key || x.id) === k); }
 function loadState() {
   try {
-    return JSON.parse(localStorage.getItem("beehive-audit-flow-v2") || "{}");
+    return JSON.parse(localStorage.getItem("beehive-audit-flow-v3") || "{}");
   } catch (e) {
     return {};
   }
@@ -377,7 +387,7 @@ function loadState() {
 function persist() {
   if (LIVE) return;
   localStorage.setItem(
-    "beehive-audit-flow-v2",
+    "beehive-audit-flow-v3",
     JSON.stringify({
       items: items,
       approved: approved,
@@ -1078,7 +1088,7 @@ function staffRows() {
         '<tr onclick="staffDetail(\'' + e.id + '\')"><td><div class="staffPerson"><b>' + esc(e.name) + "</b><small>" + esc(e.room) + ", " + esc(e.role) + "</small></div></td>" +
         e.certs.map((c) => certificateCell(c)).join("") +
         '<td data-label="Renewal">' + (agentOn() ? StaffAgent.staffState(e.id) || '<span class="alertState">Nothing due</span>' : '<span class="alertState ' + (e.alertState ? "sent" : "") + '">' + (e.alertState ? esc(e.alertState) : "No prompt sent") + "</span>") + "</td></tr>")
-      .join("") || '<tr><td colspan="6"><p class="empty">No educators match that search.</p></td></tr>'
+      .join("") || '<tr><td colspan="7"><p class="empty">No educators match that search.</p></td></tr>'
   );
 }
 function staffPortalPage() {
@@ -1087,17 +1097,17 @@ function staffPortalPage() {
     reminderTotal = educators.filter((e) => e.alertState && /prompt/i.test(e.alertState)).length;
   if (agentOn() || (LIVE && typeof StaffAgent !== "undefined" && StaffAgent.data().error))
     return (
-      header("Staff certifications", "beehive watches every credential, chases renewals and brings you only the decisions.", '<button class="button" onclick="StaffAgent.runNow()"><span data-icon="refresh"></span>Check now</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
+      header("Staff records", "beehive watches every credential, chases renewals and brings you only the decisions.", '<button class="button" onclick="StaffAgent.runNow()"><span data-icon="refresh"></span>Check now</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
       StaffAgent.staffSection() +
       '<section class="section"><div class="sectionHead"><h2>All educators<span class="count">' + educators.length + "</span></h2></div>" +
       '<div class="tableTools"><div class="legend"><span class="certState crit">Critical: expired or missing</span><span class="certState high">High: 7 days</span><span class="certState medium">Medium: 30 days</span><span class="certState monitor">Monitor: 60 days</span><span class="certState current">Current</span></div>' +
       '<input id="staffSearch" class="staffSearch" type="search" placeholder="Search educators or credentials" aria-label="Search staff certifications" oninput="searchStaff(this.value)"></div>' +
-      '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Renewal</th></tr></thead><tbody id="staffRows">' +
+      '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Asthma</th><th>Renewal</th></tr></thead><tbody id="staffRows">' +
       staffRows() + "</tbody></table></div></section>" +
       '<p class="footnote">' + (LIVE ? "The agent checks every credential when you open beehive and each morning. " : "Offline demo: the agent runs in this browser with sample educators. ") + "Email and SMS are simulated: messages are recorded with recipient and time but not delivered.</p>"
     );
   return (
-    header("Staff certifications", "", '<button class="button" onclick="runExpiryCheck()"><span data-icon="refresh"></span>Run expiry check</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
+    header("Staff records", "", '<button class="button" onclick="runExpiryCheck()"><span data-icon="refresh"></span>Run expiry check</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
     (pendingSubmission
       ? '<div class="callout"><span class="hx lg"></span><div><b>1 new staff certificate submitted</b><p>' + esc(pendingSubmission.staffName) + ", " + esc(pendingSubmission.type) + ". Check the file and confirm the expiry date.</p></div>" +
         '<span class="rowEnd"><button class="button primary" onclick="reviewSubmission()">Review submission</button></span></div>'
@@ -1105,7 +1115,7 @@ function staffPortalPage() {
     '<div class="summaryLine">' + stat(educators.length, "educators") + stat(expired, "expired", expired ? "red" : "") + stat(due, "due within 60 days", due ? "yellow" : "") + stat(reminderTotal, "reminders sent") + "</div>" +
     '<div class="tableTools"><div class="legend"><span class="certState green">Active</span><span class="certState yellow">Due within 60 days</span><span class="certState red">Expired</span></div>' +
     '<input id="staffSearch" class="staffSearch" type="search" placeholder="Search educators or credentials" aria-label="Search staff certifications" oninput="searchStaff(this.value)"></div>' +
-    '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Renewal</th></tr></thead><tbody id="staffRows">' +
+    '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Asthma</th><th>Renewal</th></tr></thead><tbody id="staffRows">' +
     staffRows() +
     "</tbody></table></div>" +
     '<p class="footnote">' + (LIVE ? "Reminders go out 60, 30 and 7 days before expiry. Email and SMS are simulated in this pilot; certificates are stored in your centre’s private storage." : "Offline demo: expiry checks and reminders are simulated. Files stay in this browser.") + "</p>"
@@ -1113,7 +1123,7 @@ function staffPortalPage() {
 }
 function staffUploadPage() {
   let options = educators.map((e) => '<option value="' + e.id + '" ' + (e.id === defaultUploadStaff() ? "selected" : "") + ">" + esc(e.name) + ", " + esc(e.room) + "</option>").join("");
-  let types = ["First Aid", "CPR", "WWCC", "Anaphylaxis"];
+  let types = ["First Aid", "CPR", "WWCC", "Anaphylaxis", "Asthma"];
   return (
     header(isEducator() ? "My certificates" : "Upload a certificate", isEducator() ? "Upload a renewed certificate. " + esc(ownerFirst().replace(/^the/, "The")) + " checks it before it counts." : "Upload on an educator’s behalf. This is the same page educators open from their reminder.", '<button class="button ownerBack" onclick="go(\'staff\')">Back to staff</button>') +
     (typeof Library !== "undefined" ? Library.educatorReminders() : "") +
@@ -1701,7 +1711,7 @@ function legalTabs() {
 // Shifts are sample data in the offline demo. Reg 151 requires a record of the rooms and times
 // each educator works directly with children, with their WWCC number.
 var ROSTER_SHIFTS = [["6:30 am", "3:00 pm"], ["7:30 am", "4:00 pm"], ["9:00 am", "5:30 pm"], ["10:00 am", "6:30 pm"]];
-var FIRST_AID_SET = ["First Aid", "CPR", "Anaphylaxis"];
+var FIRST_AID_SET = ["First Aid", "CPR", "Anaphylaxis", "Asthma"];
 function rosterToday() {
   if (!ROSTER_SHIFTS) return [];
   return educators.map((e, i) => {
@@ -1720,7 +1730,7 @@ function rosterGaps() {
   let gaps = [];
   rosterToday().forEach((r) => { if (!r.wwcc) gaps.push({ room: r.e.room, text: r.e.name + " has no current WWCC and can’t work with children." }); });
   Object.entries(rosterRooms()).forEach(([room, list]) => {
-    if (!list.some((r) => r.firstAid && r.wwcc)) gaps.push({ room, text: room + " has no educator with current first aid, CPR and anaphylaxis training on shift (Reg 136)." });
+    if (!list.some((r) => r.firstAid && r.wwcc)) gaps.push({ room, text: room + " has no educator with current first aid, CPR, anaphylaxis and asthma training on shift (Reg 136)." });
   });
   return gaps;
 }

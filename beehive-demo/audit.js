@@ -11,7 +11,7 @@
 //
 // Status: Missing, Under review, Compliant (+ indicators). Readiness = (compliant + ½ under review) / requirements.
 const AuditAgent = (() => {
-  const STORE = "beehive-audit-v1";
+  const STORE = "beehive-audit-v2";
   const LABEL = { missing: "Missing", under_review: "Under review", compliant: "Compliant" };
   const STATUS_CLASS = { missing: "red", under_review: "yellow", compliant: "green" };
   const COLOR_OF = { missing: "red", under_review: "yellow", compliant: "green" };
@@ -19,7 +19,7 @@ const AuditAgent = (() => {
   const FLAG = { overdue: "Overdue", review_due: "Renewal due soon", review_required: "Review required", awaiting_verification: "Awaiting verification", expiring: "Credentials expiring", task_overdue: "Scheduled task overdue" };
   const TASK_STATE = { monitoring: "Monitoring", waiting: "Waiting", owner_review: "Owner review", resolved: "Resolved" };
   const FOLLOW = { critical: 2, high: 3, medium: 7, low: 14 };
-  const REQUIRED = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS"];
+  const REQUIRED = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS", "ASTHMA"];
   // What each requirement is checked against (offline copy of the checklist_items columns).
   const META = {
     wwcc: { kind: "certificates", codes: ["WWCC"], months: 12, hint: "Working with Children Check number and expiry for every educator" },
