@@ -31,28 +31,28 @@ const Centre = (() => {
     kid("Oscar", "Nguyen", 900, "Wattle Room", ALL_WEEK, "Linh Nguyen · 04 0000 3141", { allergies: "Egg", conditions: "Anaphylaxis", medication: "EpiPen Jr 0.15 mg (Wattle Room kit)", dietary: "Egg-free meals", plan: true }),
     kid("Noah", "Kaur", 820, "Wattle Room", ["Mon", "Tue", "Wed"], "Harpreet Kaur · 04 0000 1414"),
     kid("Mila", "Rossi", 760, "Wattle Room", ["Wed", "Thu", "Fri"], "Marco Rossi · 04 0000 2645", { dietary: "Vegetarian" }),
-    kid("Arjun", "Mehta", 980, "Wattle Room", ALL_WEEK, "Neha Mehta · 04 0000 1958"),
+    kid("Arjun", "Mehta", 980, "Wattle Room", ALL_WEEK, "Neha Mehta · 04 0000 1958", { allergies: "Cow’s milk", dietary: "Dairy-free (soy milk from home)" }),
     kid("Hazel", "Okafor", 850, "Wattle Room", ["Mon", "Wed", "Fri"], "Chidi Okafor · 04 0000 4410", { missing: ["Immunisation history statement"] }),
-    kid("Theo", "Lambert", 800, "Wattle Room", ALL_WEEK, "Claire Lambert · 04 0000 4471"),
+    kid("Theo", "Lambert", 800, "Wattle Room", ALL_WEEK, "Claire Lambert · 04 0000 4471", { conditions: "Coeliac disease", dietary: "Gluten-free meals" }),
     kid("Aria", "Kim", 930, "Wattle Room", ["Tue", "Thu"], "Jun Kim · 04 0000 4502", { allergies: "Cow’s milk", dietary: "Dairy-free" }),
     kid("Finn", "Murphy", 870, "Wattle Room", ALL_WEEK, "Siobhan Murphy · 04 0000 4533"),
     kid("Lily", "Tran", 790, "Wattle Room", ["Mon", "Tue", "Thu", "Fri"], "Hoa Tran · 04 0000 4564"),
     kid("Eli", "Cohen", 950, "Wattle Room", ALL_WEEK, "Dana Cohen · 04 0000 4595", { missing: ["Authorised nominee for collection"] }),
     kid("Maya", "Patel", 1100, "Banksia Room", ALL_WEEK, "Priya Patel · 04 0000 2468", { allergies: "Peanuts", conditions: "Asthma", medication: "Ventolin inhaler (as needed)", dietary: "Peanut-free meals", plan: true }),
-    kid("Ruby", "Chen", 1300, "Banksia Room", ALL_WEEK, "Grace Chen · 04 0000 1618"),
+    kid("Ruby", "Chen", 1300, "Banksia Room", ALL_WEEK, "Grace Chen · 04 0000 1618", { dietary: "Vegetarian" }),
     kid("Ava", "Hassan", 1010, "Banksia Room", ["Mon", "Tue", "Wed", "Thu"], "Omar Hassan · 04 0000 1732", { dietary: "Halal" }),
-    kid("Zoe", "Wilson", 1180, "Banksia Room", ALL_WEEK, "Ben Wilson · 04 0000 1123"),
-    kid("Harvey", "Ng", 1220, "Banksia Room", ["Mon", "Wed", "Fri"], "Wei Ng · 04 0000 4626"),
+    kid("Zoe", "Wilson", 1180, "Banksia Room", ALL_WEEK, "Ben Wilson · 04 0000 1123", { conditions: "Asthma", medication: "Ventolin inhaler (Banksia Room kit)", plan: true }),
+    kid("Harvey", "Ng", 1220, "Banksia Room", ["Mon", "Wed", "Fri"], "Wei Ng · 04 0000 4626", { allergies: "Sesame", dietary: "Sesame-free meals" }),
     kid("Olive", "Barker", 1150, "Banksia Room", ALL_WEEK, "Sam Barker · 04 0000 4657", { conditions: "Eczema", medication: "Moisturiser after water play" }),
     kid("Kai", "Fernando", 1260, "Banksia Room", ["Tue", "Wed", "Thu", "Fri"], "Nadia Fernando · 04 0000 4688"),
     kid("Isla", "Brown", 1500, "Gumtree Room", ALL_WEEK, "Tom Brown · 04 0000 2718", { dietary: "Dairy-free" }),
-    kid("Leo", "Petrovic", 1400, "Gumtree Room", ALL_WEEK, "Ana Petrovic · 04 0000 2236"),
+    kid("Leo", "Petrovic", 1400, "Gumtree Room", ALL_WEEK, "Ana Petrovic · 04 0000 2236", { dietary: "No pork" }),
     kid("Jayden", "Smith", 1550, "Gumtree Room", ["Mon", "Tue", "Wed"], "Kate Smith · 04 0000 3316"),
-    kid("Sophie", "Taylor", 1450, "Gumtree Room", ALL_WEEK, "Emma Taylor · 04 0000 2584"),
+    kid("Sophie", "Taylor", 1450, "Gumtree Room", ALL_WEEK, "Emma Taylor · 04 0000 2584", { conditions: "Eczema", medication: "Moisturiser after water play" }),
     kid("Ethan", "Walsh", 1600, "Gumtree Room", ALL_WEEK, "Megan Walsh · 04 0000 4719", { allergies: "Tree nuts", conditions: "Anaphylaxis", medication: "EpiPen 0.3 mg (Gumtree Room kit)", dietary: "Nut-free meals", plan: true }),
     kid("Matilda", "Green", 1480, "Gumtree Room", ["Wed", "Thu", "Fri"], "Rose Green · 04 0000 4740"),
     kid("Ollie", "Singh", 1520, "Gumtree Room", ALL_WEEK, "Gurpreet Singh · 04 0000 4771", { missing: ["Signed enrolment agreement"] }),
-    kid("Grace", "Lee", 1420, "Gumtree Room", ["Mon", "Tue", "Thu", "Fri"], "Hannah Lee · 04 0000 4802"),
+    kid("Grace", "Lee", 1420, "Gumtree Room", ["Mon", "Tue", "Thu", "Fri"], "Hannah Lee · 04 0000 4802", { allergies: "Strawberries", dietary: "No strawberries" }),
     kid("Billy", "Evans", 1580, "Gumtree Room", ALL_WEEK, "Rhys Evans · 04 0000 4833"),
   ];
   const SAMPLE_CONTRACTS = [
@@ -70,10 +70,16 @@ const Centre = (() => {
   function children() {
     if (typeof LIVE !== "undefined" && LIVE && typeof Live !== "undefined" && Live.children) {
       return (Live.children() || []).map((k) => ({ id: k.id, first: k.first_name, last: k.last_name, dob: k.date_of_birth || "", room: k.room || "", days: ALL_WEEK, contact: k.emergency_contact || "",
-        allergies: "", conditions: "", medication: "", dietary: "", missing: [], live: true }));
+        ...liveMedical(k.medical), missing: [], live: true }));
     }
     return SAMPLE_CHILDREN;
   }
+  const none = (v) => (!v || /^(none|nil|n\/a|-)$/i.test(String(v).trim()) ? "" : String(v).trim());
+  const liveMedical = (m) => {
+    m = m || {};
+    const conditions = none(m.conditions);
+    return { allergies: none(m.allergies), conditions, dietary: none(m.dietary), medication: none(m.medications), plan: /anaphyla|asthma/i.test(conditions) };
+  };
   const months = (dob) => { if (!dob) return null; const a = new Date(dob + "T00:00:00"), b = new Date(); return (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth() - (b.getDate() < a.getDate() ? 1 : 0); };
   const ageLabel = (dob) => { const m = months(dob); if (m == null) return "—"; return m < 24 ? m + " months" : Math.floor(m / 12) + " yrs " + (m % 12) + " mths"; };
   const ratioFor = (m) => RATIO.find((r) => (m == null ? 999 : m) < r.maxMonths) || RATIO[RATIO.length - 1];
@@ -135,17 +141,17 @@ const Centre = (() => {
     const alerts = all.filter((k) => alertText(k)).length, missing = all.filter((k) => k.missing.length).length;
     const roomBtns = ["All rooms"].concat(rooms()).map((r) => '<button class="chip ' + (roomFilter === r ? "active" : "") + '" onclick="Centre.room(\'' + r + '\')">' + E(r) + (r === "All rooms" ? "" : " " + all.filter((k) => k.room === r).length) + "</button>").join("");
     return (
-      header("Children", all.length + " children enrolled across " + rooms().length + " rooms. " + alerts + " with medical or dietary alerts" + (missing ? ", " + missing + " with incomplete enrolment records." : ".") + " Click a child to open their contracts.",
+      header("Children", all.length + " children enrolled across " + rooms().length + " rooms. " + alerts + " with medical or dietary alerts" + (missing ? ", " + missing + " with incomplete enrolment records." : ".") + " Use Contracts on the right to view each family’s signed agreements.",
         "") +
       '<div class="childToolbar"><div class="chips">' + roomBtns + '</div><input class="formControl childSearch" type="search" placeholder="Search children, rooms or allergies" value="' + E(childQuery) + '" oninput="Centre.search(this.value)" aria-label="Search children"></div>' +
-      '<div class="tableWrap"><table class="staffTable childTable"><thead><tr><th>Child</th><th>Age</th><th>Days</th><th>Medical and dietary</th><th>Emergency contact</th><th>Contracts</th></tr></thead><tbody>' +
+      '<div class="tableWrap"><table class="staffTable childTable"><thead><tr><th>Child</th><th>Age</th><th>Days</th><th>Medical and dietary</th><th>Emergency contact</th><th class=\"contractCell\"></th></tr></thead><tbody>' +
       (list.map((k) =>
         '<tr onclick="Centre.openChild(\'' + E(k.id) + '\')"><td><div class="staffPerson"><b>' + E(k.first + " " + k.last) + "</b><small>" + E(k.room) + "</small></div></td>" +
         '<td data-label="Age" class="num">' + E(ageLabel(k.dob)) + "</td>" +
         '<td data-label="Days">' + (k.days.length === 5 ? "Mon–Fri" : E(k.days.join(", "))) + "</td>" +
         '<td data-label="Medical">' + (alertText(k) ? '<span class="status ' + (hasPlan(k) ? "crit" : "medium") + '">' + E(alertText(k)) + "</span>" + (hasPlan(k) ? "<small class=\"days\">Action plan on file</small>" : "") : '<span class="alertState">None recorded</span>') + "</td>" +
         '<td data-label="Contact">' + E(k.contact) + "</td>" +
-        '<td data-label="Contracts">' + (CONTRACTS.some((c) => unsigned(k, c.id)) ? '<span class="status crit">Awaiting signature</span>' : '<span class="status green">3 signed</span>') + (k.missing.filter((m) => !/enrolment agreement/i.test(m)).length ? '<small class="days">Missing ' + E(k.missing.filter((m) => !/enrolment agreement/i.test(m))[0].toLowerCase()) + "</small>" : "") + "</td></tr>").join("") ||
+        '<td data-label="Contracts" class="contractCell"><button class="button small' + (CONTRACTS.some((c) => unsigned(k, c.id)) ? " needsSign" : "") + '" onclick="event.stopPropagation();Centre.openContracts(\'' + E(k.id) + '\')"><span class="pdfMini">PDF</span>Contracts' + (CONTRACTS.some((c) => unsigned(k, c.id)) ? ' <b class="tabBadge">1</b>' : "") + "</button></td></tr>").join("") ||
         '<tr><td colspan="6"><p class="empty">No children match.</p></td></tr>') +
       "</tbody></table></div>" +
       '<p class="footnote">' + (typeof LIVE !== "undefined" && LIVE ? "From beehive’s enrolment records. Medical details show once the centre has approved a family’s update." : "Offline demo: sample children with invented details.") + " Enrolment records must include the details in Regs 160–162 and be kept for 3 years after the child leaves.</p>"
@@ -160,6 +166,20 @@ const Centre = (() => {
   const parentOf = (k) => String(k.contact || "").split("·")[0].trim() || "Parent";
   const signedDate = (k) => { const d = new Date(); d.setDate(d.getDate() - 40 - (k.first.length * 9)); return d; };
   const unsigned = (k, c) => c === "enrolment" && k.missing.some((m) => /enrolment agreement/i.test(m));
+  function contractListHtml(k) {
+    return '<div class="contractList">' + CONTRACTS.map((c) => {
+      const open = unsigned(k, c.id);
+      return '<button class="contractRow" onclick="Centre.openContract(\'' + E(k.id) + "','" + c.id + '\')"><span class="pdfIcon">PDF</span><span class="rowMain"><b>' + E(c.title) + "</b><small>" +
+        (open ? "Sent to " + E(parentOf(k)) + ", waiting for their signature" : "Signed by " + E(typeof OWNER_NAME !== "undefined" ? OWNER_NAME : "the centre") + " and " + E(parentOf(k)) + ", " + signedDate(k).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })) +
+        '</small></span><span class="status ' + (open ? "crit" : "green") + '">' + (open ? "Awaiting signature" : "Signed") + "</span></button>";
+    }).join("") + "</div>";
+  }
+  function openContracts(id) {
+    const k = children().find((x) => x.id === id);
+    if (!k) return;
+    openModal('<div class="modalHead"><div><h2>' + E(k.first + " " + k.last) + "’s contracts</h2><p>Agreements between " + E(typeof CENTRE_NAME !== "undefined" ? CENTRE_NAME : "the centre") + " and " + E(parentOf(k)) + '. Click one to view the PDF.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalSection">' + contractListHtml(k) + "</div>");
+  }
   function openChild(id) {
     const k = children().find((x) => x.id === id);
     if (!k) return;
@@ -242,7 +262,7 @@ const Centre = (() => {
     openModal(
       '<div class="modalHead"><div><h2>' + E(c.title) + "</h2><p>" + E(k.first + " " + k.last) + " · " + E(c.why) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<iframe class="pdfFrame" src="' + url + '" title="' + E(c.title) + '"></iframe>' +
-      '<div class="formActions"><button class="button" onclick="Centre.openChild(\'' + E(k.id) + '\')">Back to ' + E(k.first) + '</button><a class="button primary" href="' + url + '" download="' + file + '"><span data-icon="download"></span>Download PDF</a></div>', "wide"
+      '<div class="formActions"><button class="button" onclick="Centre.openContracts(\'' + E(k.id) + '\')">Back to contracts</button><a class="button primary" href="' + url + '" download="' + file + '"><span data-icon="download"></span>Download PDF</a></div>', "wide"
     );
   }
   function room(r) { roomFilter = r; render(); }
@@ -326,6 +346,13 @@ const Centre = (() => {
       (r.kids.filter((k) => alertText(k)).length ? '<small class="sheetAlert">' + r.kids.filter((k) => alertText(k)).map((k) => k.first + " (" + (k.allergies || k.conditions || k.dietary) + ")").join(", ") + "</small>" : "") + "</div>").join("") + "</div>" +
       (s.flags.length ? '<ul class="rosterGapList sheetFlags">' + s.flags.slice(0, 2).map((f) => "<li>" + E(f) + "</li>").join("") + (s.flags.length > 2 ? "<li>" + (s.flags.length - 2) + " more on the full sheet</li>" : "") + "</ul>" : '<p class="muted small">Nothing to sort out: every room is in ratio with trained educators on shift.</p>');
   }
+  // Numbers for the daily sheet cell on the Overview.
+  function sheetStats() {
+    const day = nextWeekday(), s = buildSheet(day);
+    return { day, dayLabel: new Date(day + "T00:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }),
+      rooms: s.rooms.map((r) => ({ room: r.room, children: r.kids.length, educators: r.eds.length })),
+      alerts: s.rooms.reduce((n, r) => n + r.kids.filter((k) => alertText(k)).length, 0), flags: s.flags.length };
+  }
   function overviewSection() {
     const day = nextWeekday(), s = buildSheet(day);
     return '<section class="section dailyOverview"><div class="sectionHead"><h2>' + E(fmtDay(day)) + "</h2>" +
@@ -350,5 +377,5 @@ const Centre = (() => {
   }
   function printDay(day) { sheetDay = day; print(); }
 
-  return { page, openContract, setTab, room, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
+  return { sheetStats, page, openContract, openContracts, setTab, room, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
 })();

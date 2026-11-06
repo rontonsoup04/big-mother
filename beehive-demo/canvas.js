@@ -3,7 +3,7 @@
 // Card positions and ticked-off items are remembered in this browser (ticked items for today only).
 const Canvas = (() => {
   const E = (s) => (typeof esc === "function" ? esc(s == null ? "" : s) : String(s == null ? "" : s));
-  const STORE = "beehive-canvas-v1";
+  const STORE = "beehive-canvas-v2";
   const MAX = 4; // things to handle at once
   const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
   function load() { try { const s = JSON.parse(localStorage.getItem(STORE) || "{}"); if (s.day !== today()) s.done = []; return Object.assign({ pos: {}, done: [], day: today() }, s); } catch (e) { return { pos: {}, done: [], day: today() }; } }
@@ -34,32 +34,40 @@ const Canvas = (() => {
   }
   function items() { const s = load(); return candidates().filter((c) => !s.done.includes(c.id)).slice(0, MAX); }
 
-  // Default spots (percent of the canvas): the daily sheet on the left, things to handle in two columns on the right.
-  const SLOTS = [[57, 0], [79, 0], [57, 34], [79, 34], [57, 68], [79, 68]];
+  // Honeycomb layout (px from the canvas's top-left): the daily sheet as a big cell, things to handle around it.
+  const W = 210, H = 242; // a pointy-top hexagon: height = width × 1.155
+  const SLOTS = [[452, 14], [452 + W + 10, 14], [452 + (W + 10) / 2, 14 + H * 0.75 + 8], [452 + (W + 10) * 1.5, 14 + H * 0.75 + 8], [452, 14 + (H * 0.75 + 8) * 2], [452 + W + 10, 14 + (H * 0.75 + 8) * 2]];
+  const hex = (id, cls, pos, inner, i) =>
+    '<article class="hexCard ' + cls + '" id="cc-' + id + '" style="left:' + pos.x + "px;top:" + pos.y + "px;--i:" + (i || 0) + '" onpointerdown="Canvas.drag(event,\'' + id + '\')"><div class="hexBorder"><div class="hexInner">' + inner + "</div></div></article>";
   function card(c, i, pos) {
     const p = pos[c.id] || { x: SLOTS[i % SLOTS.length][0], y: SLOTS[i % SLOTS.length][1] };
-    return (
-      '<article class="canvasCard ' + c.tone + '" id="cc-' + c.id + '" style="left:' + p.x + "%;top:" + p.y + '%">' +
-      '<header onpointerdown="Canvas.drag(event,\'' + c.id + '\')"><span class="cardLabel">' + E(c.label) + '</span><button class="tick" title="Done for today" aria-label="Done for today" onclick="Canvas.done(\'' + c.id + '\')">✓</button></header>' +
-      "<h3>" + E(c.title) + "</h3><p>" + E(c.detail) + '</p><button class="button small primary" onclick="' + c.act + '">' + E(c.btn) + "</button></article>"
-    );
+    return hex(c.id, c.tone, p,
+      '<span class="cardLabel">' + E(c.label) + "</span><h3>" + E(c.title) + "</h3><p>" + E(c.detail) + "</p>" +
+      '<div class="hexActions"><button class="button small primary" onclick="' + c.act + '">' + E(c.btn) + '</button><button class="tick" title="Done for today" aria-label="Done for today" onclick="Canvas.done(\'' + c.id + '\')">✓</button></div>',
+      i + 1);
   }
   function sheetCard(pos) {
-    const p = pos.sheet || { x: 0, y: 0 };
-    return '<article class="canvasCard sheet" id="cc-sheet" style="left:' + p.x + "%;top:" + p.y + '%"><header onpointerdown="Canvas.drag(event,\'sheet\')"><span class="cardLabel">Daily sheet</span></header>' +
-      (typeof Centre !== "undefined" ? Centre.overviewSection() : "") + "</article>";
+    const p = pos.sheet || { x: 14, y: 14 };
+    const st = typeof Centre !== "undefined" ? Centre.sheetStats() : null;
+    const inner = !st ? "" :
+      '<span class="cardLabel">Daily sheet</span><h2>' + E(st.dayLabel) + "</h2>" +
+      '<div class="hexRooms">' + st.rooms.map((r) => '<div><b>' + E(r.room.replace(/ Room$/, "")) + "</b><span>" + r.children + " kids · " + r.educators + " educators</span></div>").join("") + "</div>" +
+      '<p class="hexNote">' + (st.alerts ? st.alerts + " children with allergies or medical needs" : "No medical alerts") + (st.flags ? " · " + st.flags + " to sort out" : " · all set") + "</p>" +
+      '<div class="hexActions"><button class="button small" onclick="Centre.openFull()">Full sheet</button><button class="button small primary" onclick="Centre.printDay(\'' + st.day + '\')"><span data-icon="download"></span>PDF</button></div>';
+    return hex("sheet", "sheet", p, inner);
   }
+  const BEE = '<svg class="bee" viewBox="0 0 40 32" aria-hidden="true"><ellipse cx="13" cy="9" rx="8" ry="6" fill="#fff" opacity=".85" stroke="#c9b98f"/><ellipse cx="24" cy="8" rx="7" ry="5" fill="#fff" opacity=".85" stroke="#c9b98f"/><ellipse cx="20" cy="20" rx="12" ry="9" fill="#f2b632"/><path d="M15 12.5v15M21 11v18M27 12.5v15" stroke="#3b2f1e" stroke-width="3"/><circle cx="31" cy="18" r="1.4" fill="#3b2f1e"/></svg>';
   function page() {
     const s = load(), list = items();
     const n = list.length;
     return (
       header(greeting() + ", " + E(firstName(OWNER_NAME)),
-        new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }) + ". " + (n ? n + (n === 1 ? " thing" : " things") + " to handle. beehive is taking care of the rest." : "Nothing to handle. beehive is taking care of everything."),
-        (Object.keys(s.pos).length || s.done.length ? '<button class="button" onclick="Canvas.reset()">Reset canvas</button>' : "")) +
-      '<div class="canvas" id="canvas">' + sheetCard(s.pos) + list.map((c, i) => card(c, i, s.pos)).join("") +
-      (n ? "" : '<div class="canvasCard calm" style="left:57%;top:0"><h3>All clear</h3><p>Every credential, requirement and roster is in order. Enjoy your day.</p></div>') +
+        new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }) + ". " + (n ? n + (n === 1 ? " thing" : " things") + " to handle in the hive. beehive is taking care of the rest." : "The hive is calm. Nothing needs you today."),
+        (Object.keys(s.pos).length || s.done.length ? '<button class="button" onclick="Canvas.reset()">Tidy the hive</button>' : "")) +
+      '<div class="canvas hive" id="canvas"><div class="beePath">' + BEE + "</div>" + sheetCard(s.pos) + list.map((c, i) => card(c, i, s.pos)).join("") +
+      (n ? "" : hex("calm", "calm", { x: SLOTS[0][0], y: SLOTS[0][1] }, '<span class="cardLabel">All clear</span><h3>Nothing to handle</h3><p>Every credential, requirement and roster is in order.</p>')) +
       "</div>" +
-      '<p class="footnote">Drag cards by their top bar to arrange your canvas. Tick a card when it’s handled for today.</p>'
+      '<p class="footnote">Drag any cell to rearrange your hive. Tick a cell when it’s handled and it flies off for the day.</p>'
     );
   }
 
@@ -74,7 +82,7 @@ const Canvas = (() => {
     el.classList.add("dragging");
     const move = (e) => {
       const x = Math.min(Math.max(e.clientX - b.left - dx, 0), b.width - r.width), y = Math.min(Math.max(e.clientY - b.top - dy, 0), b.height - r.height);
-      el.style.left = (x / b.width) * 100 + "%"; el.style.top = (y / b.height) * 100 + "%";
+      el.style.left = x + "px"; el.style.top = y + "px";
     };
     const up = () => {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
@@ -83,7 +91,12 @@ const Canvas = (() => {
     };
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
   }
-  function done(id) { const s = load(); if (!s.done.includes(id)) s.done.push(id); save(s); render(); toast("Ticked off for today."); }
+  function done(id) {
+    const s = load(); if (!s.done.includes(id)) s.done.push(id); save(s);
+    const el = document.getElementById("cc-" + id);
+    if (el) { el.classList.add("flyAway"); setTimeout(render, 450); } else render();
+    toast("Nice work. Ticked off for today.");
+  }
   function reset() { try { localStorage.removeItem(STORE); } catch (e) {} render(); }
 
   return { page, drag, done, reset, items };

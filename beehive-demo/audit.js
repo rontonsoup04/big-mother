@@ -11,7 +11,7 @@
 //
 // Status: Missing, Under review, Compliant (+ indicators). Readiness = (compliant + ½ under review) / requirements.
 const AuditAgent = (() => {
-  const STORE = "beehive-audit-v2";
+  const STORE = "beehive-audit-v3";
   const LABEL = { missing: "Missing", under_review: "Under review", compliant: "Compliant" };
   const STATUS_CLASS = { missing: "red", under_review: "yellow", compliant: "green" };
   const COLOR_OF = { missing: "red", under_review: "yellow", compliant: "green" };

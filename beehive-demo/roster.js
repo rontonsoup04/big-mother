@@ -106,14 +106,16 @@ const Roster = (() => {
   // Fills each day: diploma holders first until the 50% rule is met, then the rest, each in their home room
   // where possible, so every room reaches ratio with first aid cover. One extra educator per room where staff
   // allow, for breaks. Shifts are staggered early, middle and late.
-  function build() {
+  // base: shifts already set by hand; they are kept and only the gaps are filled.
+  function build(base) {
     const out = {};
     weekDates().forEach((date) => {
       const dn = dayOf(date);
       const d = demand(date);
       const pool = staff().filter((e) => rosterable(e) && profile(e).days.includes(dn));
-      const taken = new Set();
-      const day = {};
+      const day = Object.assign({}, (base || {})[date] || {});
+      const kept = new Set(Object.keys(day));
+      const taken = new Set(kept);
       const inRoom = (room) => Object.values(day).filter((s) => s.room === room).length;
       const place = (e, room) => { day[e.id] = { room, shift: "" }; taken.add(e.id); };
       const needOf = (room) => (d.find((r) => r.room === room) || { needed: 0 }).needed;
@@ -136,26 +138,55 @@ const Roster = (() => {
       // stagger shifts within each room
       rooms().forEach((room) => {
         const ids = Object.keys(day).filter((id) => day[id].room === room);
-        ids.forEach((id, i) => (day[id].shift = ["early", "late", "mid"][i % 3]));
+        ids.forEach((id, i) => { if (!kept.has(id)) day[id].shift = ["early", "late", "mid"][i % 3]; });
       });
       out[date] = day;
     });
     return out;
   }
+  // Auto-fill: keeps every shift set by hand and fills the gaps with fully qualified educators.
   function create() {
-    if (week() && !confirm("Replace this week’s roster with a new one?")) return;
-    const data = build();
+    const before = week() || {};
+    const data = build(before);
     setWeek(data);
     const off = staff().filter((e) => !rosterable(e));
     render();
-    toast("Roster created for the week of " + fmt(weekStart) + ": ratios and the 50% diploma rule met every day" + (off.length ? ". " + off.map((e) => e.name.split(" ")[0]).join(" and ") + " left off until their credentials are renewed." : "."));
+    toast((Object.keys(before).length ? "Gaps filled" : "Roster created") + " for the week of " + fmt(weekStart) + ": ratios and the 50% diploma rule met every day" + (off.length ? ". " + off.map((e) => e.name.split(" ")[0]).join(" and ") + " left off until their credentials are renewed." : "."));
+  }
+  function copyLast() {
+    const prev = load()[addDays(weekStart, -7)];
+    if (!prev) return toast("There’s no roster for last week to copy.");
+    if (week() && !confirm("Replace this week’s shifts with last week’s?")) return;
+    const data = {};
+    weekDates().forEach((date, i) => {
+      const from = prev[addDays(weekStart, i - 7)] || {};
+      data[date] = Object.fromEntries(Object.entries(from).filter(([id]) => { const e = staff().find((x) => x.id === id); return e && rosterable(e); }));
+    });
+    setWeek(data);
+    render();
+    toast("Copied last week’s shifts. Anyone whose credentials have lapsed since was left off.");
+  }
+  // Automatic rostering: once enough educators are fully qualified, beehive builds each new week by itself.
+  const AUTO_KEY = "beehive-roster-auto";
+  function autoOn() { try { return localStorage.getItem(AUTO_KEY) !== "off"; } catch (e) { return true; } }
+  function toggleAuto() { try { localStorage.setItem(AUTO_KEY, autoOn() ? "off" : "on"); } catch (e) {} render(); }
+  function readyCount() { return staff().filter(rosterable).length; }
+  function canAuto() {
+    // enough fully qualified educators to cover the busiest day this week
+    const need = Math.max(0, ...weekDates().map((d) => demand(d).reduce((n, r) => n + r.needed, 0)));
+    return readyCount() >= need && need > 0;
+  }
+  function autoFill() {
+    if (week() || !autoOn() || !canAuto()) return false;
+    setWeek(build({}));
+    return true;
   }
   function clearWeek() {
-    if (!week()) return;
+    if (!week() || !Object.values(week()).some((d) => Object.keys(d || {}).length)) return;
     if (!confirm("Delete the roster for the week of " + fmt(weekStart) + "? This can’t be undone.")) return;
-    setWeek(null);
+    setWeek({}); // an empty week, so auto-roster leaves it for you to build by hand
     render();
-    toast("Roster deleted for the week of " + fmt(weekStart) + ".");
+    toast("Roster deleted for the week of " + fmt(weekStart) + ". Click any day to build it by hand.");
   }
   function change(date, id, value) {
     const data = week() || {};
@@ -169,7 +200,15 @@ const Roster = (() => {
 
   // ---------- what the rest of beehive reads ----------
   // Entries for one date in the shape the daily sheet uses. Without a roster for that week, nobody is on.
+  // Builds a week on its own when auto-roster is on and nobody has started it yet.
+  function ensureWeek(start) {
+    if (week(start)) return;
+    const keep = weekStart;
+    weekStart = start;
+    try { autoFill(); } finally { weekStart = keep; }
+  }
   function forDay(isoDate) {
+    ensureWeek(mondayOf(new Date(isoDate + "T00:00:00")));
     const data = week(mondayOf(new Date(isoDate + "T00:00:00"))) || {};
     return Object.entries(data[isoDate] || {}).map(([id, s]) => {
       const e = staff().find((x) => x.id === id);
@@ -206,13 +245,23 @@ const Roster = (() => {
     );
   }
   function page() {
-    const data = week();
+    const autoMade = autoFill();
+    const stored = week();
+    const data = stored && Object.values(stored).some((d) => Object.keys(d || {}).length) ? stored : null;
     const dates = weekDates();
     const head =
-      header("Roster", "Week of " + fmt(weekStart, { day: "numeric", month: "long", year: "numeric" }) + ". Every day meets ratios and the 50% diploma rule; educators with an expired credential stay off until it’s renewed.",
+      header("Roster", "Week of " + fmt(weekStart, { day: "numeric", month: "long", year: "numeric" }) + ". Click any day to add or change a shift. Educators with an expired credential stay off until it’s renewed.",
         '<div class="weekNav"><button class="iconButton" aria-label="Previous week" onclick="Roster.shiftWeek(-1)">‹</button><button class="iconButton" aria-label="Next week" onclick="Roster.shiftWeek(1)">›</button></div>' +
+        '<button class="button" onclick="Roster.copyLast()">Copy last week</button>' +
         '<button class="button" onclick="Roster.clearWeek()" ' + (data ? "" : "disabled") + ">Delete week roster</button>" +
-        '<button class="button primary" onclick="Roster.create()"><span data-icon="spark"></span>' + (data ? "Recreate with AI" : "Create with AI") + "</button>");
+        '<button class="button primary" onclick="Roster.create()"><span data-icon="spark"></span>' + (data ? "Fill gaps with AI" : "Create with AI") + "</button>");
+    const ready = readyCount();
+    const autoBar =
+      '<div class="autoBar"><span class="aiMark" data-icon="spark"></span><div><b>' + ready + " of " + staff().length + " educators are fully qualified</b><small>" +
+        (canAuto() ? (autoOn() ? "beehive builds each new week for you from fully qualified educators. Click any day to change a shift." : "Auto-roster is off: build the week by clicking each day, or use Create with AI.")
+          : "Not enough fully qualified educators to cover every day yet, so build the week by hand: click any day to add a shift.") +
+        (autoMade ? " This week was just built automatically." : "") + "</small></div>" +
+        (canAuto() ? '<label class="switch"><input type="checkbox" ' + (autoOn() ? "checked" : "") + ' onchange="Roster.toggleAuto()"><span></span>Auto-roster</label>' : "") + "</div>";
     const legend = '<div class="calLegend">' + rooms().map((r) => '<span class="shift ' + toneOf(r) + '">' + E(r) + "</span>").join("") + '<span class="dipTag">Diploma+</span><span class="muted">' + staff().filter(isDiploma).length + " of " + staff().length + " educators</span></div>";
     const table =
       '<div class="tableWrap"><table class="calendar"><thead><tr><th>Educator</th>' +
@@ -220,16 +269,18 @@ const Roster = (() => {
       staff().map((e) => '<tr class="' + (rosterable(e) ? "" : "isBlocked") + '"><td><div class="staffPerson"><b>' + E(e.name) + "</b><small>" + E(profile(e).qual) + (isDiploma(e) ? ' <span class="dipTag">Diploma+</span>' : "") + "</small></div></td>" +
         dates.map((d) => cell(d, e, data && data[d] ? data[d][e.id] : null)).join("") + "</tr>").join("") +
       "</tbody></table></div>";
-    return head + legend + (data ? "" : '<p class="emptyRoster muted">No roster for this week yet. Create with AI fills it in, or click a day to add a shift.</p>') + table +
+    return head + autoBar + legend + (data ? "" : '<p class="emptyRoster muted">No roster for this week yet. Click any day to add a shift, or use Create with AI.</p>') + table +
       '<p class="footnote">' + (typeof LIVE !== "undefined" && LIVE ? "Rosters are saved in this browser for now. " : "Offline demo: sample qualifications and availability. ") + "The roster is also your record of educators working directly with children (Reg 151).</p>";
   }
 
   // This week at a glance for the Overview.
   function weekStatus() {
-    const start = mondayOf(new Date()), data = week(start);
-    if (!data) return { exists: false, ok: 0, issues: 0, start };
+    const start = mondayOf(new Date());
+    ensureWeek(start);
+    const data = week(start);
+    if (!data || !Object.values(data).some((d) => Object.keys(d || {}).length)) return { exists: false, ok: 0, issues: 0, start };
     const checks = WEEKDAYS.map((_, i) => check(addDays(start, i), data[addDays(start, i)]));
     return { exists: true, ok: checks.filter((c) => c.ok).length, issues: checks.reduce((n, c) => n + c.issues.length, 0), start };
   }
-  return { weekStatus, page, edit, create, clearWeek, change, shiftWeek, forDay, check, build, issueCount, profile, isDiploma };
+  return { weekStatus, copyLast, toggleAuto, page, edit, create, clearWeek, change, shiftWeek, forDay, check, build, issueCount, profile, isDiploma };
 })();

@@ -175,11 +175,11 @@ const BASE_EDUCATORS = [
     initials: "MC",
     role: "Lead educator",
     room: "Wattle Room",
-    alertState: "Renewal prompt sent · 30 days",
+    alertState: "",
     certs: [
       { type: "WWCC", expiry: "14 Jun 2028", days: 597 },
-      { type: "First Aid", expiry: "24 Nov 2026", days: 30 },
-      { type: "CPR", expiry: "24 Nov 2026", days: 30 },
+      { type: "First Aid", expiry: "02 Jul 2027", days: 250 },
+      { type: "CPR", expiry: "02 Jul 2027", days: 250 },
       { type: "Anaphylaxis", expiry: "08 May 2027", days: 195 },
       { type: "Asthma", expiry: "17 Apr 2028", days: 540 },
     ],
@@ -190,12 +190,12 @@ const BASE_EDUCATORS = [
     initials: "NW",
     role: "Educator",
     room: "Banksia Room",
-    alertState: "Renewal prompt sent · 7 days",
+    alertState: "",
     certs: [
       { type: "WWCC", expiry: "03 Feb 2028", days: 466 },
       { type: "First Aid", expiry: "12 Apr 2027", days: 169 },
       { type: "CPR", expiry: "12 Apr 2027", days: 169 },
-      { type: "Anaphylaxis", expiry: "01 Nov 2026", days: 7 },
+      { type: "Anaphylaxis", expiry: "10 Sep 2027", days: 320 },
       { type: "Asthma", expiry: "09 Dec 2027", days: 410 },
     ],
   },
@@ -207,11 +207,11 @@ const BASE_EDUCATORS = [
     room: "Gumtree Room",
     alertState: "",
     certs: [
-      { type: "WWCC", expiry: "24 Dec 2026", days: 60 },
+      { type: "WWCC", expiry: "24 Sep 2028", days: 700 },
       { type: "First Aid", expiry: "16 Mar 2027", days: 142 },
       { type: "CPR", expiry: "16 Mar 2027", days: 142 },
       { type: "Anaphylaxis", expiry: "20 Aug 2027", days: 299 },
-      { type: "Asthma", expiry: "17 Nov 2026", days: 23 },
+      { type: "Asthma", expiry: "29 Dec 2027", days: 430 },
     ],
   },
   {
@@ -224,7 +224,7 @@ const BASE_EDUCATORS = [
     certs: [
       { type: "WWCC", expiry: "09 Jan 2028", days: 441 },
       { type: "First Aid", expiry: "09 Sep 2026", days: -46 },
-      { type: "CPR", expiry: "11 Nov 2026", days: 17 },
+      { type: "CPR", expiry: "22 Jun 2027", days: 240 },
       { type: "Anaphylaxis", expiry: "21 Apr 2027", days: 178 },
       { type: "Asthma", expiry: "25 Oct 2027", days: 365 },
     ],
@@ -241,7 +241,7 @@ const BASE_EDUCATORS = [
       { type: "First Aid", expiry: "14 May 2027", days: 201 },
       { type: "CPR", expiry: "14 May 2027", days: 201 },
       { type: "Anaphylaxis", expiry: "06 Feb 2027", days: 104 },
-      { type: "Asthma", expiry: "06 Nov 2026", days: 12 },
+      { type: "Asthma", expiry: "09 Nov 2027", days: 380 },
     ],
   },
   {
@@ -253,8 +253,8 @@ const BASE_EDUCATORS = [
     alertState: "",
     certs: [
       { type: "WWCC", expiry: "16 Sep 2027", days: 326 },
-      { type: "First Aid", expiry: "24 Nov 2026", days: 30 },
-      { type: "CPR", expiry: "29 Nov 2026", days: 35 },
+      { type: "First Aid", expiry: "23 May 2027", days: 210 },
+      { type: "CPR", expiry: "23 May 2027", days: 210 },
       { type: "Anaphylaxis", expiry: "02 Jun 2027", days: 220 },
       { type: "Asthma", expiry: "21 Aug 2027", days: 300 },
     ],
@@ -268,9 +268,9 @@ const BASE_EDUCATORS = [
     alertState: "",
     certs: [
       { type: "WWCC", expiry: "12 Apr 2028", days: 534 },
-      { type: "First Aid", expiry: "24 Dec 2026", days: 60 },
-      { type: "CPR", expiry: "12 Dec 2026", days: 48 },
-      { type: "Anaphylaxis", expiry: "19 Jan 2027", days: 86 },
+      { type: "First Aid", expiry: "21 Aug 2027", days: 300 },
+      { type: "CPR", expiry: "21 Aug 2027", days: 300 },
+      { type: "Anaphylaxis", expiry: "01 Aug 2027", days: 280 },
       { type: "Asthma", expiry: "25 Feb 2028", days: 488 },
     ],
   },
@@ -379,7 +379,7 @@ function syncLibrarySources() {
 function findItemByKey(k) { return items.find((x) => (x.key || x.id) === k); }
 function loadState() {
   try {
-    return JSON.parse(localStorage.getItem("beehive-audit-flow-v3") || "{}");
+    return JSON.parse(localStorage.getItem("beehive-audit-flow-v4") || "{}");
   } catch (e) {
     return {};
   }
@@ -387,7 +387,7 @@ function loadState() {
 function persist() {
   if (LIVE) return;
   localStorage.setItem(
-    "beehive-audit-flow-v3",
+    "beehive-audit-flow-v4",
     JSON.stringify({
       items: items,
       approved: approved,

@@ -21,7 +21,7 @@ const StaffAgent = (() => {
   const FEED_CLASS = { Monitoring: "watch", "Action taken": "progress", Waiting: "waiting", "Owner review": "needs", Resolved: "done" };
   const STATE_CLASS = { Monitoring: "monitor", "Action taken": "action", Waiting: "medium", "Owner review": "crit", Resolved: "green" };
   const FOLLOW_UP = { critical: 1, high: 2, medium: 5, monitor: 14 };
-  const STORE = "beehive-agent-v2";
+  const STORE = "beehive-agent-v3";
 
   let data = { available: false, mode: "", error: "", tasks: [], feed: [], messages: [], subs: [], lastRun: null };
   let feedFilter = "All";
@@ -249,11 +249,9 @@ const StaffAgent = (() => {
       });
       const by = (n) => S.staff.find((s) => s.name === n);
       const mia = by("Mia Chen"); if (mia) mia.email = "mia@beehive.demo";
-      const leo = by("Leo Thompson"); if (leo) { leo.email = ""; if (leo.certs.CPR) leo.certs.CPR.expiry = addDays(base, 20); }
+      const leo = by("Leo Thompson"); if (leo) leo.email = "";
       const jack = by("Jack Wilson"); if (jack) delete jack.certs.ANAPHYLAXIS;
-      const oliver = by("Oliver King");
-      // three days ago Oliver's First Aid was still 33 days out, so the agent only watched it
-      if (oliver && oliver.certs.FIRST_AID) oliver.certs.FIRST_AID.expiry = addDays(base, 33);
+
       S.seeding = true;
       run("seed");
       // that run happened three days ago
@@ -262,7 +260,6 @@ const StaffAgent = (() => {
       S.runs.forEach((r) => (r.at = back(r.at)));
       S.messages.forEach((m) => { m.at = back(m.at); m.nextFollowUp = m.nextFollowUp && addDays(m.nextFollowUp, -3); });
       S.tasks.forEach((t) => { t.openedAt = back(t.openedAt); t.updatedAt = back(t.updatedAt); t.lastRequestAt = back(t.lastRequestAt); t.escalatedAt = back(t.escalatedAt); t.nextFollowUp = t.nextFollowUp && addDays(t.nextFollowUp, -3); });
-      if (oliver && oliver.certs.FIRST_AID) oliver.certs.FIRST_AID.expiry = addDays(base, 30);
       // yesterday Amara uploaded her old Working with Children Check
       offset = -1 * 864e5;
       const amara = by("Amara Singh");

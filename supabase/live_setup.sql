@@ -2408,17 +2408,17 @@ begin
   values (c_centre, u_sara, 'Sara Williams', 'sara@beehive.demo', 'Centre owner', '');
 
   for s in select * from (values
-    ('Mia Chen',      'mia@beehive.demo',   'Lead educator',      'Wattle Room',  597, 30,  30,  195),
-    ('Noah Williams', 'noah@example.com',   'Educator',           'Banksia Room', 466, 169, 169, 7),
-    ('Ava Patel',     'ava@example.com',    'Educator',           'Gumtree Room', 60,  142, 142, 299),
-    ('Luca Martin',   'luca@example.com',   'Assistant educator', 'Wattle Room',  441, -46, 17,  178),
-    ('Ella Brooks',   'ella@example.com',   'Educator',           'Banksia Room', 615, 201, 201, 104),
-    ('Oliver King',   'oliver@example.com', 'Educator',           'Gumtree Room', 326, 30,  35,  220),
-    ('Zara Ali',      'zara@example.com',   'Educator',           'Wattle Room',  534, 60,  48,  86),
-    ('Leo Thompson',  'leo@example.com',    'Assistant educator', 'Banksia Room', 286, 107, 20,  107),
-    ('Amara Singh',   'amara@example.com',  'Educator',           'Gumtree Room', 7,   192, 192, 202),
-    ('Jack Wilson',   'jack@example.com',   'Educator',           'Wattle Room',  453, 88,  88,  233)
-  ) as t(name, email, position, room, d_wwcc, d_fa, d_cpr, d_ana) loop
+    ('Mia Chen',      'mia@beehive.demo',   'Lead educator',      'Wattle Room',  597, 250, 250, 195, 540),
+    ('Noah Williams', 'noah@example.com',   'Educator',           'Banksia Room', 466, 169, 169, 320, 410),
+    ('Ava Patel',     'ava@example.com',    'Educator',           'Gumtree Room', 700, 142, 142, 299, 430),
+    ('Luca Martin',   'luca@example.com',   'Assistant educator', 'Wattle Room',  441, -46, 240, 178, 365),
+    ('Ella Brooks',   'ella@example.com',   'Educator',           'Banksia Room', 615, 201, 201, 104, 380),
+    ('Oliver King',   'oliver@example.com', 'Educator',           'Gumtree Room', 326, 210, 210, 220, 300),
+    ('Zara Ali',      'zara@example.com',   'Educator',           'Wattle Room',  534, 300, 300, 280, 488),
+    ('Leo Thompson',  'leo@example.com',    'Assistant educator', 'Banksia Room', 286, 107, 107, 107, 150),
+    ('Amara Singh',   'amara@example.com',  'Educator',           'Gumtree Room', 7,   192, 192, 202, 260),
+    ('Jack Wilson',   'jack@example.com',   'Educator',           'Wattle Room',  453, 88,  88,  233, 95)
+  ) as t(name, email, position, room, d_wwcc, d_fa, d_cpr, d_ana, d_ast) loop
     insert into public.staff (centre_id, user_id, full_name, email, position, room)
     values (c_centre, case when s.email = 'mia@beehive.demo' then u_mia end, s.name, s.email, s.position, s.room)
     returning id into v_staff;
@@ -2428,14 +2428,8 @@ begin
       (v_staff, (select id from public.certificate_types where code = 'FIRST_AID'),   'HLTAID012', current_date + s.d_fa - 1095,  current_date + s.d_fa),
       (v_staff, (select id from public.certificate_types where code = 'CPR'),         'HLTAID009', current_date + s.d_cpr - 365,  current_date + s.d_cpr),
       (v_staff, (select id from public.certificate_types where code = 'ANAPHYLAXIS'), '22578VIC',  current_date + s.d_ana - 1095, current_date + s.d_ana),
-      (v_staff, (select id from public.certificate_types where code = 'ASTHMA'),      '22556VIC',  current_date + (s.d_wwcc % 500) + 12 - 1095, current_date + (s.d_wwcc % 500) + 12);
+      (v_staff, (select id from public.certificate_types where code = 'ASTHMA'),      '22556VIC',  current_date + s.d_ast - 1095, current_date + s.d_ast);
   end loop;
-
-  -- Renewal prompts already sent for Mia (30 days) and Noah (7 days), as shown in the prototype.
-  update public.reminders r set status = 'sent', sent_at = now() - interval '1 hour'
-  from public.staff_certificates sc join public.staff st on st.id = sc.staff_id
-  where r.staff_certificate_id = sc.id and st.centre_id = c_centre and r.status = 'scheduled'
-    and ((st.full_name = 'Mia Chen' and r.window_days = 30) or (st.full_name = 'Noah Williams' and r.window_days = 7));
 
   -- ---------- staff compliance agent: contact details and a few days of history ----------
   -- Phone numbers are invented. Leo has no email, so the agent texts him (simulated SMS).
@@ -2446,14 +2440,7 @@ begin
   -- Jack never supplied his anaphylaxis training (missing = critical).
   delete from public.staff_certificates sc using public.staff st, public.certificate_types ct
    where sc.staff_id = st.id and sc.certificate_type_id = ct.id and st.centre_id = c_centre and st.full_name = 'Jack Wilson' and ct.code = 'ANAPHYLAXIS';
-  -- Oliver's First Aid is the live demo: three days ago it was still 33 days out (Monitor), so the agent only watched it.
-  update public.staff_certificates sc set expiry_date = current_date + 33
-    from public.staff st, public.certificate_types ct
-   where sc.staff_id = st.id and sc.certificate_type_id = ct.id and st.centre_id = c_centre and st.full_name = 'Oliver King' and ct.code = 'FIRST_AID';
   perform public.run_staff_agent_for(c_centre, 'seed');
-  update public.staff_certificates sc set expiry_date = current_date + 30
-    from public.staff st, public.certificate_types ct
-   where sc.staff_id = st.id and sc.certificate_type_id = ct.id and st.centre_id = c_centre and st.full_name = 'Oliver King' and ct.code = 'FIRST_AID';
   -- That run happened three days ago.
   update public.agent_events set created_at = created_at - interval '3 days', demo = true where centre_id = c_centre;
   update public.agent_messages set sent_at = sent_at - interval '3 days', next_follow_up = next_follow_up - 3 where centre_id = c_centre;
@@ -2502,6 +2489,19 @@ begin
      'Linh Nguyen · 04 0000 3141', 'Linh Nguyen', true, null, now() - interval '30 days', 'approved', u_sara, now() - interval '29 days'),
     (c_centre, c_isla, 'None', 'None', 'Dairy-free', 'None', 'Prefers a short rest after lunch.',
      'Tom Brown · 04 0000 2718', 'Tom Brown', true, null, now() - interval '60 days', 'approved', u_sara, now() - interval '59 days');
+  insert into public.medical_updates (centre_id, child_id, allergies, conditions, dietary, medications, care_notes, emergency_contact,
+                                      signer_name, parent_confirmed, submitted_at, status, approved_by, approved_at)
+  select c_centre, ch.id, m.allergies, m.conditions, m.dietary, m.medications, m.notes, ch.emergency_contact, split_part(ch.emergency_contact, ' · ', 1),
+         true, now() - interval '40 days', 'approved', u_sara, now() - interval '39 days'
+    from (values
+      ('Zoe',    'None',      'Asthma',      'None',            'Ventolin inhaler (as needed)',             'Asthma action plan in the Banksia Room kit.'),
+      ('Leo',    'Tree nuts', 'Anaphylaxis', 'Nut-free meals',  'EpiPen 0.3 mg (kept in Gumtree Room kit)', 'Action plan on the room wall.'),
+      ('Mila',   'None',      'None',        'Vegetarian',      'None',                                     ''),
+      ('Ava',    'None',      'None',        'Halal',           'None',                                     ''),
+      ('Arjun',  'Cow’s milk','None',        'Dairy-free',      'None',                                     'Soy milk from home.'),
+      ('Sophie', 'None',      'Eczema',      'None',            'Moisturiser after water play',             '')
+    ) as m(first_name, allergies, conditions, dietary, medications, notes)
+    join public.children ch on ch.centre_id = c_centre and ch.first_name = m.first_name;
   delete from public.parent_messages where centre_id = c_centre and trigger = 'receipt';  -- no receipts for historic records
 
   -- ---------- family thread for Maya ----------

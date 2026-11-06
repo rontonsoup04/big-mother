@@ -161,7 +161,7 @@ const Live = (() => {
     if (typeof Library !== "undefined") Library.resetOffline();
     if (typeof StaffAgent !== "undefined") StaffAgent.reset();
     if (typeof AuditAgent !== "undefined") AuditAgent.reset();
-    set("beehive-audit-flow-v2", null);
+    set("beehive-audit-flow-v4", null);
     location.reload();
   }
 
@@ -220,6 +220,9 @@ const Live = (() => {
       leader ? q(sb.from("regulation_updates").select("*").order("published_on", { ascending: false })) : Promise.resolve([]),
       q(sb.from("parent_messages").select("*, children(first_name, last_name)").eq("status", "draft").order("created_at")),
     ]);
+    // Latest approved medical profile per child, for the child list and the daily sheet.
+    const approvedMeds = await q(sb.from("medical_updates").select("child_id, allergies, conditions, dietary, medications, approved_at").eq("status", "approved").order("approved_at")).catch(() => []);
+    kids.forEach((k) => { const m = (approvedMeds || []).filter((x) => x.child_id === k.id).pop(); if (m) k.medical = m; });
     children = kids;
     childIndex = Object.fromEntries(kids.map((k) => [k.id, `${k.first_name} ${k.last_name}`.trim()]));
     const kidName = (id) => { const k = kids.find((x) => x.id === id); return k ? `${k.first_name} ${k.last_name}`.trim() : "Child"; };
