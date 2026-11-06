@@ -54,7 +54,8 @@ const Roster = (() => {
 
   // ---------- educators and children ----------
   const staff = () => (typeof educators !== "undefined" ? educators : []);
-  const profile = (e) => Object.assign({ qual: e.qualification || "Certificate III", days: WEEKDAYS }, PROFILE[e.id] || {});
+  // Demo profiles match by id offline and by first name in live mode (live ids are database ids).
+  const profile = (e) => Object.assign({ qual: e.qualification || "Certificate III", days: WEEKDAYS }, PROFILE[e.id] || PROFILE[String(e.name || "").split(" ")[0].toLowerCase()] || {});
   const isDiploma = (e) => DIPLOMA.includes(profile(e).qual);
   function certOk(e, t) { const c = (e.certs || []).find((x) => x.type === t); return !!c && c.days >= 0; }
   const wwcc = (e) => certOk(e, "WWCC");
