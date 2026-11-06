@@ -23,23 +23,28 @@ const RULES = `You write the daily sheet for an Australian long day care centre 
 - Child notes: only when there is something specific for that child today.
 - Plain Australian English, short phrases. No emoji.`;
 
+// Loose on purpose: lengths are trimmed in clean() rather than rejected, so one long line can't sink the sheet.
 const Sheet = z.object({
-  headline: z.string().max(140).describe("One line about the day."),
+  headline: z.string().describe("One line about the day."),
   meals: z.array(z.object({
-    meal: z.enum(["Morning tea", "Lunch", "Afternoon tea"]),
-    time: z.string().max(20),
-    menu: z.string().max(200),
-    alternatives: z.array(z.object({ child_id: z.string(), swap: z.string().max(140) })).max(30),
-  })).length(3),
-  activities: z.array(z.object({
-    room: z.string(), time: z.string().max(30), title: z.string().max(80), description: z.string().max(220), learning_focus: z.string().max(140),
-  })).max(15),
-  reminders: z.array(z.string().max(200)).max(10),
-  child_notes: z.array(z.object({ child_id: z.string(), note: z.string().max(160) })).max(30),
+    meal: z.string().describe("Morning tea, Lunch or Afternoon tea"),
+    time: z.string(),
+    menu: z.string(),
+    alternatives: z.array(z.object({ child_id: z.string(), swap: z.string() })),
+  })).describe("Exactly three: Morning tea, Lunch, Afternoon tea"),
+  activities: z.array(z.object({ room: z.string(), time: z.string(), title: z.string(), description: z.string(), learning_focus: z.string() })),
+  reminders: z.array(z.string()),
+  child_notes: z.array(z.object({ child_id: z.string(), note: z.string() })),
 });
 
 // Keep only what matches the day's records, and make sure every child with a dietary need is covered.
 function clean(sheet, day) {
+  const cut = (t, n) => { t = String(t || "").trim(); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, "") + "…" : t; };
+  sheet.headline = cut(sheet.headline, 140);
+  sheet.meals = (sheet.meals || []).slice(0, 4).map((m) => ({ meal: cut(m.meal, 30), time: cut(m.time, 20), menu: cut(m.menu, 220), alternatives: (m.alternatives || []).slice(0, 40).map((a) => ({ child_id: a.child_id, swap: cut(a.swap, 140) })) }));
+  sheet.activities = (sheet.activities || []).slice(0, 15).map((a) => ({ room: a.room, time: cut(a.time, 30), title: cut(a.title, 80), description: cut(a.description, 240), learning_focus: cut(a.learning_focus, 160) }));
+  sheet.reminders = (sheet.reminders || []).slice(0, 10).map((r) => cut(r, 220));
+  sheet.child_notes = (sheet.child_notes || []).slice(0, 30).map((n) => ({ child_id: n.child_id, note: cut(n.note, 180) }));
   const kids = new Map();
   (day.rooms || []).forEach((r) => (r.children || []).forEach((k) => kids.set(k.id, k)));
   const rooms = new Set((day.rooms || []).map((r) => r.room));
