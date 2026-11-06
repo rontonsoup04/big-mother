@@ -811,3 +811,35 @@ p.small, .small { font-size: var(--t-sm); }
 .brief .buttonRow, .briefPaste .buttonRow { margin-top: var(--s4); }
 .tabBadge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--red-tint); color: var(--red); font-size: var(--t-xs); text-align: center; }
 @media (max-width: 680px) { .briefGrid { grid-template-columns: 1fr; } }
+
+/* Centre: child list and daily sheet */
+.childToolbar { display: flex; gap: var(--s4); align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: var(--s4); }
+.childToolbar .chips { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.childToolbar .chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 12px; font: inherit; font-size: var(--t-sm); color: var(--ink-2); cursor: pointer; }
+.childToolbar .chip.active { border-color: var(--honey); color: var(--ink); background: var(--honey-tint); }
+.childSearch { max-width: 280px; }
+.childTable td .status { white-space: normal; }
+.sheetCols { display: grid; grid-template-columns: 3fr 2fr; gap: var(--s5); margin-top: var(--s3); }
+.sheetCols h3 { font-size: var(--t-sm); color: var(--ink-3); font-weight: 500; }
+.sheetTable td { padding: 8px 12px 8px 0; }
+.sheetTable tbody tr { cursor: default; }
+.sheetAlert { color: var(--red); }
+.sheetSign { color: var(--ink-3); white-space: nowrap; text-align: right; font-size: var(--t-xs); }
+.sheetDate { width: auto; }
+.dailySheetPrint { display: none; }
+@media (max-width: 680px) { .sheetCols { grid-template-columns: 1fr; } .childSearch { max-width: none; width: 100%; } }
+@media print {
+  body.printingDaily .printReport { display: none !important; }
+  body.printingDaily .dailySheetPrint { display: block; padding: 18px; font: 11px/1.45 var(--font); color: #000; }
+  .dailySheetPrint h1 { font-size: 18px; margin-bottom: 2px; }
+  .dailySheetPrint .sectionHead { display: flex; justify-content: space-between; border-bottom: 1px solid #999; margin-top: 14px; }
+  .dailySheetPrint h2 { font-size: 13px; }
+  .dailySheetPrint .count { font-weight: 400; margin-left: 6px; color: #444; }
+  .dailySheetPrint .printRoom { break-inside: avoid; }
+  .dailySheetPrint .printFlags { border: 1px solid #000; padding: 8px; margin: 10px 0; }
+  .dailySheetPrint .sheetCols { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
+  .dailySheetPrint table { width: 100%; border-collapse: collapse; }
+  .dailySheetPrint td { border-bottom: 1px solid #ccc; padding: 4px 6px 4px 0; vertical-align: top; }
+  .dailySheetPrint .sheetAlert { color: #000; font-weight: 600; }
+}
+.childTable small.days { display: block; margin-top: 2px; }

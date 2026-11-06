@@ -1439,7 +1439,7 @@ function render() {
       : current === "updates"
         ? Legal.tabs() + updatesPage()
         : current === "compliance"
-        ? Library.page()
+        ? Centre.page()
         : current === "staff"
           ? staffPortalPage()
           : current === "staff-upload"

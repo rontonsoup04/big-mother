@@ -211,7 +211,7 @@ const Live = (() => {
       : Promise.resolve([]);
     const [rows, kids, staffRows, certRows, subs, meds, thread, regs, drafts] = await Promise.all([
       q(sb.from("v_checklist_status").select("*")),
-      q(sb.from("children").select("id, first_name, last_name, room, emergency_contact").eq("is_active", true).order("first_name")),
+      q(sb.from("children").select("id, first_name, last_name, date_of_birth, room, emergency_contact").eq("is_active", true).order("first_name")),
       q(sb.from("staff").select("id, full_name, position, room, is_active, user_id").eq("is_active", true).order("full_name")),
       q(sb.from("v_certificate_reminders").select("*")),
       leader ? q(sb.from("certificate_submissions").select("*, staff(full_name), certificate_types(code)").eq("status", "pending").order("submitted_at"))
@@ -608,6 +608,7 @@ const Live = (() => {
   }
 
   return {
+    children: () => children,
     boot, signIn, signOut, fillDemo, goOffline, resetOffline, showLogin, reload,
     completeTask, approveChecklist, editBaseline, uploadEvidence, logDrill, acceptUpdate, markUpdateReviewed, runExpiryCheck,
     submitCertificate, approveCertificate, submitFamilyUpdate, sendFamilyMessage, sendOwnerReply, acknowledgeFamilyUpdate,
