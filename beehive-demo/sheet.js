@@ -73,7 +73,7 @@ const Sheet = (() => {
   // ---------- Claude ----------
   async function callClaude(body) {
     const res = await fetch("api/sheet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (res.status === 404) throw Object.assign(new Error("Claude isn’t available on this copy of beehive."), { quiet: true });
+    if ([404, 405, 501].includes(res.status)) throw Object.assign(new Error("Claude isn’t available on this copy of beehive."), { quiet: true });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || "Claude couldn’t answer (" + res.status + ").");
     return out;
@@ -170,6 +170,25 @@ const Sheet = (() => {
     return doc;
   }
 
+  // ---------- the on-screen page (same content as the PDF) ----------
+  function paper(rec, dd) {
+    const s = rec.sheet;
+    const kidById = Object.fromEntries(dd.rooms.flatMap((r) => r.children).map((k) => [k.id, k]));
+    const first = (id) => (kidById[id] ? kidById[id].name.split(" ")[0] : id);
+    return '<article class="sheetPaper"><header><h3>' + E((dd.centre || "beehive") + " · Daily sheet") + "</h3><p>" + E(fmtDay(dd.day)) + (s.headline ? " · " + E(s.headline) : "") + "</p></header>" +
+      ((s.reminders || []).length ? '<h4>Reminders</h4><ul>' + s.reminders.map((t) => "<li>" + E(t) + "</li>").join("") + "</ul>" : "") +
+      "<h4>Meals</h4>" + s.meals.map((m) => '<div class="sheetMeal"><b>' + E(m.meal) + "</b> <span>" + E(m.time) + "</span><p>" + E(m.menu) + "</p>" +
+        (m.alternatives.length ? '<p class="alt">' + m.alternatives.map((a) => "<b>" + E(first(a.child_id)) + ":</b> " + E(a.swap)).join(" · ") + "</p>" : "") + "</div>").join("") +
+      dd.rooms.map((r) => '<h4>' + E(r.room) + " · " + r.children.length + " children · " + r.educators.length + " educators</h4>" +
+        '<p class="eds">Educators: ' + (r.educators.map((e) => E(e.name) + " (" + E(e.shift) + (e.first_aid ? ", first aid" : "") + ")").join("; ") || "none rostered") + "</p>" +
+        '<table><thead><tr><th>Child</th><th>Age</th><th>Allergies, medical and diet</th><th>In</th><th>Out</th></tr></thead><tbody>' +
+        r.children.map((k) => { const needs = [k.allergies && "Allergy: " + k.allergies, k.conditions, k.dietary, k.medication && "Meds: " + k.medication].filter(Boolean).join(" · "); const n = (s.child_notes || []).filter((c) => c.child_id === k.id).map((c) => c.note).join(" ");
+          return "<tr><td><b>" + E(k.name) + "</b></td><td>" + E(k.age) + '</td><td class="' + (needs ? "need" : "none") + '">' + E(needs || "—") + (n ? '<br><i>Note: ' + E(n) + "</i>" : "") + "</td><td>____</td><td>____</td></tr>"; }).join("") +
+        "</tbody></table>" +
+        ((s.activities || []).filter((a) => a.room === r.room).length ? '<p class="actsHead">Activities</p>' + s.activities.filter((a) => a.room === r.room).map((a) => '<div class="sheetAct"><b>' + E(a.time) + ": " + E(a.title) + "</b><p>" + E(a.description) + (a.learning_focus ? " <i>(" + E(a.learning_focus) + ")</i>" : "") + "</p></div>").join("") : "")).join("") +
+      '<footer>Prepared ' + E(new Date(rec.at).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" })) + " by " + (rec.source === "claude" ? "Claude for beehive" : "beehive") + ". Keep the signed sheet with your attendance records (Reg 158).</footer></article>";
+  }
+
   // ---------- the viewer ----------
   function open(d) {
     day = d || Centre.sheetStats().day;
@@ -184,7 +203,9 @@ const Sheet = (() => {
     let frame = '<div class="sheetLoading"><span class="hx"></span>' + (busy ? (rec ? "Claude is updating the sheet…" : "Claude is writing today’s sheet…") : "Preparing…") + "</div>";
     if (rec && !busy) {
       const doc = pdf(rec, dd);
-      if (doc) { if (lastUrl) URL.revokeObjectURL(lastUrl); lastUrl = URL.createObjectURL(doc.output("blob")); frame = '<iframe class="pdfFrame sheetFrame" src="' + lastUrl + '#view=FitH" title="Daily sheet"></iframe>'; }
+      // The PDF is for Download and Print; on screen the same sheet is shown as a scrollable page, which
+      // works in every browser (embedded PDF viewers don't scroll in some, such as phones and app panes).
+      if (doc) { if (lastUrl) URL.revokeObjectURL(lastUrl); lastUrl = URL.createObjectURL(doc.output("blob")); frame = '<div class="sheetPaperWrap" tabindex="0" aria-label="Daily sheet">' + paper(rec, dd) + "</div>"; }
       else frame = '<p class="empty">Couldn’t build the PDF here.</p>';
     }
     const changes = rec && rec.changes && rec.changes.length ? '<div class="sheetChanges">' + rec.changes.slice(-3).map((c) => "<span>“" + E(c.instruction) + "”</span>").join("") + "</div>" : "";

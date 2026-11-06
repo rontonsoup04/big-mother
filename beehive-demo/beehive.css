@@ -1050,3 +1050,26 @@ a.button { text-decoration: none; display: inline-flex; align-items: center; gap
 .sheetChanges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: var(--s2); }
 .sheetChanges span { font-size: var(--t-xs); color: #6a4fb3; background: #f3effc; border-radius: 999px; padding: 2px 10px; }
 .sheetNote { margin-top: var(--s2); }
+
+/* Daily sheet: scrollable on-screen page */
+.sheetPaperWrap { height: min(64vh, 760px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; background: #e9e4d8; border-radius: var(--r-md); padding: var(--s4); }
+.sheetPaperWrap:focus-visible { outline: none; box-shadow: var(--focus); }
+.sheetPaper { max-width: 760px; margin: 0 auto; background: #fff; color: #1e1e1e; padding: 28px 32px; border-top: 6px solid #c08a22; box-shadow: 0 2px 10px rgba(0,0,0,.12); font-size: 13px; line-height: 1.45; }
+.sheetPaper header h3 { font-size: 20px; margin-bottom: 2px; }
+.sheetPaper header p { color: #666; }
+.sheetPaper h4 { margin: 18px 0 8px; padding: 4px 8px; background: #fdf3d6; color: #463208; font-size: 14px; }
+.sheetPaper ul { padding-left: 18px; }
+.sheetMeal { margin-bottom: 8px; }
+.sheetMeal span { color: #666; }
+.sheetPaper .alt { color: #96281e; font-size: 12px; }
+.sheetPaper .eds { color: #555; font-size: 12px; margin-bottom: 6px; }
+.sheetPaper table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sheetPaper th { text-align: left; color: #888; font-weight: 600; border-bottom: 1px solid #ddd; padding: 4px 6px 4px 0; }
+.sheetPaper td { border-bottom: 1px solid #eee; padding: 5px 6px 5px 0; vertical-align: top; }
+.sheetPaper td.need { color: #96281e; }
+.sheetPaper td.none { color: #aaa; }
+.sheetPaper .actsHead { margin: 10px 0 4px; font-weight: 700; color: #463208; }
+.sheetAct { margin: 0 0 6px 10px; }
+.sheetAct p { color: #555; font-size: 12px; }
+.sheetPaper footer { margin-top: 18px; color: #999; font-size: 11px; }
+@media (max-width: 680px) { .sheetPaperWrap { padding: 8px; height: 60vh; } .sheetPaper { padding: 16px; } }
