@@ -6,7 +6,9 @@
 const DEFAULT_MODEL = "claude-haiku-5-5";
 
 function modelFor(model) {
-  const modelId = process.env.AGENT_MODEL || DEFAULT_MODEL;
+  // An AGENT_MODEL left over from another provider (for example a Gemini model name) would break every call.
+  const wanted = String(process.env.AGENT_MODEL || "").trim();
+  const modelId = /^claude-/.test(wanted) ? wanted : DEFAULT_MODEL;
   if (!model) { const { anthropic } = require("@ai-sdk/anthropic"); model = anthropic(modelId); }
   return { model, modelId, providerOptions: undefined };
 }
