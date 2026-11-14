@@ -69,12 +69,17 @@ const Centre = (() => {
   // ---------- data access ----------
   function baseChildren() {
     if (typeof LIVE !== "undefined" && LIVE && typeof Live !== "undefined" && Live.children) {
-      return (Live.children() || []).map((k) => ({ id: k.id, first: k.first_name, last: k.last_name, dob: k.date_of_birth || "", days: ALL_WEEK, contact: k.emergency_contact || "",
-        ...liveMedical(k.medical), missing: [], live: true }));
+      // The enrolment form's details, with the latest approved medical update on top of the medical details it recorded.
+      return (Live.children() || []).map((k) => {
+        const en = k.enrolment || {};
+        const med = k.medical ? liveMedical(k.medical) : { allergies: none(en.allergies), conditions: none(en.conditions), dietary: none(en.dietary), medication: none(en.medication), plan: !!en.plan || /anaphyla|asthma/i.test(en.conditions || "") };
+        return Object.assign({ id: k.id, first: k.first_name, last: k.last_name, dob: k.date_of_birth || "", days: en.days && en.days.length ? en.days : ALL_WEEK,
+          contact: k.emergency_contact || "", nominees: en.nominees || [], enrolment: en, missing: [], live: true }, med);
+      });
     }
     // Offline demo: the sample family's medical record (and any update the centre has approved) is that child's record.
     const fm = typeof familyMedical !== "undefined" ? familyMedical : null;
-    return SAMPLE_CHILDREN.map((k) => !fm || fm.childName !== k.first + " " + k.last ? k : Object.assign({}, k, {
+    return SAMPLE_CHILDREN.concat(addedOffline()).map((k) => !fm || fm.childName !== k.first + " " + k.last ? k : Object.assign({}, k, {
       allergies: none(fm.allergies), conditions: none(fm.conditions), medication: none(fm.medications), dietary: none(fm.dietary),
       notes: fm.notes || "", reviewedAt: fm.reviewedAt || "", plan: /anaphyla|asthma/i.test(fm.conditions || ""),
     }));
@@ -150,10 +155,8 @@ const Centre = (() => {
     const all = children();
     const q = childQuery.toLowerCase();
     const list = all.filter((k) => (!q || (k.first + " " + k.last + " " + alertText(k)).toLowerCase().includes(q)));
-    const alerts = all.filter((k) => alertText(k)).length, missing = all.filter((k) => k.missing.length).length;
     return (
-      header("Children", all.length + " children enrolled. " + alerts + " with medical or dietary alerts" + (missing ? ", " + missing + " with incomplete enrolment records." : ".") + " Use Contracts on the right to view each family’s signed agreements.",
-        "") +
+      header("Children", "", '<button class="button primary" onclick="Centre.openAddChild()">Add a child</button>') +
       '<div class="childToolbar"><input class="formControl childSearch" type="search" placeholder="Search children or allergies" value="' + E(childQuery) + '" oninput="Centre.search(this.value)" aria-label="Search children"></div>' +
       '<div class="tableWrap"><table class="staffTable childTable"><thead><tr><th>Child</th><th>Age</th><th>Days</th><th>Medical and dietary</th><th>Emergency contact</th><th class=\"contractCell\"></th></tr></thead><tbody>' +
       (list.map((k) =>
@@ -281,10 +284,232 @@ const Centre = (() => {
       '<div class="modalHead"><div><h2>' + E(fullName(k)) + "</h2><p>" + E(ageLabel(k.dob)) + ", " + (k.days.length === 5 ? "Mon–Fri" : E(k.days.join(", "))) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       medicalHtml(k) +
       '<div class="modalSection"><div class="sectionHead"><h3>Contracts</h3><button class="button small" onclick="Centre.openAmend(\'' + E(k.id) + '\')">Change the agreement</button></div>' + contractListHtml(k) + "</div>" +
+      '<div class="modalSection"><div class="sectionHead"><h3>Documents</h3><button class="button small primary" onclick="Centre.openAiDoc(\'' + E(k.id) + '\')"><span data-icon="spark"></span>Create a document with AI</button></div>' +
+        '<div id="childDocs" class="docList"><p class="muted small">Loading…</p></div></div>' +
       '<div class="modalSection"><h3>Record</h3>' + row("Authorised nominees", (k.nominees || []).join(", ")) +
+      enrolmentRows(k, row) +
       row("Enrolment record", k.missing.length ? "Missing: " + k.missing.join(", ") : "Complete") + "</div>", "wide"
     );
+    showDocs(k.id);
   }
+  // The extra enrolment details recorded when the child was added.
+  function enrolmentRows(k, row) {
+    const en = k.enrolment || {};
+    const parents = (en.parents || []).filter((p) => p && p.name).map((p) => p.name + (p.relationship ? " (" + p.relationship + ")" : "") + [p.phone, p.email].filter(Boolean).map((x) => " · " + x).join(""));
+    return (parents.length ? row("Parents and guardians", parents.join("; ")) : "") +
+      (en.startDate ? row("Start date", fmtDate(en.startDate)) : "") +
+      (en.doctor ? row("Doctor", en.doctor) : "") +
+      (en.immunisation ? row("Immunisation", en.immunisation) : "") +
+      (en.consents && en.consents.length ? row("Consents given", en.consents.join(", ")) : "");
+  }
+
+  // ---------- add a child: every enrolment detail (Regs 160–162) ----------
+  const ADDED_STORE = "beehive-added-children-v1";
+  function addedOffline() { try { return JSON.parse(localStorage.getItem(ADDED_STORE) || "[]"); } catch (e) { return []; } }
+  const CONSENTS = ["Local outings and regular excursions", "Emergency medical treatment and ambulance", "Sunscreen", "Photos shared privately with the family"];
+  function openAddChild() {
+    const f = (label, control, opt) => '<label class="formField' + (opt && opt.wide ? " wide" : "") + '"><span class="formLabel">' + label + (opt && opt.req ? ' <b class="req">*</b>' : "") + "</span>" + control + (opt && opt.hint ? '<small class="muted">' + opt.hint + "</small>" : "") + "</label>";
+    const txt = (id, ph, type) => '<input class="formControl" id="' + id + '" ' + (type ? 'type="' + type + '" ' : "") + 'placeholder="' + E(ph || "") + '" autocomplete="off">';
+    const area = (id, ph) => '<textarea class="formControl" id="' + id + '" rows="2" placeholder="' + E(ph || "") + '"></textarea>';
+    const group = (title, inner) => '<fieldset class="enrolGroup"><legend>' + title + '</legend><div class="formGrid">' + inner + "</div></fieldset>";
+    openModal(
+      '<div class="modalHead"><div><h2>Add a child</h2><p>The enrolment record: what Regs 160–162 ask you to keep for every child. Fields marked * are required.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<form id="addChildForm" class="enrolForm" onsubmit="event.preventDefault();Centre.saveChild()">' +
+      group("Child",
+        f("First name", txt("acFirst"), { req: true }) + f("Last name", txt("acLast"), { req: true }) +
+        f("Date of birth", txt("acDob", "", "date"), { req: true }) + f("Start date", '<input class="formControl" id="acStart" type="date" value="' + iso(new Date()) + '">') +
+        f("Gender (optional)", txt("acGender")) + f("Language spoken at home (optional)", txt("acLanguage")) +
+        f("Days of care", '<div class="dayPicks" id="acDays">' + ALL_WEEK.map((d) => '<label><input type="checkbox" value="' + d + '" checked>' + d + "</label>").join("") + "</div>", { req: true, wide: true })) +
+      group("Parents and guardians",
+        f("Parent or guardian", txt("acP1Name", "Full name"), { req: true }) + f("Relationship", txt("acP1Rel", "e.g. Mother")) +
+        f("Mobile", txt("acP1Phone", "", "tel"), { req: true }) + f("Email", txt("acP1Email", "", "email")) +
+        f("Home address", txt("acAddress"), { wide: true }) +
+        f("Second parent or guardian (optional)", txt("acP2Name", "Full name")) + f("Relationship", txt("acP2Rel")) +
+        f("Mobile", txt("acP2Phone", "", "tel")) + f("Email", txt("acP2Email", "", "email")) +
+        f("Court orders or parenting plans (optional)", area("acCourt", "Anything about who can collect or contact the child"), { wide: true })) +
+      group("Emergency contact and collection",
+        f("Emergency contact", txt("acEmergency", "Name · phone"), { req: true, hint: "Someone other than the parents if possible." }) +
+        f("Authorised nominees for collection", txt("acNominees", "Names, separated by commas"), { hint: "Who can collect the child (Reg 160)." })) +
+      group("Health",
+        f("Doctor or medical service", txt("acDoctor", "Name · phone")) + f("Medicare number (optional)", txt("acMedicare")) +
+        f("Allergies", txt("acAllergies", "e.g. Peanuts, or None")) + f("Medical conditions", txt("acConditions", "e.g. Asthma, or None"), { hint: "Anaphylaxis, asthma or diabetes needs a medical management plan (Reg 90)." }) +
+        f("Medication", txt("acMedication", "Name, dose and when")) + f("Dietary needs", txt("acDietary", "e.g. Halal, dairy-free")) +
+        f("Immunisation", '<select class="formControl" id="acImmunisation"><option>Up to date (history statement sighted)</option><option>Catch-up schedule</option><option>Not yet provided</option></select>') +
+        f("Action plan on file", '<label class="checkLine"><input type="checkbox" id="acPlan"> A medical management plan has been provided</label>')) +
+      group("Consents",
+        '<div class="consentPicks wide">' + CONSENTS.map((c) => '<label class="checkLine"><input type="checkbox" value="' + E(c) + '"> ' + E(c) + "</label>").join("") + "</div>" +
+        f("Anything else educators should know (optional)", area("acNotes", "Routines, comfort items, cultural needs"), { wide: true })) +
+      '<div class="formActions"><button type="button" class="button" onclick="closeModal()">Cancel</button><button class="button primary" type="submit">Enrol child</button></div></form>',
+      "wide"
+    );
+  }
+  async function saveChild() {
+    const v = (id) => ((document.getElementById(id) || {}).value || "").trim();
+    const days = Array.from(document.querySelectorAll("#acDays input:checked")).map((x) => x.value);
+    if (!v("acFirst") || !v("acLast")) return toast("Enter the child’s first and last name.");
+    if (!v("acDob")) return toast("Enter the child’s date of birth.");
+    if (v("acDob") > iso(new Date())) return toast("The date of birth can’t be in the future.");
+    if (!days.length) return toast("Pick at least one day of care.");
+    if (!v("acP1Name") || !v("acP1Phone")) return toast("Enter a parent or guardian’s name and mobile.");
+    if (!v("acEmergency")) return toast("Enter an emergency contact.");
+    for (const id of ["acP1Email", "acP2Email"]) if (v(id) && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v(id))) return toast("That email address doesn’t look right.");
+    const enrolment = {
+      days, startDate: v("acStart"), gender: v("acGender"), language: v("acLanguage"), address: v("acAddress"), courtOrders: v("acCourt"),
+      parents: [{ name: v("acP1Name"), relationship: v("acP1Rel"), phone: v("acP1Phone"), email: v("acP1Email") }, { name: v("acP2Name"), relationship: v("acP2Rel"), phone: v("acP2Phone"), email: v("acP2Email") }].filter((p) => p.name),
+      nominees: v("acNominees") ? v("acNominees").split(",").map((x) => x.trim()).filter(Boolean) : [],
+      doctor: v("acDoctor"), medicare: v("acMedicare"), allergies: v("acAllergies"), conditions: v("acConditions"), medication: v("acMedication"), dietary: v("acDietary"),
+      immunisation: v("acImmunisation"), plan: !!(document.getElementById("acPlan") || {}).checked,
+      consents: Array.from(document.querySelectorAll(".consentPicks input:checked")).map((x) => x.value), notes: v("acNotes"),
+    };
+    const rec = { first: v("acFirst"), last: v("acLast"), dob: v("acDob"), contact: v("acEmergency"), enrolment };
+    const missing = [];
+    if (/not yet/i.test(enrolment.immunisation)) missing.push("Immunisation history statement");
+    if (/anaphyla|asthma|diabet/i.test(enrolment.conditions) && !enrolment.plan) missing.push("Medical management plan");
+    let id;
+    if (typeof LIVE !== "undefined" && LIVE) {
+      closeModal();
+      try { id = await Live.addChild(rec); } catch (e) { return; }
+    } else {
+      id = (rec.first + "-" + rec.last).toLowerCase().replace(/[^a-z]+/g, "-") + "-" + Date.now().toString(36);
+      const kidRec = Object.assign({ id, first: rec.first, last: rec.last, dob: rec.dob, days, contact: rec.contact, nominees: enrolment.nominees, notes: enrolment.notes,
+        allergies: none(enrolment.allergies), conditions: none(enrolment.conditions), medication: none(enrolment.medication), dietary: none(enrolment.dietary),
+        plan: enrolment.plan, enrolment, missing });
+      const list = addedOffline(); list.push(kidRec);
+      try { localStorage.setItem(ADDED_STORE, JSON.stringify(list)); } catch (e) {}
+      closeModal();
+      render();
+      toast(rec.first + " " + rec.last + " is enrolled." + (missing.length ? " Still needed: " + missing.join(", ").toLowerCase() + "." : ""));
+    }
+    if (id) setTimeout(() => openChild(id), 250);
+  }
+
+  // ---------- documents for a child, drafted with AI from an editable prompt ----------
+  const DOC_STORE = "beehive-child-docs-v1";
+  const offlineDocs = () => { try { return JSON.parse(localStorage.getItem(DOC_STORE) || "{}"); } catch (e) { return {}; } };
+  const isLiveMode = () => typeof LIVE !== "undefined" && LIVE;
+  const DOC_TYPES = {
+    enrolment: ["Enrolment agreement", "Write an enrolment agreement between the centre and the parents for {child}: booked days ({days}), hours 6:30 am to 6:30 pm, fees charged on booked days including absences, 2 weeks’ written notice to change days or end care, the parent keeps medical and contact details current, only the parents or authorised nominees collect the child, and 14 days’ notice of policy or fee changes (Reg 172). Leave blanks for the daily fee."],
+    fees: ["Fee schedule and payment agreement", "Write a fee schedule and payment agreement for {child}'s family: daily fee left as a blank, Child Care Subsidy applied to the gap fee, fortnightly direct debit in advance, late payment and late collection terms, and 14 days’ notice before fees change."],
+    consent: ["Medical and authorisations consent", "Write a consent form for {child} covering: giving medication only with written authorisation for each dose, emergency medical treatment and ambulance transport, regular local outings, and collection by authorised nominees ({nominees}). Include tick boxes and signature lines."],
+    risk: ["Medical risk minimisation plan", "Write a risk minimisation and communication plan for {child}, who has: {medical}. Cover the triggers to avoid at the centre, who on each shift is trained to respond, where the medication and action plan are kept, and how the centre and family will tell each other about changes (Reg 90)."],
+    welcome: ["Welcome letter to the family", "Write a warm welcome letter to {parent} for {child}'s first day on {start}: what to bring, drop-off and pick-up, how we'll share their day, and who to contact with questions."],
+    custom: ["Custom document", "Describe the document you need for {child}."],
+  };
+  function fillPrompt(k, tpl) {
+    const en = k.enrolment || {};
+    const med = [k.allergies && "allergy to " + k.allergies, k.conditions, k.medication && "medication: " + k.medication].filter(Boolean).join("; ") || "no medical needs recorded";
+    return tpl.replace(/\{child\}/g, fullName(k)).replace(/\{days\}/g, (k.days || []).join(", ")).replace(/\{nominees\}/g, (k.nominees || []).join(", ") || "as listed on the enrolment record")
+      .replace(/\{medical\}/g, med).replace(/\{parent\}/g, ((en.parents || [])[0] || {}).name || parentOf(k)).replace(/\{start\}/g, en.startDate ? fmtDate(en.startDate) : "their start date");
+  }
+  let docDraft = null; // { childId, type, title, body, prompt, ai }
+  function openAiDoc(childId, type) {
+    const k = children().find((x) => x.id === childId);
+    if (!k) return;
+    type = type || (k.conditions ? "risk" : "enrolment");
+    const t = DOC_TYPES[type];
+    openModal(
+      '<div class="modalHead"><div><h2>Create a document for ' + E(k.first) + "</h2><p>Pick a document, change the instructions if you like, then draft it. You can edit the draft before saving.</p></div>" +
+        '<button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalSection"><label class="formLabel" for="adType">Document</label><select class="formControl" id="adType" onchange="Centre.openAiDoc(\'' + E(k.id) + '\', this.value)">' +
+        Object.entries(DOC_TYPES).map(([id, d]) => '<option value="' + id + '"' + (id === type ? " selected" : "") + ">" + E(d[0]) + "</option>").join("") + "</select>" +
+        '<label class="formLabel" for="adPrompt">Instructions for the AI <small class="muted">(edit freely)</small></label><textarea class="formControl" id="adPrompt" rows="6">' + E(fillPrompt(k, t[1])) + "</textarea>" +
+        '<div class="buttonRow" style="margin-top:10px"><button class="button primary" id="adGo" onclick="Centre.draftDoc(\'' + E(k.id) + "','" + type + '\')"><span data-icon="spark"></span>Draft with AI</button>' +
+        '<button class="textButton" onclick="Centre.openChild(\'' + E(k.id) + '\')">Back to ' + E(k.first) + "</button></div></div>" +
+      '<div id="adResult"></div>' +
+      '<p class="footnote">' + (isLiveMode() ? "Claude drafts from the child’s record and your instructions. It leaves blanks rather than guessing; check every detail before you use it." : "Not signed in: beehive fills a built-in template instead of asking Claude.") + " Nothing is sent to the family.</p>",
+      "wide"
+    );
+  }
+  function templateDoc(k, type, prompt) {
+    const centre = typeof CENTRE_NAME !== "undefined" ? CENTRE_NAME : "the centre";
+    const title = DOC_TYPES[type][0] + ": " + fullName(k);
+    return { title, body: title + "\n\n" + centre + "\n\nChild: " + fullName(k) + (k.dob ? " (born " + fmtDate(k.dob) + ")" : "") + "\nDays of care: " + (k.days || []).join(", ") +
+      "\n\nInstructions:\n" + prompt + "\n\n[Write the document here. Claude drafts it when you’re signed in.]\n\nSigned for the centre: ____________________   Date: ________\n\nSigned by the parent: ____________________   Date: ________" };
+  }
+  async function draftDoc(childId, type) {
+    const k = children().find((x) => x.id === childId);
+    const prompt = ((document.getElementById("adPrompt") || {}).value || "").trim();
+    if (!k) return;
+    if (prompt.length < 5) return toast("Say what the document should be.");
+    const btn = document.getElementById("adGo"), out = document.getElementById("adResult");
+    if (btn) { btn.disabled = true; btn.textContent = "Drafting…"; }
+    let d, ai = false, note = "";
+    try {
+      if (typeof Assistant !== "undefined" && Assistant.aiReady()) {
+        const en = Object.assign({}, k.enrolment || {}); delete en.medicare; // the AI doesn't need the Medicare number
+        d = await Assistant.callAI({ mode: "document", prompt, centre: typeof CENTRE_NAME !== "undefined" ? CENTRE_NAME : "", owner: typeof OWNER_NAME !== "undefined" ? OWNER_NAME : "",
+          child: { name: fullName(k), dateOfBirth: k.dob, days: k.days, allergies: k.allergies, conditions: k.conditions, medication: k.medication, dietary: k.dietary, nominees: k.nominees, emergencyContact: k.contact, enrolment: en } });
+        ai = true;
+      } else d = templateDoc(k, type, prompt);
+    } catch (e) {
+      d = templateDoc(k, type, prompt);
+      note = (e && e.message ? e.message : "Claude couldn’t answer") + " A blank template is shown instead.";
+    }
+    docDraft = { childId, type, prompt, ai };
+    if (btn) { btn.disabled = false; btn.innerHTML = "Draft again"; }
+    if (!out) return;
+    out.innerHTML = '<div class="modalSection docDraft">' + (note ? '<p class="authError">' + E(note) + "</p>" : "") +
+      '<label class="formLabel" for="adTitle">Title</label><input class="formControl" id="adTitle" value="' + E(d.title || DOC_TYPES[type][0]) + '">' +
+      '<label class="formLabel" for="adBody">Document <small class="muted">(edit before saving)</small></label><textarea class="formControl docBody" id="adBody" rows="16">' + E(d.body || "") + "</textarea>" +
+      '<div class="formActions"><button class="button" onclick="Centre.downloadDraft()"><span data-icon="download"></span>Download PDF</button><button class="button primary" onclick="Centre.saveDraft()">Save to ' + E(k.first) + "’s file</button></div></div>";
+    if (typeof fillIcons === "function") fillIcons(out);
+  }
+  function currentDraft() {
+    return { title: ((document.getElementById("adTitle") || {}).value || "").trim() || "Document", body: (document.getElementById("adBody") || {}).value || "" };
+  }
+  async function saveDraft() {
+    if (!docDraft) return;
+    const d = Object.assign(currentDraft(), { prompt: docDraft.prompt, ai: docDraft.ai });
+    if (!d.body.trim()) return toast("The document is empty.");
+    if (isLiveMode()) { try { await Live.saveChildDocument(docDraft.childId, d); } catch (e) { return; } }
+    else {
+      const all = offlineDocs();
+      all[docDraft.childId] = [Object.assign({ id: "doc" + Date.now().toString(36), created_at: new Date().toISOString() }, d)].concat(all[docDraft.childId] || []);
+      try { localStorage.setItem(DOC_STORE, JSON.stringify(all)); } catch (e) {}
+      toast("Saved to the child’s file.");
+    }
+    openChild(docDraft.childId);
+  }
+  function pdfFor(title, body) {
+    const J = window.jspdf && window.jspdf.jsPDF;
+    if (!J) return null;
+    const doc = new J({ unit: "mm", format: "a4" });
+    let y = 20;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.splitTextToSize(title, 174).forEach((l) => { doc.text(l, 18, y); y += 7; }); y += 3;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    String(body).split("\n").forEach((para) => {
+      const ls = para.trim() ? doc.splitTextToSize(para, 174) : [""];
+      ls.forEach((l) => { if (y > 280) { doc.addPage(); y = 20; } doc.text(l, 18, y); y += 5; });
+    });
+    return doc;
+  }
+  function downloadPdf(title, body) {
+    const doc = pdfFor(title, body);
+    if (!doc) return toast("Couldn’t build the PDF. Check your internet connection and try again.");
+    doc.save(title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".pdf");
+  }
+  function downloadDraft() { const d = currentDraft(); downloadPdf(d.title, d.body); }
+  let shownDocs = [], docsChild = null;
+  async function showDocs(childId) {
+    docsChild = childId;
+    const list = isLiveMode() ? await Live.childDocuments(childId) : (offlineDocs()[childId] || []);
+    shownDocs = list;
+    const el = document.getElementById("childDocs");
+    if (!el) return;
+    el.innerHTML = list.length ? list.map((d, i) =>
+      '<div class="docRow"><span class="pdfIcon">DOC</span><span class="rowMain"><b>' + E(d.title) + "</b><small>" + (d.drafted_by_ai || d.ai ? "Drafted with AI · " : "") + E(new Date(d.created_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })) + "</small></span>" +
+      '<button class="textButton" onclick="Centre.viewDoc(' + i + ')">View</button><button class="textButton" onclick="Centre.downloadDoc(' + i + ')">PDF</button></div>').join("")
+      : '<p class="muted small">No documents yet. Create one with AI: an agreement, a consent, a medical plan or a welcome letter.</p>';
+  }
+  function viewDoc(i) {
+    const d = shownDocs[i];
+    if (!d) return;
+    openModal('<div class="modalHead"><div><h2>' + E(d.title) + '</h2></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalSection docView">' + E(d.body).replace(/\n/g, "<br>") + "</div>" +
+      '<div class="formActions"><button class="button" onclick="Centre.backToChild()">Back</button><button class="button primary" onclick="Centre.downloadDoc(' + i + ')"><span data-icon="download"></span>Download PDF</button></div>', "wide");
+  }
+  function backToChild() { if (docsChild) openChild(docsChild); else closeModal(); }
+  function downloadDoc(i) { const d = shownDocs[i]; if (d) downloadPdf(d.title, d.body); }
 
   // Builds the agreement as a real PDF in the browser (jsPDF), so it can be viewed and downloaded.
   function contractPdf(k, cid) {
@@ -465,5 +690,6 @@ const Centre = (() => {
   }
   function printDay(day) { if (typeof Sheet !== "undefined") return Sheet.open(day); sheetDay = day; print(); }
 
-  return { sheetStats, page, openContract, openContracts, openAmend, saveAmend, markSigned, setTab, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
+  return { openAddChild, saveChild, openAiDoc, draftDoc, saveDraft, downloadDraft, viewDoc, downloadDoc, backToChild,
+    sheetStats, page, openContract, openContracts, openAmend, saveAmend, markSigned, setTab, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
 })();

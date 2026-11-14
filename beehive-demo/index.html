@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#FFF1BF">
 <title>beehive</title>
 <meta name="description" content="Staff certifications, audit readiness and family medical updates for long day care centres.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 32'%3E%3Cpath d='M14 1.5 26 8.5v15L14 30.5 2 23.5v-15z' fill='none' stroke='%23c08a22' stroke-width='2.4'/%3E%3Cpath d='M14 10.5 19.5 13.7v6.6L14 23.5 8.5 20.3v-6.6z' fill='%23c08a22'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="./brand/static/favicon.svg">
 <link rel="stylesheet" href="./beehive.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" defer></script>
 <script src="./icons.js" defer></script>
@@ -34,10 +34,8 @@
 <div class="appShell">
   <header class="masthead">
     <a class="wordmark" href="#" onclick="go(isFamily() ? 'family' : (isEducator() ? 'staff-upload' : 'overview'));return false" aria-label="beehive home">
-      <span class="brandMark" data-icon="brand"></span>
-      <span class="brandName">beehive</span>
+      <img class="logo" src="./brand/animated/beehive-arrive-trail.svg" alt="beehive">
     </a>
-    <p class="modeSticker" title="Data source"><span class="hx"></span><span id="dataModeLabel">Offline demo</span><span id="baselineLabel" class="sr-only"></span></p>
     <span class="sr-only">Current page: <b id="pageCrumb">Overview</b></span>
     <div class="hud" aria-label="Tools">
   <button class="hudButton searchFab ownerOnly" onclick="openCommand()" aria-label="Search records (Ctrl+K)"><span data-icon="search"></span><span class="label">Search</span><kbd>⌘K</kbd></button>
@@ -68,7 +66,6 @@
   <button class="ownerOnly" data-nav="roster" onclick="go('roster')"><span data-icon="roster"></span><span class="dl">Roster</span><b id="rosterBadge" class="dockBadge"></b></button>
   <button class="parentOnly" data-nav="family" onclick="go('family')"><span data-icon="home"></span><span class="dl">Home</span></button>
   <button class="parentOnly" data-nav="family-medical" onclick="go('family-medical')"><span data-icon="medical"></span><span class="dl">Medical</span><b id="familyMedicalBadge" class="dockBadge"></b></button>
-  <button class="familyNav" data-nav="family-messages" onclick="go('family-messages')"><span data-icon="messages"></span><span class="dl">Messages</span></button>
   <button class="educatorOnly" data-nav="staff-upload" onclick="go('staff-upload')"><span data-icon="certificate"></span><span class="dl">Certificates</span></button>
   <button class="dockMore" onclick="toggleMoreSheet()" aria-label="More tools" aria-expanded="false"><span class="moreDots">•••</span><span class="dl">More</span></button>
 </nav>

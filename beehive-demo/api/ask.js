@@ -4,6 +4,8 @@
 //        (the Overview data, the compliance library, record search). It can't change anything.
 // draft: writes a short message to a family from the educator's note. Staff always review it before
 //        anything is sent; the message is saved as a draft by the app, never sent from here.
+// document: drafts a document about one child (contract, consent, plan) from the owner's editable prompt.
+//        The owner edits it before saving or printing; nothing is sent from here.
 //
 // Uses the same settings as the Compliance agent (api/agent.js): ANTHROPIC_API_KEY, AGENT_MODEL,
 // BEEHIVE_AGENT_KEY. Free AI tiers aren't private: use invented data only.
@@ -35,48 +37,23 @@ const DRAFT_INSTRUCTIONS = `You write short messages from an Australian childcar
 - Warm, plain Australian English, 2 to 4 sentences, first names only, no emoji, no sign-off name.
 - Reply with the message text only.`;
 
-const BRIEF_INSTRUCTIONS = `You brief the owner of an Australian long day care centre (NSW, Education and Care Services National Law and Regulations) on a regulation or policy change they pasted in.
-- Use only the pasted text and the centre's requirement list. Never invent regulation numbers, dates or obligations that aren't in the text.
-- whatChanged: 1 to 2 plain sentences on what the change requires.
-- affects: the exact titles from the requirement list that the change touches. Empty if none clearly match.
-- actions: 1 to 4 short, concrete steps for this centre, starting with a verb. Say "check" or "review", not "you are non-compliant": a change only flags what may need updating.
-- deadline: when it takes effect, quoted from the text, or "No start date in the text: check the official notice."
-- Plain Australian English, no legal advice.`;
+const DOCUMENT_INSTRUCTIONS = `You draft documents for an Australian long day care centre (NSW, Education and Care Services National Law and Regulations) about one enrolled child: enrolment agreements, fee agreements, medical and authorisation consents, medical risk minimisation plans, welcome letters and similar.
+- Follow the owner's instructions. Use only the child's details, the centre's details and the instructions given. Never invent medical details, fees, dates or names that aren't given: leave a clear blank like "[fee per day]" instead.
+- Cite a regulation only if you are sure of it (for example Reg. 160–162 enrolment records, Reg. 90–91 medical conditions, Reg. 92–96 medication, Reg. 99 collection, Reg. 168 policies).
+- Plain Australian English. Short headed sections, with signature lines for the centre and the parent at the end where a signature is needed.
+- title: a short document title. body: the document text, with headings on their own lines.`;
 
-async function brief({ title, text, requirements, model, timeLimitMs }) {
+async function draftDocument({ child, centre, owner, prompt, model, timeLimitMs }) {
   const m = modelFor(model);
-  const reqs = (Array.isArray(requirements) ? requirements : []).slice(0, 40)
-    .map((r) => "- " + String(r.title || "").slice(0, 120) + " (" + String(r.area || "").slice(0, 40) + ", " + String(r.status || "").slice(0, 20) + ")").join("\n");
   const { object } = await generateObject({
-    model: m.model, providerOptions: m.providerOptions, system: BRIEF_INSTRUCTIONS,
-    schema: z.object({
-      title: z.string().max(100),
-      whatChanged: z.string().max(500),
-      affects: z.array(z.string().max(120)).max(12),
-      actions: z.array(z.string().max(220)).min(1).max(4),
-      deadline: z.string().max(160),
-    }),
-    prompt: "Title: " + String(title || "(none given)").slice(0, 120) + "\n\nPasted change:\n" + String(text || "").slice(0, 6000) + "\n\nCentre's requirements:\n" + reqs,
+    model: m.model, providerOptions: m.providerOptions, system: DOCUMENT_INSTRUCTIONS,
+    schema: z.object({ title: z.string().max(120), body: z.string().max(12000) }),
+    prompt: "Centre: " + String(centre || "the centre").slice(0, 120) + ". Approved provider: " + String(owner || "").slice(0, 80) +
+      "\n\nChild's details:\n" + JSON.stringify(child || {}).slice(0, 4000) +
+      "\n\nOwner's instructions:\n" + String(prompt || "").slice(0, 3000),
     maxRetries: 0, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
   });
-  const known = new Set((Array.isArray(requirements) ? requirements : []).map((r) => r.title));
-  object.affects = object.affects.filter((t) => known.has(t)); // only titles that really are on the checklist
   return object;
-}
-
-const ROSTER_INSTRUCTIONS = `You explain a weekly roster that beehive's rules engine built for an Australian long day care centre (NSW) to the centre owner.
-- Use only the roster data in the message. Never invent educators, numbers or rules.
-- Cover: how each day meets ratios and the 50% diploma rule (Reg 126: at least half the educators needed for ratio hold a diploma or above, or are working towards one), first aid cover on every shift, and any issue the data lists that still needs the owner.
-- 3 to 6 short bullet points ("- " at the start of each line), plain Australian English, no headings, no emoji.`;
-
-async function explainRoster({ week, days, model, timeLimitMs }) {
-  const m = modelFor(model);
-  const result = await generateText({
-    model: m.model, providerOptions: m.providerOptions, system: ROSTER_INSTRUCTIONS,
-    prompt: "Week starting " + String(week || "").slice(0, 10) + ":\n" + JSON.stringify(Array.isArray(days) ? days.slice(0, 7) : []).slice(0, 12000),
-    maxRetries: 0, abortSignal: AbortSignal.timeout(timeLimitMs || TIME_LIMIT_MS),
-  });
-  return { text: (result.text || "").trim() };
 }
 
 async function rpc(fn, body, fetchImpl) {
@@ -178,10 +155,9 @@ module.exports = async function handler(req, res) {
   if (!process.env.ANTHROPIC_API_KEY) return send(res, 500, { error: "Claude isn't set up yet: add ANTHROPIC_API_KEY in Vercel's environment variables." });
   try {
     if (body.mode === "draft") return send(res, 200, await draft(body));
-    if (body.mode === "roster") return send(res, 200, await explainRoster(body));
-    if (body.mode === "brief") {
-      if (String(body.text || "").trim().length < 40) return send(res, 400, { error: "Paste the text of the change first." });
-      return send(res, 200, await brief(body));
+    if (body.mode === "document") {
+      if (String(body.prompt || "").trim().length < 5) return send(res, 400, { error: "Say what the document should be." });
+      return send(res, 200, await draftDocument(body));
     }
     if (!process.env.BEEHIVE_AGENT_KEY) return send(res, 500, { error: "Claude can't read beehive yet: add BEEHIVE_AGENT_KEY (the centre's agent key) in Vercel's environment variables." });
     if (!String(body.question || "").trim()) return send(res, 400, { error: "Ask a question." });
@@ -193,5 +169,4 @@ module.exports = async function handler(req, res) {
 };
 module.exports.ask = ask;
 module.exports.draft = draft;
-module.exports.brief = brief;
-module.exports.explainRoster = explainRoster;
+module.exports.draftDocument = draftDocument;

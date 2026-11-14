@@ -13,11 +13,6 @@ const Live = (() => {
   const CERT_LABEL = { WWCC: "WWCC", FIRST_AID: "First Aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis", ASTHMA: "Asthma" };
   const CERT_ORDER = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS", "ASTHMA"];
   const TRIGGER_LABEL = { manual: "Message", incident: "Incident", daily_summary: "Daily summary", medical: "Medical", document_request: "Document request" };
-  const DEMO_LOGINS = [
-    // Only the owner's demo login is offered on the sign-in page. Parent and educator accounts still work
-    // with their own email and password.
-    { email: "sara@beehive.demo", label: "Sara, owner" },
-  ];
   let sb = null;
   let children = [];
   let parentChildId = null;
@@ -39,8 +34,6 @@ const Live = (() => {
   };
   const baseName = (p) => (p ? String(p).split("/").pop().replace(/^\d+-/, "") : "");
   const isLeader = () => ME && (ME.role === "owner" || ME.role === "director");
-  const get = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
-  const set = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
 
   function client() {
     if (!sb && window.supabase && cfg.supabaseUrl && cfg.supabaseKey) sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
@@ -50,7 +43,7 @@ const Live = (() => {
     const m = (error && (error.message || error.error_description)) || String(error);
     if (/relation .* does not exist|Could not find the (table|function)|schema cache/i.test(m))
       return "The database isn't set up yet. Run the files in supabase/migrations, then supabase/seed_demo.sql, in the Supabase SQL Editor.";
-    if (/Invalid login credentials/i.test(m)) return "That email and password don't match. Demo password: Beehive2026!";
+    if (/Invalid login credentials/i.test(m)) return "That email and password don't match. Check them and try again.";
     if (/Email not confirmed/i.test(m)) return "Confirm your email first, or turn off 'Confirm email' in Supabase → Authentication.";
     if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Can't reach Supabase. Check your internet connection.";
     return m;
@@ -93,13 +86,13 @@ const Live = (() => {
     sb.auth.onAuthStateChange((event) => { if (event === "SIGNED_OUT") { stopRealtime(); LIVE = false; showLogin(); } });
     if (session) {
       try { await startLive(); } catch (e) { showLogin(e.message); }
-    } else if (get("beehive-mode") === "offline") offline();
-    else showLogin();
+    } else showLogin();
   }
 
+  // Sample data in this browser. Only used when Supabase isn't configured (and by developers testing locally
+  // with Live.goOffline() in the console); the sign-in page has no way into it.
   function offline() {
-    set("beehive-mode", "offline");
-    if (ME) { location.reload(); return; } // leaving a live session: start the demo from its own sample data
+    if (ME) { location.reload(); return; }
     LIVE = false;
     hideLogin();
     document.body.classList.remove("educatorMode", "liveMode");
@@ -114,17 +107,15 @@ const Live = (() => {
     let root = document.getElementById("authRoot");
     root.innerHTML =
       '<div class="authShade"><div class="authCard">' +
-      '<div class="authBrand"><span class="brandMark">' + (typeof ICON !== "undefined" ? ICON.brand : "") + '</span><strong>beehive</strong></div>' +
-      "<h1>Sign in</h1><p class=\"muted\">Use your centre account or a demo login.</p>" +
-      '<form id="authForm" onsubmit="event.preventDefault();Live.signIn()">' +
-      '<label class="formLabel" for="authEmail">Email</label><input class="formControl" id="authEmail" type="email" autocomplete="email" required>' +
-      '<label class="formLabel" for="authPassword">Password</label><input class="formControl" id="authPassword" type="password" autocomplete="current-password" required>' +
-      '<p class="authError" id="authError">' + (message ? esc(message) : "") + "</p>" +
+      '<div class="authLogo"><img src="./brand/animated/beehive-arrive-trail.svg" alt="beehive"></div>' +
+      '<p class="authTagline">We are the buzz in the background</p>' +
+      '<h1>Welcome back</h1><p class="authLede">Sign in to your centre.</p>' +
+      // name + autocomplete let the browser's saved email and password fill in.
+      '<form id="authForm" method="post" action="#" onsubmit="event.preventDefault();Live.signIn()">' +
+      '<label class="formLabel" for="authEmail">Email</label><input class="formControl" id="authEmail" name="email" type="email" autocomplete="username" required>' +
+      '<label class="formLabel" for="authPassword">Password</label><input class="formControl" id="authPassword" name="password" type="password" autocomplete="current-password" required>' +
+      '<p class="authError" id="authError" role="alert">' + (message ? esc(message) : "") + "</p>" +
       '<button class="button primary authSubmit" id="authSubmit">Sign in</button></form>' +
-      '<div class="authDemo"><small>Demo logins. The password is Beehive2026!</small><div>' +
-      DEMO_LOGINS.map((d) => '<button class="button small" onclick="Live.fillDemo(\'' + d.email + "')\">" + d.label + "</button>").join("") +
-      "</div></div>" +
-      '<button class="textButton authOffline" onclick="Live.goOffline()">Explore the offline demo instead</button>' +
       "</div></div>";
     root.classList.remove("hidden");
   }
@@ -132,11 +123,6 @@ const Live = (() => {
     const root = document.getElementById("authRoot");
     root.innerHTML = "";
     root.classList.add("hidden");
-  }
-  function fillDemo(email) {
-    document.getElementById("authEmail").value = email;
-    document.getElementById("authPassword").value = "Beehive2026!";
-    signIn();
   }
   async function signIn() {
     const email = document.getElementById("authEmail").value.trim();
@@ -146,7 +132,6 @@ const Live = (() => {
     btn.disabled = true; btn.textContent = "Signing in…"; err.textContent = "";
     try {
       await q(sb.auth.signInWithPassword({ email, password }));
-      set("beehive-mode", "live");
       await startLive();
     } catch (e) {
       err.textContent = e.message;
@@ -155,17 +140,10 @@ const Live = (() => {
   }
   async function signOut() {
     closeModal();
-    set("beehive-mode", null);
+    try { localStorage.removeItem("beehive-mode"); } catch (e) {}
     await sb.auth.signOut();
   }
   function goOffline() { offline(); }
-  function resetOffline() {
-    if (typeof Library !== "undefined") Library.resetOffline();
-    if (typeof StaffAgent !== "undefined") StaffAgent.reset();
-    if (typeof AuditAgent !== "undefined") AuditAgent.reset();
-    set("beehive-audit-flow-v4", null);
-    location.reload();
-  }
 
   // ---------- load everything for the signed-in person ----------
   async function startLive() {
@@ -212,7 +190,9 @@ const Live = (() => {
       : Promise.resolve([]);
     const [rows, kids, staffRows, certRows, subs, meds, thread, regs, drafts] = await Promise.all([
       q(sb.from("v_checklist_status").select("*")),
-      q(sb.from("children").select("id, first_name, last_name, date_of_birth, emergency_contact").eq("is_active", true).order("first_name")),
+      // enrolment holds the full enrolment record (20261114100000_child_enrolment.sql); read without it until that's run
+      q(sb.from("children").select("id, first_name, last_name, date_of_birth, emergency_contact, enrolment").eq("is_active", true).order("first_name"))
+        .catch(() => q(sb.from("children").select("id, first_name, last_name, date_of_birth, emergency_contact").eq("is_active", true).order("first_name"))),
       q(sb.from("staff").select("*").order("full_name")),
       q(sb.from("v_certificate_reminders").select("*")),
       leader ? q(sb.from("certificate_submissions").select("*, staff(full_name), certificate_types(code)").eq("status", "pending").order("submitted_at"))
@@ -480,6 +460,23 @@ const Live = (() => {
   }
   async function docUrl(path) { return signedUrl(path); }
 
+  // ---------- children: enrol a child, and the documents drafted for them ----------
+  async function addChild(rec) {
+    const base = { centre_id: ME.centre.id, first_name: rec.first, last_name: rec.last, date_of_birth: rec.dob || null, emergency_contact: rec.contact || "" };
+    const row = await busy(() => tolerant((r) => sb.from("children").insert(r).select("id").single(), Object.assign({}, base, { enrolment: rec.enrolment || {} }), base),
+      rec.first + " " + rec.last + " is enrolled.");
+    await reload();
+    return row && row.id;
+  }
+  async function childDocuments(childId) {
+    try { return await q(sb.from("child_documents").select("id, title, body, created_at, drafted_by_ai").eq("child_id", childId).order("created_at", { ascending: false })); }
+    catch (e) { return []; }
+  }
+  async function saveChildDocument(childId, d) {
+    return busy(() => q(sb.from("child_documents").insert({ centre_id: ME.centre.id, child_id: childId, title: d.title, body: d.body, prompt: d.prompt || "", drafted_by_ai: !!d.ai, created_by: ME.id }).select("id").single()),
+      "Saved to the child’s file.");
+  }
+
   async function logDrill(id) {
     if (typeof AuditAgent !== "undefined" && AuditAgent.active()) return AuditAgent.openDrillForm(id);
     await busy(() => q(sb.from("evidence").insert({ centre_id: ME.centre.id, checklist_item_id: id, title: "Evacuation drill logged", recorded_on: todayISO(), uploaded_by: ME.id })),
@@ -560,13 +557,6 @@ const Live = (() => {
     }, "Update received. A receipt is now in your messages and medical profile.");
     familyFile = "";
     await reload("family-medical");
-  }
-  async function sendFamilyMessage() {
-    const input = document.getElementById("familyMessageInput");
-    const text = input.value.trim();
-    if (!text) return toast("Write a message first.");
-    await busy(() => q(sb.from("messages").insert({ centre_id: ME.centre.id, child_id: parentChildId, sender_id: ME.id, body: text })), "Message sent to the centre.");
-    await reload("family-messages");
   }
   async function sendOwnerReply() {
     const input = document.getElementById("ownerReplyInput");
@@ -654,10 +644,10 @@ const Live = (() => {
   }
 
   return {
-    children: () => children, addEducator, saveDocument, markLeft, docUrl,
-    boot, signIn, signOut, fillDemo, goOffline, resetOffline, showLogin, reload,
+    children: () => children, addEducator, saveDocument, markLeft, docUrl, addChild, childDocuments, saveChildDocument,
+    boot, signIn, signOut, goOffline, showLogin, reload,
     completeTask, approveChecklist, editBaseline, uploadEvidence, logDrill, acceptUpdate, markUpdateReviewed, runExpiryCheck,
-    submitCertificate, approveCertificate, submitFamilyUpdate, sendFamilyMessage, sendOwnerReply, acknowledgeFamilyUpdate,
+    submitCertificate, approveCertificate, submitFamilyUpdate, sendOwnerReply, acknowledgeFamilyUpdate,
     approveDraft, discardDraft, createDraft, searchEvidence, openResult,
     client: () => client(), config: cfg, q, explain, todayISO, signedUrl,
   };

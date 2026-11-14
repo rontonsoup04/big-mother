@@ -71,16 +71,28 @@
       }
     }
   }
+  // The main panel of a page reaches down to the dock, so short pages don't leave a gap at the bottom.
+  const FILL = ".tableWrap, .splitSide, .canvas.hive";
+  // The Overview hive: the canvas fills the space and the stage of cells grows with it.
+  function fitHive(el, h) {
+    el.style.height = h + "px";
+    el.setAttribute("data-fitted", "1");
+    const stage = el.querySelector(".hiveStage");
+    if (!stage) return;
+    const k = Math.max(1, Math.min((el.clientWidth - 24) / stage.offsetWidth, (h - 16) / stage.offsetHeight, 1.4));
+    stage.style.transform = k > 1.01 ? "scale(" + k.toFixed(3) + ")" : "";
+  }
   function fit() {
     const pg = document.getElementById("page");
     if (!pg) return;
-    pg.querySelectorAll("[data-fitted]").forEach((el) => { el.style.maxHeight = ""; el.removeAttribute("data-fitted"); });
+    pg.querySelectorAll("[data-fitted]").forEach((el) => { el.style.maxHeight = ""; el.style.minHeight = ""; el.style.height = ""; el.removeAttribute("data-fitted"); });
+    pg.querySelectorAll(".hiveStage").forEach((s) => { s.style.transform = ""; });
     if (!oneView.matches) return;
     const pr = pg.getBoundingClientRect(), cs = getComputedStyle(pg);
     const limit = pg.clientHeight - parseFloat(cs.paddingBottom);
     const last = pg.lastElementChild;
     const contentEnd = last ? last.getBoundingClientRect().bottom - pr.top + pg.scrollTop : 0;
-    const panels = [...pg.querySelectorAll(PANELS)].filter((el) => !el.parentElement.closest(PANELS));
+    const panels = [...pg.querySelectorAll(PANELS + ", .canvas.hive")].filter((el) => !el.parentElement.closest(PANELS));
     panels.forEach((el) => {
       const r = el.getBoundingClientRect();
       const top = r.top - pr.top + pg.scrollTop;
@@ -91,7 +103,10 @@
       while (col.parentElement && col.parentElement !== pg && !col.parentElement.matches(".fitColumns, .splitView, .uploadLayout")) col = col.parentElement;
       const trailing = Math.max(0, contentEnd - (block.getBoundingClientRect().bottom - pr.top + pg.scrollTop)) + Math.max(0, col.getBoundingClientRect().bottom - r.bottom);
       const h = Math.max(200, Math.floor(limit - top - trailing - 6));
-      if (r.height > h) { el.style.maxHeight = h + "px"; el.setAttribute("data-fitted", "1"); }
+      if (el.matches(".canvas.hive")) return fitHive(el, Math.max(h, 520));
+      // a few pixels over isn't worth a scrollbar (it flickers on and off as buttons lift on hover)
+      if (r.height > h + 12) { el.style.maxHeight = h + "px"; el.setAttribute("data-fitted", "1"); }
+      else if (r.height < h && el.matches(FILL) && !el.closest(".modal")) { el.style.minHeight = h + "px"; el.setAttribute("data-fitted", "1"); }
     });
   }
   let fitTimer = null;

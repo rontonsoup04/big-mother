@@ -8,11 +8,12 @@
 //   - WWCC: an educator without a current WWCC can't work with children, so isn't counted
 //   - first aid cover (Reg 136): someone on shift with current first aid, CPR, anaphylaxis and asthma training
 //
-// "Create with AI" builds the week with a rules engine, so the ratio and diploma checks always hold. Educators with
-// an expired or missing credential are left off until it's renewed. The owner can change any shift afterwards.
+// Each week starts empty. "Fill gaps with AI" fills only the week on screen, with a rules engine, so the ratio and
+// diploma checks always hold; shifts set by hand are kept. Educators with an expired or missing credential are left
+// off until it's renewed.
 const Roster = (() => {
   const E = (s) => (typeof esc === "function" ? esc(s == null ? "" : s) : String(s == null ? "" : s));
-  const STORE = "beehive-roster-v1";
+  const STORE = "beehive-roster-v2"; // v2: weeks start empty (v1 held weeks the old auto-roster built)
   const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
   const SHIFTS = { early: ["6:30 am", "3:00 pm", "Early"], mid: ["8:00 am", "4:30 pm", "Middle"], late: ["10:00 am", "6:30 pm", "Late"] };
   const FIRST_AID_SET = ["First Aid", "CPR", "Anaphylaxis", "Asthma"];
@@ -49,9 +50,14 @@ const Roster = (() => {
   // ---------- storage (this browser; the live database has no roster table yet) ----------
   function load() { try { return JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { return {}; } }
   function save(all) { try { localStorage.setItem(STORE, JSON.stringify(all)); } catch (e) {} }
-  function week(start) { return load()[start || weekStart] || null; }
+  function week(start) {
+    const w = load()[start || weekStart] || null;
+    const ids = new Set(staff().map((e) => e.id));
+    if (!w || !ids.size) return w;
+    // drop shifts for anyone who isn't a current educator: they'd count as cover that isn't there
+    return Object.fromEntries(Object.entries(w).map(([d, day]) => [d, Object.fromEntries(Object.entries(day || {}).filter(([id]) => ids.has(id)))]));
+  }
   function setWeek(data) { const all = load(); if (data) all[weekStart] = data; else delete all[weekStart]; save(all); }
-
   // ---------- educators and children ----------
   const staff = () => (typeof educators !== "undefined" ? educators : []);
   // Demo profiles match by id offline and by first name in live mode (live ids are database ids).
@@ -102,17 +108,23 @@ const Roster = (() => {
   // Fills each day: first aid cover first, then diploma holders until the 50% rule is met, then anyone to reach
   // ratio, plus one spare for breaks where staff allow. Shifts are staggered early, late and middle.
   // base: shifts already set by hand; they are kept and only the gaps are filled.
+  // A repeatable shuffle per week, so each week gets a different mix (and the same week fills the same way twice).
+  function seeded(key) { let h = 2166136261; for (const c of key) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return ((h >>> 0) % 100000) / 100000; }
   function build(base) {
     const out = {};
-    weekDates().forEach((date) => {
+    const shiftsThisWeek = {}; // spread the week fairly: whoever has worked least so far goes first
+    Object.values(base || {}).forEach((day) => Object.keys(day || {}).forEach((id) => { shiftsThisWeek[id] = (shiftsThisWeek[id] || 0) + 1; }));
+    const weekNo = Math.round(Date.parse(weekStart + "T00:00:00Z") / (7 * 864e5));
+    weekDates().forEach((date, di) => {
       const dn = dayOf(date);
       const d = demand(date);
-      const pool = staff().filter((e) => rosterable(e) && profile(e).days.includes(dn));
+      const pool = staff().filter((e) => rosterable(e) && profile(e).days.includes(dn))
+        .sort((a, b) => (shiftsThisWeek[a.id] || 0) - (shiftsThisWeek[b.id] || 0) || seeded(weekStart + date + a.id) - seeded(weekStart + date + b.id));
       const day = Object.assign({}, (base || {})[date] || {});
       const kept = new Set(Object.keys(day));
       const taken = new Set(kept);
       const count = () => Object.keys(day).length;
-      const place = (e) => { day[e.id] = { shift: "" }; taken.add(e.id); };
+      const place = (e) => { day[e.id] = { shift: "" }; taken.add(e.id); shiftsThisWeek[e.id] = (shiftsThisWeek[e.id] || 0) + 1; };
       const pick = (filter) => pool.find((e) => !taken.has(e.id) && filter(e));
       if (d.children) {
         // 1. first aid cover, preferring a diploma holder
@@ -126,24 +138,31 @@ const Roster = (() => {
         if (count() <= d.needed) { const e = pick(() => true); if (e) place(e); }
       }
       // stagger shifts
-      Object.keys(day).filter((id) => !kept.has(id)).forEach((id, i) => { day[id].shift = ["early", "late", "mid"][i % 3]; });
+      Object.keys(day).filter((id) => !kept.has(id)).forEach((id, i) => { day[id].shift = ["early", "late", "mid"][(i + weekNo + di) % 3]; });
       out[date] = day;
     });
     return out;
   }
-  // Auto-fill: keeps every shift set by hand and fills the gaps with fully qualified educators.
+  // Fill gaps: only the week on screen. Keeps every shift set by hand and fills the gaps with fully qualified educators.
   function create() {
     const before = week() || {};
     const data = build(before);
     setWeek(data);
     const off = staff().filter((e) => !rosterable(e));
+    const short = weekDates().map((d) => check(d, data[d])).filter((c) => c.rostered < c.needed);
     render();
-    toast((Object.keys(before).length ? "Gaps filled" : "Roster created") + " for the week of " + fmt(weekStart) + ": ratios and the 50% diploma rule met every day" + (off.length ? ". " + off.map((e) => e.name.split(" ")[0]).join(" and ") + " left off until their credentials are renewed." : "."));
+    toast("Gaps filled for the week of " + fmt(weekStart) + (short.length ? ". Not enough educators on " + short.map((c) => dayOf(c.date)).join(", ") + ": add shifts by hand." : ": ratios and the 50% diploma rule met every day.") +
+      (off.length ? " " + off.map((e) => e.name.split(" ")[0]).join(" and ") + " left off until their credentials are renewed." : ""));
   }
-  function copyLast() {
+
+  function ask(title, text, okLabel, act) {
+    openModal('<div class="modalHead"><div><h2>' + E(title) + "</h2><p>" + E(text) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="formActions"><button class="button" onclick="closeModal()">Cancel</button><button class="button primary" onclick="closeModal();' + act + '">' + E(okLabel) + "</button></div>");
+  }
+  function copyLast(sure) {
     const prev = load()[addDays(weekStart, -7)];
-    if (!prev) return toast("There’s no roster for last week to copy.");
-    if (week() && !confirm("Replace this week’s shifts with last week’s?")) return;
+    if (!prev || !Object.values(prev).some((d) => Object.keys(d || {}).length)) return toast("There’s no roster for last week to copy.");
+    if (!sure && hasShifts()) return ask("Copy last week?", "This replaces this week’s shifts with last week’s.", "Replace with last week", "Roster.copyLast(true)");
     const data = {};
     weekDates().forEach((date, i) => {
       const from = prev[addDays(weekStart, i - 7)] || {};
@@ -151,29 +170,15 @@ const Roster = (() => {
     });
     setWeek(data);
     render();
-    toast("Copied last week’s shifts. Anyone whose credentials have lapsed since was left off.");
+    toast("Copied last week’s shifts. Anyone whose credentials have lapsed was left off.");
   }
-  // Automatic rostering: once enough educators are fully qualified, beehive builds each new week by itself.
-  const AUTO_KEY = "beehive-roster-auto";
-  function autoOn() { try { return localStorage.getItem(AUTO_KEY) !== "off"; } catch (e) { return true; } }
-  function toggleAuto() { try { localStorage.setItem(AUTO_KEY, autoOn() ? "off" : "on"); } catch (e) {} render(); }
-  function readyCount() { return staff().filter(rosterable).length; }
-  function canAuto() {
-    // enough fully qualified educators to cover the busiest day this week
-    const need = Math.max(0, ...weekDates().map((d) => demand(d).needed));
-    return readyCount() >= need && need > 0;
-  }
-  function autoFill() {
-    if (week() || !autoOn() || !canAuto()) return false;
-    setWeek(build({}));
-    return true;
-  }
-  function clearWeek() {
-    if (!week() || !Object.values(week()).some((d) => Object.keys(d || {}).length)) return;
-    if (!confirm("Delete the roster for the week of " + fmt(weekStart) + "? This can’t be undone.")) return;
-    setWeek({}); // an empty week, so auto-roster leaves it for you to build by hand
+  const hasShifts = () => { const w = week(); return !!w && Object.values(w).some((d) => Object.keys(d || {}).length); };
+  function clearWeek(sure) {
+    if (!hasShifts()) return toast("This week has no shifts to clear.");
+    if (!sure) return ask("Clear the week of " + fmt(weekStart) + "?", "Every shift this week is removed.", "Clear the week", "Roster.clearWeek(true)");
+    setWeek({});
     render();
-    toast("Roster deleted for the week of " + fmt(weekStart) + ". Click any day to build it by hand.");
+    toast("Week of " + fmt(weekStart) + " cleared. Click any day to add a shift, or use Fill gaps with AI.");
   }
   function change(date, id, value) {
     const data = week() || {};
@@ -186,7 +191,6 @@ const Roster = (() => {
   // For the hive agent: add one shift on any date (its own week), keeping everything else.
   function addShift(date, id, shift) {
     const start = mondayOf(new Date(date + "T00:00:00"));
-    ensureWeek(start);
     const all = load();
     const data = all[start] || {};
     data[date] = data[date] || {};
@@ -196,18 +200,13 @@ const Roster = (() => {
   }
   function dayEntries(date) { const d = week(mondayOf(new Date(date + "T00:00:00"))) || {}; return d[date] || {}; }
   function shiftWeek(n) { weekStart = addDays(weekStart, 7 * n); render(); }
+  function thisWeek() { weekStart = mondayOf(new Date()); render(); }
+  const ARROW_L = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ARROW_R = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   // ---------- what the rest of beehive reads ----------
   // Entries for one date in the shape the daily sheet uses. Without a roster for that week, nobody is on.
-  // Builds a week on its own when auto-roster is on and nobody has started it yet.
-  function ensureWeek(start) {
-    if (week(start)) return;
-    const keep = weekStart;
-    weekStart = start;
-    try { autoFill(); } finally { weekStart = keep; }
-  }
   function forDay(isoDate) {
-    ensureWeek(mondayOf(new Date(isoDate + "T00:00:00")));
     const data = week(mondayOf(new Date(isoDate + "T00:00:00"))) || {};
     return Object.entries(data[isoDate] || {}).map(([id, s]) => {
       const e = staff().find((x) => x.id === id);
@@ -243,44 +242,37 @@ const Roster = (() => {
     );
   }
   function page() {
-    const autoMade = autoFill();
     const stored = week();
     const data = stored && Object.values(stored).some((d) => Object.keys(d || {}).length) ? stored : null;
     const dates = weekDates();
     const head =
-      header("Roster", "Week of " + fmt(weekStart, { day: "numeric", month: "long", year: "numeric" }) + ". Click any day to change a shift, or an educator’s availability to update their days.",
-        '<div class="weekNav"><button class="iconButton" aria-label="Previous week" onclick="Roster.shiftWeek(-1)">‹</button><button class="iconButton" aria-label="Next week" onclick="Roster.shiftWeek(1)">›</button></div>' +
+      header("Roster", "Week of " + fmt(weekStart, { day: "numeric", month: "long", year: "numeric" }),
+        '<div class="weekNav" role="group" aria-label="Choose week"><button class="weekArrow" aria-label="Previous week" onclick="Roster.shiftWeek(-1)">' + ARROW_L + "</button>" +
+          '<button class="weekToday" onclick="Roster.thisWeek()"' + (weekStart === mondayOf(new Date()) ? " disabled" : "") + ">This week</button>" +
+          '<button class="weekArrow" aria-label="Next week" onclick="Roster.shiftWeek(1)">' + ARROW_R + "</button></div>" +
         '<button class="button" onclick="Availability.openAll()">Availability</button>' +
         '<button class="button" onclick="Roster.copyLast()">Copy last week</button>' +
-        '<button class="button" onclick="Roster.clearWeek()" ' + (data ? "" : "disabled") + ">Delete week roster</button>" +
-        '<button class="button primary" onclick="Roster.create()"><span data-icon="spark"></span>' + (data ? "Fill gaps with AI" : "Create with AI") + "</button>");
-    const ready = readyCount();
-    const autoBar =
-      '<div class="autoBar"><span class="aiMark" data-icon="spark"></span><div><b>' + ready + " of " + staff().length + " educators are fully qualified</b><small>" +
-        (canAuto() ? (autoOn() ? "beehive builds each new week for you from fully qualified educators. Click any day to change a shift." : "Auto-roster is off: build the week by clicking each day, or use Create with AI.")
-          : "Not enough fully qualified educators to cover every day yet, so build the week by hand: click any day to add a shift.") +
-        (autoMade ? " This week was just built automatically." : "") + "</small></div>" +
-        (canAuto() ? '<label class="switch"><input type="checkbox" ' + (autoOn() ? "checked" : "") + ' onchange="Roster.toggleAuto()"><span></span>Auto-roster</label>' : "") + "</div>";
-    const legend = '<div class="calLegend"><span class="dipTag">Diploma+</span><span class="muted">' + staff().filter(isDiploma).length + " of " + staff().length + " educators</span></div>";
+        '<button class="button" onclick="Roster.clearWeek()" ' + (data ? "" : "disabled") + ">Clear week</button>" +
+        '<button class="button primary" onclick="Roster.create()"><span data-icon="spark"></span>Fill gaps with AI</button>');
     const table =
-      '<div class="tableWrap"><table class="calendar"><thead><tr><th>Educator</th>' +
-      dates.map((d) => { const dm = demand(d); return "<th><b>" + dayOf(d) + " " + fmt(d) + "</b><small>" + dm.children + " children · " + dm.needed + " educators needed</small></th>"; }).join("") + "</tr></thead><tbody>" +
-      staff().map((e) => '<tr class="' + (rosterable(e) ? "" : "isBlocked") + '"><td><div class="staffPerson"><b>' + E(e.name) + "</b><small>" + E(profile(e).qual) + (isDiploma(e) ? ' <span class="dipTag">Diploma+</span>' : "") + "</small>" +
-        '<button class="availButton" onclick="Availability.open(\'' + e.id + '\')" aria-label="Change ' + E(e.name) + '’s availability">Available ' + E(typeof Availability !== "undefined" ? Availability.summary(profile(e).days) : profile(e).days.join(", ")) + "</button></div></td>" +
+      '<div class="tableWrap"><table class="calendar compact"><thead><tr><th>Educator</th>' +
+      dates.map((d) => { const dm = demand(d); return "<th><b>" + dayOf(d) + " " + fmt(d) + "</b><small>" + dm.children + " children · " + dm.needed + " needed</small></th>"; }).join("") + "</tr></thead><tbody>" +
+      staff().map((e) => '<tr class="' + (rosterable(e) ? "" : "isBlocked") + '"><td><div class="staffPerson"><b>' + E(e.name) + (isDiploma(e) ? ' <span class="dipTag">Diploma+</span>' : "") + "</b>" +
+        "<small>" + E(profile(e).qual) + "</small>" +
+        '<button type="button" class="availButton" onclick="Availability.open(\'' + E(e.id) + '\')" aria-label="Change ' + E(e.name) + '’s availability">Available ' + E(typeof Availability !== "undefined" ? Availability.summary(profile(e).days) : profile(e).days.join(", ")) + "</button></div></td>" +
         dates.map((d) => cell(d, e, data && data[d] ? data[d][e.id] : null)).join("") + "</tr>").join("") +
       "</tbody></table></div>";
-    return head + autoBar + legend + (data ? "" : '<p class="emptyRoster muted">No roster for this week yet. Click any day to add a shift, or use Create with AI.</p>') + table +
-      '<p class="footnote">' + (typeof LIVE !== "undefined" && LIVE ? "Rosters are saved in this browser for now. " : "Offline demo: sample qualifications and availability. ") + "The roster is also your record of educators working directly with children (Reg 151).</p>";
+    return head + (data ? "" : '<p class="emptyRoster muted">This week is empty. Click any day to add a shift, or use Fill gaps with AI.</p>') + table +
+      '<p class="footnote">' + (typeof LIVE !== "undefined" && LIVE ? "Rosters are saved in this browser for now. " : "") + "The roster is also your record of educators working directly with children (Reg 151).</p>";
   }
 
   // This week at a glance for the Overview.
   function weekStatus() {
     const start = mondayOf(new Date());
-    ensureWeek(start);
     const data = week(start);
     if (!data || !Object.values(data).some((d) => Object.keys(d || {}).length)) return { exists: false, ok: 0, issues: 0, start };
     const checks = WEEKDAYS.map((_, i) => check(addDays(start, i), data[addDays(start, i)]));
     return { exists: true, ok: checks.filter((c) => c.ok).length, issues: checks.reduce((n, c) => n + c.issues.length, 0), start };
   }
-  return { SHIFTS, addShift, dayEntries, demand, rosterable, blockers, dayOf, weekStatus, copyLast, toggleAuto, page, edit, create, clearWeek, change, shiftWeek, forDay, check, build, issueCount, profile, isDiploma };
+  return { SHIFTS, addShift, dayEntries, demand, rosterable, blockers, dayOf, weekStatus, copyLast, page, edit, create, clearWeek, change, shiftWeek, thisWeek, forDay, check, build, issueCount, profile, isDiploma };
 })();

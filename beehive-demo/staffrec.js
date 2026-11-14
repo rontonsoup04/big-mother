@@ -183,16 +183,25 @@ const StaffRecords = (() => {
   }
 
   // ---------- Staff page: former educators ----------
+  // A button beside the educators; the list opens in a popup so the page stays short.
   function formerSection() {
     const list = typeof formerEducators !== "undefined" ? formerEducators : [];
     if (!list.length) return "";
-    return '<section class="section formerSection"><div class="sectionHead"><h2>Former educators<span class="count">' + list.length + "</span></h2><p>Records kept for 3 years after their last day (Reg 183)</p></div>" +
-      '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>Started</th><th>Last day</th><th>Keep records until</th><th>Documents</th></tr></thead><tbody>' +
-      list.map((f) => '<tr onclick="StaffRecords.openFormer(\'' + E(f.id) + '\')"><td><div class="staffPerson"><b>' + E(f.name) + "</b><small>" + E(f.role) + "</small></div></td>" +
-        '<td data-label="Worked">' + (f.startedOn ? E(fmt(f.startedOn)) : "—") + '</td><td data-label="Last day">' + (f.leftOn ? E(fmt(f.leftOn)) : "Not recorded") + (f.leftReason ? "<small class=\"days\">" + E(f.leftReason) + "</small>" : "") + "</td>" +
-        '<td data-label="Keep until"><span class="status monitor">' + (f.leftOn ? E(fmt(keepUntil(f.leftOn))) : "3 years after last day") + "</span></td>" +
-        '<td data-label="Documents">' + (f.docs || []).length + " on file</td></tr>").join("") +
-      "</tbody></table></div></section>";
+    return '<button class="formerButton" onclick="StaffRecords.openFormerList()"><span class="rowMain"><b>Former educators <span class="count">' + list.length + "</span></b>" +
+      "<small>Records kept for 3 years after their last day (Reg 183)</small></span><span class=\"chev\">" + (typeof ico === "function" ? ico("chevron") : "›") + "</span></button>";
+  }
+  function openFormerList() {
+    const list = typeof formerEducators !== "undefined" ? formerEducators : [];
+    openModal(
+      '<div class="modalHead"><div><h2>Former educators</h2><p>Records kept for 3 years after their last day (Reg 183). Click someone to see their file.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      (list.length ? '<div class="tableWrap"><table class="staffTable formerTable"><thead><tr><th>Educator</th><th>Started</th><th>Last day</th><th>Keep records until</th><th>Documents</th></tr></thead><tbody>' +
+        list.map((f) => '<tr onclick="StaffRecords.openFormer(\'' + E(f.id) + '\')"><td><div class="staffPerson"><b>' + E(f.name) + "</b><small>" + E(f.role) + "</small></div></td>" +
+          '<td data-label="Started">' + (f.startedOn ? E(fmt(f.startedOn)) : "—") + '</td><td data-label="Last day">' + (f.leftOn ? E(fmt(f.leftOn)) : "Not recorded") + (f.leftReason ? "<small class=\"days\">" + E(f.leftReason) + "</small>" : "") + "</td>" +
+          '<td data-label="Keep until"><span class="status monitor">' + (f.leftOn ? E(fmt(keepUntil(f.leftOn))) : "3 years after last day") + "</span></td>" +
+          '<td data-label="Documents">' + (f.docs || []).length + " on file</td></tr>").join("") +
+        "</tbody></table></div>" : '<p class="empty">No former educators.</p>'),
+      "wide"
+    );
   }
   function openFormer(id) {
     const f = (formerEducators || []).find((x) => x.id === id);
@@ -200,7 +209,8 @@ const StaffRecords = (() => {
     openModal(
       '<div class="modalHead"><div><h2>' + E(f.name) + "</h2><p>Former " + E(String(f.role || "educator").toLowerCase()) + (f.qualification ? " · " + E(f.qualification) : "") + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<div class="modalSection">' + meta("Started", fmt(f.startedOn)) + meta("Last day", fmt(f.leftOn) + (f.leftReason ? " · " + f.leftReason : "")) + meta("Keep records until", f.leftOn ? fmt(keepUntil(f.leftOn)) : "3 years after their last day") + meta("Contact", [f.email, f.phone].filter(Boolean).join(" · ")) + "</div>" +
-      docsHtml(f, true) + '<p class="footnote">Read only. An authorised officer can ask to see a former educator’s staff record for 3 years after they leave.</p>'
+      docsHtml(f, true) + '<p class="footnote">Read only. An authorised officer can ask to see a former educator’s staff record for 3 years after they leave.</p>' +
+      '<div class="formActions"><button class="button" onclick="StaffRecords.openFormerList()">Back to former educators</button></div>', "wide"
     );
   }
   function meta(label, value) { return '<div class="modalMeta"><span>' + label + "</span><b>" + E(value || "Not recorded") + "</b></div>"; }
@@ -212,5 +222,5 @@ const StaffRecords = (() => {
       '<div class="modalSection"><button class="textButton dangerText" onclick="StaffRecords.openLeave(\'' + E(e.id) + '\')">This educator is leaving</button></div>';
   }
 
-  return { applyOffline, openAdd, saveNew, docsHtml, openDoc, kindChanged, saveDoc, view, openLeave, saveLeave, formerSection, openFormer, detailExtras };
+  return { applyOffline, openAdd, saveNew, docsHtml, openDoc, kindChanged, saveDoc, view, openLeave, saveLeave, formerSection, openFormerList, openFormer, detailExtras };
 })();

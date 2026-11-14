@@ -20,9 +20,9 @@ const Canvas = (() => {
     if (typeof approved !== "undefined" && !approved)
       out.push({ id: "checklist", tone: "warn", label: "Legal", title: "Approve your requirements checklist", detail: "beehive drafted it from the National Regulations. Once approved, it checks every requirement for you.", act: "go('audit')", btn: "Review" });
     const reg = typeof Legal !== "undefined" ? Legal.openCount() : 0;
-    if (reg) out.push({ id: "reg", tone: "warn", label: "Legal", title: "A regulation change may affect your policies", detail: "beehive matched it to " + reg + " requirement" + (reg === 1 ? "" : "s") + ". Record whether anything needs to change.", act: "go('updates')", btn: "Review" });
+    if (reg) out.push({ id: "reg", tone: "warn", label: "Legal", title: "A regulation change may affect your policies", detail: "beehive matched it to " + reg + " requirement" + (reg === 1 ? "" : "s") + ". Record whether anything needs to change.", act: "Legal.reviewUpdates()", btn: "Review" });
     const rs = typeof Roster !== "undefined" ? Roster.weekStatus() : { exists: true };
-    if (!rs.exists) out.push({ id: "roster", tone: "warn", label: "Roster", title: "No roster for this week", detail: "Create with AI builds one that meets ratios and the 50% diploma rule.", act: "go('roster')", btn: "Create" });
+    if (!rs.exists) out.push({ id: "roster", tone: "warn", label: "Roster", title: "No roster for this week", detail: "Fill gaps with AI builds one that meets ratios and the 50% diploma rule.", act: "go('roster')", btn: "Open" });
     const kids = typeof Centre !== "undefined" ? Centre.children() : [];
     const unsigned = kids.filter((k) => k.missing.some((m) => /enrolment agreement/i.test(m)));
     if (unsigned.length) out.push({ id: "contracts", tone: "warn", label: "Centre", title: unsigned.length + " enrolment agreement" + (unsigned.length === 1 ? "" : "s") + " not signed", detail: unsigned.map((k) => k.first + " " + k.last).join(", ") + ". The family has been sent the agreement.", act: "Centre.openChild('" + unsigned[0].id + "')", btn: "Open" });
@@ -82,7 +82,7 @@ const Canvas = (() => {
     // Section links live in the bottom dock only.
     return (
       // beehive's main tagline is the Overview's heading; the greeting and the day sit under it.
-      header('<span class="mainTagline">we are the buzz in the background</span>',
+      header('<span class="mainTagline">We are the buzz in the background</span>',
         "<b>" + greeting() + ", " + E(firstName(OWNER_NAME)) + ".</b> " + new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }) + ". " + (n ? n + (n === 1 ? " thing" : " things") + " to handle in the hive. beehive is taking care of the rest." : "The hive is calm. Nothing needs you today."),
         (Object.keys(s.pos).length || s.done.length ? '<button class="button" onclick="Canvas.reset()">Tidy the hive</button>' : "") +
         '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Audit report</button>') +
@@ -101,10 +101,11 @@ const Canvas = (() => {
     if (!el || !box) return;
     ev.preventDefault();
     const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+    const k = b.width / (box.offsetWidth || b.width) || 1; // the stage may be scaled up to fill the screen
     const dx = ev.clientX - r.left, dy = ev.clientY - r.top;
     el.classList.add("dragging");
     const move = (e) => {
-      const x = Math.min(Math.max(e.clientX - b.left - dx, 0), b.width - r.width), y = Math.min(Math.max(e.clientY - b.top - dy, 0), b.height - r.height);
+      const x = Math.min(Math.max((e.clientX - b.left - dx) / k, 0), (b.width - r.width) / k), y = Math.min(Math.max((e.clientY - b.top - dy) / k, 0), (b.height - r.height) / k);
       el.style.left = x + "px"; el.style.top = y + "px";
     };
     const up = () => {

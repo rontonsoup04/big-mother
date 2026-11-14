@@ -26,10 +26,10 @@ The product name is always written **beehive**, in lowercase. All styling lives 
 
 Every page answers: what needs attention, what has happened, what action is required.
 
-## Two ways to use it
+## Using it
 
 - **Live mode:** sign in. Everything is read from and saved to Supabase, and updates appear on other open screens straight away.
-- **Offline demo:** on the sign-in screen click **Explore the offline demo instead**. Sample data in the browser only. Safest if the internet is unreliable during a presentation.
+- **Sample data (developers only):** the sign-in page no longer offers an offline demo. To try the app with sample data in this browser, run `Live.goOffline()` in the browser console.
 
 ### Demo logins (after running the seed)
 
@@ -131,7 +131,7 @@ The audit-readiness agent works over the checklist Sara approves (Staff Records,
 - **Regulation updates.** A new update is assessed against the checklist. Possibly affected requirements are flagged *Review required*, each with an owner task giving the reason and the recommended next step. The agent never rewrites a policy or marks anything non-compliant on its own, and says when the impact is uncertain. The owner records one decision per requirement: *no change needed*, *update needed* (the requirement stays under review until the updated policy is uploaded and verified) or *doesn't apply*.
 - **Readiness** = (compliant + ½ × under review) ÷ approved requirements, shown with the breakdown. **"What is stopping us from being audit ready?"** (on the Audit readiness page and in Ask beehive) answers from the live data: the highest-priority gaps, why they matter and what to do next, each linked to the requirement or task.
 
-**Cross-agent demo:** on the Overview, open Jack Wilson's anaphylaxis renewal (missing, critical), open his upload link, upload the *Renewed* sample and verify it. His staff record updates, the renewal closes, *Staff qualification and training records* goes Missing → Under review → Compliant and readiness rises, all in one activity sequence. Offline, **Add a demo update** on Regulation updates adds a first aid change: record "Policy needs updating", then mark the owner action done.
+**Cross-agent demo:** on the Overview, open Jack Wilson's anaphylaxis renewal (missing, critical), open his upload link, upload the *Renewed* sample and verify it. His staff record updates, the renewal closes, *Staff qualification and training records* goes Missing → Under review → Compliant and readiness rises, all in one activity sequence. New regulations appear at the top of **Legal** until they're reviewed: **Review** opens a side panel with the decision for each affected requirement, and the reviewed change then moves into the requirement list under *Regulation changes*.
 
 **Demo scenario:** approve the checklist. The agent finds the evacuation drill out of date (last one 100 days ago, critical), asks Mia for the new drill record, and flags the missing authorisation records. Open Mia's upload link from the requirement, upload the *Out of date* sample to see it flagged and rejected, then the *Current* sample and verify it: the requirement turns Compliant, the overdue rehearsal task completes and readiness rises. For regulations, the safe sleep update flags *Sleep and rest policy* as Review required; record *update needed*, upload the updated policy and verify it to close the review.
 

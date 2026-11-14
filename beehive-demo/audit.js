@@ -34,6 +34,15 @@ const AuditAgent = (() => {
     emergency: { kind: "document", months: 12, hint: "Current emergency procedures and contacts on display" },
     sun: { kind: "document", months: 12, hint: "Reviewed policy with a review date in the last 12 months" },
     sleep: { kind: "document", months: 12, hint: "Reviewed sleep and rest policy" },
+    child_protection: { kind: "document", months: 12, hint: "Child protection training records and the signed code of conduct" },
+    medication: { kind: "document", months: 12, hint: "Medication record with parent authorisations" },
+    excursions: { kind: "document", months: 12, hint: "Excursion risk assessment and signed authorisations" },
+    food: { kind: "document", months: 1, hint: "This week’s menu and children’s dietary needs" },
+    policies: { kind: "document", months: 12, hint: "Policy folder with each policy’s review date" },
+    digital: { kind: "document", months: 12, hint: "Digital technology and images policy" },
+    program: { kind: "document", months: 3, hint: "Current program and children’s learning documentation" },
+    qip: { kind: "document", months: 12, hint: "Quality Improvement Plan with its last review date" },
+    notifications: { kind: "document", months: 12, hint: "Copies of notifications made to the regulator" },
   };
   // what a regulation decision asks the owner to do when the requirement is checked from beehive's own records
   const REG_ACTION = {
@@ -41,7 +50,7 @@ const AuditAgent = (() => {
     medical: "Update how medical information is collected and ask families for anything new through beehive. Mark this done when the change is in place.",
     incidents: "Update the incident procedure and brief staff. Mark this done when the change is in place.",
   };
-  const CRITICAL = ["wwcc", "firstaid", "evacuation", "emergency", "medical", "incidents"];
+  const CRITICAL = ["wwcc", "firstaid", "evacuation", "medical", "medication", "incidents", "child_protection"];
   const TASK_PATTERN = { evacuation: /evacuat|rehears/i, premises: /playground|premises/i, sun: /sun protection/i, sleep: /sleep/i, medical: /medical conditions/i };
   const WHY = {
     wwcc: "Every educator must hold a current Working with Children Check, and an officer can ask to see the register (Reg. 145–146).",
@@ -56,9 +65,21 @@ const AuditAgent = (() => {
     emergency: "Emergency procedures, contacts and the evacuation floor plan must be current and displayed (Reg. 97, 168).",
     sun: "The service must have a current sun protection policy that staff follow (Reg. 114, 168).",
     sleep: "Sleep and rest policies must reflect current requirements, with a risk assessment at least every 12 months (Reg. 84A–84C).",
+    child_protection: "Staff must know child protection law and their reporting obligations, and follow the child safe policy (Reg. 84).",
+    medication: "Medication may only be given with written authorisation, and every dose recorded (Reg. 92–96).",
+    excursions: "Every excursion needs a risk assessment and written authorisation for each child (Reg. 100–102).",
+    food: "Food must suit each child’s dietary needs, be handled safely, and the weekly menu displayed (Reg. 77–80).",
+    policies: "The service must have, follow and make available every policy the Regulations list (Reg. 168–172).",
+    digital: "The service needs a policy on the safe use of digital technology, including images of children (Reg. 168).",
+    program: "The program must follow an approved learning framework, with each child’s learning documented (Reg. 73–76).",
+    qip: "The Quality Improvement Plan must be reviewed at least once a year and kept at the service (Reg. 55–56).",
+    notifications: "Serious incidents and some complaints must be notified to the regulator within 24 hours (Reg. 175–176).",
   };
   const TOPIC = { authorisations: /authoris|nominee|collect/i, evacuation: /evacuat|drill|emergency/i, premises: /premises|safety check|playground|equipment/i,
-    emergency: /emergency|evacuat|contact/i, sun: /sun|uv|shade|hat/i, sleep: /sleep|rest|cot|bassinet/i };
+    emergency: /emergency|evacuat|contact/i, sun: /sun|uv|shade|hat/i, sleep: /sleep|rest|cot|bassinet/i,
+    child_protection: /child protection|child safe|mandatory report|code of conduct/i, medication: /medication|medicine/i, excursions: /excursion|outing|transport/i,
+    food: /food|menu|nutrition|dietary/i, policies: /polic(y|ies)/i, digital: /digital|online|image|photo|device/i, program: /program|learning framework|eylf|documentation/i,
+    qip: /quality improvement|\bqip\b|self-assessment/i, notifications: /notif|serious incident|complaint/i };
 
   let data = { available: false, mode: "", error: "", tasks: [], evidence: [], reviews: [], updates: [], events: [], messages: [], lastRun: null, staff: [] };
   let attentionTab = "verify";
@@ -606,7 +627,7 @@ const AuditAgent = (() => {
   function itemAction(x) {
     const r = reqOf(x), key = keyOf(x), m = meta(x);
     if (r.pendingEvidenceId) return { label: "Verify", act: "AuditAgent.openEvidence('" + r.pendingEvidenceId + "')" };
-    if (r.flags.includes("review_required")) return { label: "Review", act: "go('updates')" };
+    if (r.flags.includes("review_required")) return { label: "Review", act: "Legal.reviewUpdates()" };
     if (m.kind === "certificates" && r.status !== "compliant") return { label: "Open", act: "go('staff')" };
     if (m.kind === "medical" && r.status !== "compliant") return { label: "Review", act: "reviewFamilyUpdate()" };
     return { label: "Open", act: "openItem('" + x.id + "')" };
@@ -999,17 +1020,6 @@ const AuditAgent = (() => {
       (m.nextFollowUp ? '<small class="muted">Next follow-up ' + E(fmtDate(m.nextFollowUp)) + "</small>" : "") + "</div>"
     );
   }
-  const DEMO_UPDATES = [
-    { title: "First aid qualification changes", summary: "Updated first aid course requirements for education and care services. Check that every educator’s first aid and CPR certificates meet the new course requirements.", terms: ["firstaid"] },
-    { title: "Sun protection guidance refreshed", summary: "Cancer Council has refreshed its sun protection guidance for early childhood services, including UV thresholds for outdoor play.", terms: ["sun"] },
-  ];
-  function addDemoUpdate(o) {
-    if (isLive()) return;
-    const next = o || DEMO_UPDATES.find((d) => !data.updates.some((u) => u.title === d.title));
-    if (!next) return toast("No more demo updates to add.");
-    Engine.load(); Engine.addUpdate(next); applyOffline(); render();
-    toast("Demo update added. beehive assessed it against your requirements.");
-  }
   async function completeTask(taskId) {
     const note = ((document.getElementById("doneNote") || {}).value || "").trim();
     try {
@@ -1033,46 +1043,6 @@ const AuditAgent = (() => {
     catch (e) { toast(e.message || String(e)); }
   }
 
-  // ---------- regulation updates page ----------
-  const IMPACT = { likely: ["crit", "Likely affected"], possible: ["medium", "Possibly affected"], unclear: ["monitor", "Impact unclear"] };
-  function updatesPageHtml() {
-    const ups = data.updates;
-    if (!ups.length) return header("Regulation updates", "Changes that may affect your requirements.") + '<p class="empty">No updates. When guidance changes, beehive assesses which requirements it may affect and lists it here.</p>';
-    return header("Regulation updates", "beehive assesses each change against your requirements. It flags what may be affected; you decide whether anything needs to change.",
-        isLive() ? "" : '<button class="button" onclick="AuditAgent.addDemoUpdate()">Add a demo update</button>') +
-      ups.map((u) => {
-        const revs = data.reviews.filter((r) => r.updateId === u.id);
-        const updating = revs.some((r) => r.decision === "update_needed" && !r.completedAt);
-        const state = u.status === "reviewed" ? (updating ? '<span class="status medium">Reviewed, policy update in progress</span>' : '<span class="status green">Reviewed</span>') : u.status === "new" ? '<span class="status neutral">New, not yet assessed</span>' : '<span class="status crit">Review required</span>';
-        return (
-          '<article class="update"><p class="updateMeta">' + state + "<span>Published " + E(fmtDate(u.published)) + "</span>" + (u.demo ? '<span class="demoTag">Demo update</span>' : "") + "</p><h2>" + E(u.title) + "</h2><p>" + E(u.summary) + "</p>" +
-          (u.assessment ? '<div class="nextBox"><b>What beehive found</b><p>' + E(u.assessment) + "</p></div>" : "") +
-          (u.source ? '<p class="small"><a href="' + E(u.source) + '" target="_blank" rel="noopener">Official source</a></p>' : "") +
-          revs.map((r) => reviewBlock(r, u)).join("") + "</article>"
-        );
-      }).join("") +
-      '<p class="footnote">Identifying a potentially relevant change isn’t the same as confirming your policy must change. beehive never rewrites a policy or marks a requirement non-compliant from an update alone. Summaries are guidance, not legal advice.</p>';
-  }
-  function reviewBlock(r, u) {
-    const x = r.itemId ? itemById(r.itemId) : null;
-    const imp = IMPACT[r.impact] || IMPACT.unclear;
-    const dec = { no_change: "No change needed", update_needed: "Policy needs updating", not_applicable: "Doesn’t apply to us" };
-    return (
-      '<div class="reviewItem"><div class="reviewHead"><span class="status ' + imp[0] + '">' + imp[1] + "</span><b>" + E(x ? x.title : "No requirement clearly matches") + "</b>" + (x ? statusTagHtml(reqOf(x).status) : "") + "</div>" +
-      "<p>" + E(r.reason) + "</p><p class=\"muted small\"><b>Recommended:</b> " + E(r.recommended) + "</p>" +
-      (r.decision
-        ? '<p class="decisionDone"><span class="status ' + (r.decision === "update_needed" && !r.completedAt ? "medium" : "green") + '">' + dec[r.decision] + "</span>" + E(r.decidedAt ? " Recorded " + fmtDate(String(r.decidedAt).slice(0, 10)) : "") + (r.note ? ". " + E(r.note) : "") +
-          (r.decision === "update_needed" ? (r.completedAt ? ". Change in place." : (x && meta(x).kind !== "document" ? '. Waiting for you to put it into practice. <button class="textButton" onclick="AuditAgent.openActionFor(\'' + r.updateId + "','" + r.itemId + '\')">Open the task</button>' : '. Waiting for the updated policy. <button class="textButton" onclick="openItem(\'' + r.itemId + '\')">Upload it</button>')) : "") + "</p>"
-        : leader()
-        ? '<label class="formLabel" for="rn-' + r.id + '">Your note (optional)</label><input class="formControl" id="rn-' + r.id + '" placeholder="What you checked">' +
-          '<div class="buttonRow decisionBtns">' +
-          '<button class="button" onclick="AuditAgent.decide(\'' + r.id + "','no_change')\">No change needed</button>" +
-          '<button class="button" onclick="AuditAgent.decide(\'' + r.id + "','update_needed')\">Policy needs updating</button>" +
-          '<button class="button" onclick="AuditAgent.decide(\'' + r.id + "','not_applicable')\">Doesn’t apply to us</button>" +
-          (x ? '<button class="textButton" onclick="openItem(\'' + x.id + '\')">See current evidence</button>' : "") + "</div>"
-        : "") + "</div>"
-    );
-  }
   function openActionFor(updateId, itemId) {
     const t = data.tasks.find((y) => y.kind === "regulation_action" && y.updateId === updateId && y.itemId === itemId && y.state !== "resolved");
     if (t) openTask(t.id); else openItem(itemId);
@@ -1109,10 +1079,10 @@ const AuditAgent = (() => {
     return data.events.map((e) => {
       const t = e.taskId ? data.tasks.find((y) => y.id === e.taskId) : null;
       let act = "", actLabel = "";
-      if (t && t.state === "owner_review") { act = t.evidenceId ? "AuditAgent.openEvidence('" + t.evidenceId + "')" : t.kind === "regulation_review" ? "go('updates')" : "AuditAgent.openTask('" + t.id + "')"; actLabel = t.evidenceId ? "Verify" : "Decide"; }
+      if (t && t.state === "owner_review") { act = t.evidenceId ? "AuditAgent.openEvidence('" + t.evidenceId + "')" : t.kind === "regulation_review" ? "Legal.reviewUpdates()" : "AuditAgent.openTask('" + t.id + "')"; actLabel = t.evidenceId ? "Verify" : "Decide"; }
       else if (t && t.state !== "resolved") act = "AuditAgent.openTask('" + t.id + "')";
       else if (e.itemId) act = "openItem('" + e.itemId + "')";
-      else if (e.updateId) act = "go('updates')";
+      else if (e.updateId) act = "Legal.reviewUpdates()";
       else if (t) act = "AuditAgent.openTask('" + t.id + "')";
       const x = e.itemId ? itemById(e.itemId) : null;
       const d = e.detail || {};
@@ -1130,7 +1100,7 @@ const AuditAgent = (() => {
         const e = data.evidence.find((y) => y.id === t.evidenceId);
         return { kind: e && e.flag !== "clear" ? "Check flagged evidence" : "Verify evidence", who: t.itemTitle, detail: e && (e.checks || [])[0] ? e.checks[0].message : "Looks current. Verify it to close the gap.", act: "AuditAgent.openEvidence('" + t.evidenceId + "')", btn: "Review", urgent: e && e.flag !== "clear" };
       }
-      if (t.kind === "regulation_review") return { kind: "Regulation review", who: t.itemTitle || t.updateTitle, detail: t.reason + " Decide whether anything needs to change.", act: "go('updates')", btn: "Review" };
+      if (t.kind === "regulation_review") return { kind: "Regulation review", who: t.itemTitle || t.updateTitle, detail: t.reason + " Decide whether anything needs to change.", act: "Legal.reviewUpdates()", btn: "Review" };
       return { kind: "Escalated", who: t.itemTitle, detail: t.recommended, act: "AuditAgent.openTask('" + t.id + "')", btn: "Decide", urgent: true };
     });
   }
@@ -1225,9 +1195,9 @@ const AuditAgent = (() => {
 
   return {
     active, data: () => data, counts, score, blockers, decisions, feedRows, loadOffline, loadLive, runRemote, runOffline, onApproved, reset: () => Engine.reset(), applyOffline,
-    auditPageHtml, updatesPageHtml, overviewRow, blockersAnswer, blockersSummaryText, educatorRequests, setupNote, readinessBlock,
+    auditPageHtml, overviewRow, blockersAnswer, blockersSummaryText, educatorRequests, setupNote, readinessBlock,
     openItem, openBlockers, openEvidence, openTask, openDrillForm, saveDrill, decideEvidence, fileChosen, useSample, submitFromDrawer, assign, sendNow, decide, tab,
     linkToken, showLinkPage, submitLink, closeLinkPage, openLink, LABEL,
-    todoItems, completeTask, openActionFor, addDemoUpdate, requirementForCode, reqOf, meta, prioTag, statusTagHtml: (st) => statusTagHtml(st),
+    todoItems, completeTask, openActionFor, requirementForCode, reqOf, meta, prioTag, statusTagHtml: (st) => statusTagHtml(st),
   };
 })();

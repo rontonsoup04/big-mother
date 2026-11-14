@@ -114,12 +114,6 @@ small { font-size: var(--t-xs); }
 .brandMark { width: 24px; height: 28px; color: var(--on-ink); flex: none; }
 .brandMark svg { width: 100%; height: 100%; display: block; }
 .brandName { font: 800 24px/1 var(--display); letter-spacing: -0.04em; }
-.modeSticker {
-  display: inline-flex; align-items: center; gap: 8px; height: var(--bar-h); padding: 0 16px;
-  background: var(--green-tint); color: var(--ink); border: var(--bw) solid var(--ink); border-radius: var(--r-pill); box-shadow: var(--shadow-sm);
-  font: 800 12px var(--display); text-transform: uppercase; letter-spacing: .08em; white-space: nowrap;
-}
-.modeSticker .hx { color: var(--green); width: 12px; height: 14px; }
 .hud { margin-left: auto; display: flex; gap: 10px; align-items: center; }
 .ownerProfile {
   display: inline-flex; align-items: center; gap: 10px; height: var(--bar-h); padding: 0 6px 0 6px;
@@ -591,10 +585,6 @@ details.more[open] > summary::after { content: "–"; }
 .authCard .muted { margin-top: 4px; font-size: var(--t-sm); }
 .authError { color: var(--red); font-size: var(--t-sm); min-height: 20px; margin: var(--s2) 0 0; }
 .authSubmit { width: 100%; height: 40px; margin-top: var(--s2); }
-.authDemo { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--line); }
-.authDemo small { display: block; color: var(--ink-3); margin-bottom: var(--s2); }
-.authDemo div { display: flex; flex-wrap: wrap; gap: 6px; }
-.authOffline { display: block; margin-top: var(--s5); }
 
 /* ---------- family (parent-facing) ---------- */
 .childLine { display: flex; align-items: center; gap: var(--s3); padding: var(--s4) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: var(--s5); }
@@ -967,8 +957,6 @@ p.small, .small { font-size: var(--t-sm); }
 a.button { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 
 /* Roster: weekly calendar */
-.calLegend { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; margin-bottom: var(--s4); font-size: var(--t-xs); }
-.calLegend .shift { padding: 3px 10px; border-radius: 999px; }
 .calendar { width: 100%; border-collapse: separate; border-spacing: 6px; table-layout: fixed; min-width: 900px; margin: 0 -6px; }
 .calendar th { text-align: left; font-weight: 500; font-size: var(--t-sm); padding: 0 0 6px; }
 .calendar th:first-child { width: 210px; }
@@ -1049,9 +1037,6 @@ a.button { text-decoration: none; display: inline-flex; align-items: center; gap
 .contractCell .button { white-space: nowrap; }
 .contractCell .needsSign { border-color: #e3b4ad; }
 .pdfMini { font-size: 9px; font-weight: 700; color: var(--red); border: 1px solid #e3b4ad; border-radius: 3px; padding: 0 3px; margin-right: 4px; }
-.autoBar { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); margin-bottom: var(--s4); background: var(--surface); }
-.autoBar > div { flex: 1; display: grid; gap: 2px; }
-.autoBar small { color: var(--ink-3); font-size: var(--t-xs); }
 .switch { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-sm); cursor: pointer; white-space: nowrap; }
 .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .switch span { width: 34px; height: 20px; border-radius: 999px; background: var(--line-2, #d9d2c3); position: relative; transition: background .15s; }
@@ -1261,7 +1246,7 @@ button.row:hover, a.row:hover, .row.clickable:hover, .checkRow:hover { backgroun
 .readinessBlock .method { color: var(--ink-2); }
 
 /* ---------- callouts become stickers with tape ---------- */
-.callout, .escalationBox, .flagBox, .nextBox, .agentResult, .aiNote, .hiveBar, .autoBar, .followUps, .agentCard, .reviewItem, .agentStrip {
+.callout, .escalationBox, .flagBox, .nextBox, .agentResult, .aiNote, .hiveBar, .followUps, .agentCard, .reviewItem, .agentStrip {
   position: relative; border: var(--bw) solid var(--ink); border-radius: 6px; background: var(--cream); box-shadow: var(--shadow); padding: var(--s4) var(--s5);
 }
 .callout { background: var(--orange); transform: rotate(-0.7deg); margin: var(--s4) 0 var(--s6); }
@@ -1358,7 +1343,6 @@ button.row:hover, a.row:hover, .row.clickable:hover, .checkRow:hover { backgroun
 .shift b { font: 800 14px var(--display); }
 .shift small { color: var(--ink); }
 .shift.wattle { background: #FFE14D; } .shift.banksia { background: #FF9E5E; } .shift.gumtree { background: #B8E6A0; } .shift.extra { background: #FFC2DA; }
-.calLegend .shift { box-shadow: none; font-weight: 700; }
 .rosterCell.on select { background: var(--honey-2); border-color: var(--ink); color: var(--ink); }
 
 /* honeycomb of key areas */
@@ -1481,7 +1465,6 @@ details.more > summary { color: var(--ink); font-weight: 800; }
 .authBrand strong { font: 800 40px var(--display); letter-spacing: -0.05em; }
 .authCard h1 { font-size: clamp(36px, 6vw, 52px); }
 .authSubmit { height: 52px; }
-.authDemo { border-top: var(--bw-2) solid var(--ink); }
 .authError { color: var(--red); font-weight: 700; }
 
 /* ---------- family (parent-facing): bigger, clearer, medical first ---------- */
@@ -1620,7 +1603,6 @@ details.more > summary { color: var(--ink); font-weight: 800; }
   :root { --dock-h: 72px; }
   body { font-size: 16px; }
   .masthead { padding: var(--s3) var(--s4) var(--s2); }
-  .modeSticker { font-size: 10px; padding: 0 12px; }
   .hud { display: none; }
   .page { padding: var(--s2) var(--s4) calc(var(--dock-h) + 110px); }
   .pageHead { flex-direction: column; align-items: stretch; }
@@ -1736,3 +1718,182 @@ details.more > summary { color: var(--ink); font-weight: 800; }
 .pageHead:has(.mainTagline) p.lede { max-width: none; margin-top: 4px; }
 .overviewHive .hiveBar { margin-bottom: 10px; }
 .canvas.hive { min-height: 514px; padding: 3px 0; }
+
+/* ===================================================================================
+   Nov 2026 tidy-up: slimmer top bar, sign-in, roster, former educators, regulation alerts
+   =================================================================================== */
+/* top bar: shorter, so pages get more of the screen */
+:root { --bar-h: 36px; --top-h: 50px; }
+.masthead { padding: 7px var(--page-x) 5px; gap: 8px; }
+.wordmark { padding: 0 14px 0 10px; gap: 8px; }
+.wordmark .brandMark { width: 19px; height: 22px; }
+.brandName { font-size: 20px; }
+.hud { gap: 8px; }
+.hudButton { padding: 0 12px; font-size: 13px; gap: 6px; }
+.hudButton svg { width: 16px; height: 16px; }
+.ownerProfile { gap: 8px; padding: 0 4px; }
+.ownerProfile b { font-size: 13px; }
+.ownerProfile small { font-size: 11px; }
+.ownerProfile .avatar { width: 26px; height: 30px; font-size: 11px; }
+.ownerProfile button { width: 26px; height: 26px; font-size: 11px; }
+
+/* sign-in */
+.authCard { transform: none; padding: var(--s6); }
+.authCard .authBrand { margin-bottom: var(--s5); }
+.authCard h1 { font-size: clamp(32px, 5vw, 42px); }
+.authLede { margin: 6px 0 var(--s4); color: var(--ink-2); }
+.authCard .formLabel { margin-top: var(--s3); }
+.authError:empty { display: none; }
+.authError { margin-top: var(--s3); }
+.authSubmit { width: 100%; margin-top: var(--s4); }
+
+/* Staff: former educators open in a popup */
+.formerButton { display: flex; align-items: center; gap: var(--s3); width: 100%; text-align: left; padding: var(--s3) var(--s4);
+  background: var(--cream); border: var(--bw-2) solid var(--ink); border-radius: 14px; box-shadow: var(--shadow-sm); }
+.formerButton:hover { background: var(--honey-2); }
+.formerButton .rowMain { flex: 1; display: grid; gap: 2px; }
+.formerButton small { color: var(--ink-3); }
+.formerTable tbody tr { cursor: pointer; }
+.formerTable small.days { display: block; color: var(--ink-3); }
+
+/* Legal: new regulations stay at the top until reviewed; the review opens in the side panel */
+.regAlerts { display: grid; gap: var(--s3); margin-bottom: var(--s5); }
+.regAlert { display: flex; align-items: center; gap: var(--s4); padding: var(--s4) var(--s5); background: var(--honey-2); border: var(--bw) solid var(--ink); border-radius: 16px; box-shadow: var(--shadow); }
+.regAlert .hx { color: var(--red); }
+.regAlert .rowMain { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.regAlert small { font: 800 12px var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--red); }
+.regAlert b { font: 800 18px/1.2 var(--display); }
+.regAlert p { color: var(--ink-2); font-size: var(--t-sm); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 760px) { .regAlert { flex-wrap: wrap; } .regAlert .button { width: 100%; } }
+.regKicker { font: 800 12px var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--red); margin-bottom: 4px; }
+.regH { margin: var(--s4) 0 var(--s2); }
+.regReview { padding: var(--s3) var(--s4); margin-bottom: var(--s3); border: var(--bw-2) solid var(--ink); border-radius: 12px; background: var(--cream); display: grid; gap: var(--s2); }
+.regReviewHead { display: flex; justify-content: space-between; gap: var(--s3); align-items: center; }
+.regReview .nextBox { margin: 0; }
+.regReview .decisionBtns { flex-wrap: wrap; }
+
+/* Centre: add a child, and documents drafted with AI */
+.enrolForm .enrolGroup { border: var(--bw-2) solid var(--ink); border-radius: 14px; padding: var(--s2) var(--s4) var(--s4); margin: 0 0 var(--s4); background: var(--cream); }
+.enrolForm legend { font: 800 15px var(--display); padding: 0 6px; }
+.enrolForm .formField.wide, .enrolForm .wide { grid-column: 1 / -1; }
+.enrolForm .req { color: var(--red); }
+.enrolForm .formField small { margin-top: 2px; }
+.checkLine { display: flex; gap: 8px; align-items: center; padding-top: 6px; font-size: var(--t-sm); }
+.consentPicks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--s4); padding-top: var(--s2); }
+@media (max-width: 640px) { .enrolForm .formGrid, .consentPicks { grid-template-columns: 1fr; } }
+#childDocs .docRow { grid-template-columns: 44px minmax(0, 1fr) auto auto; align-items: center; }
+.docBody { font: 400 14px/1.5 var(--font); min-height: 260px; }
+.docView { white-space: normal; line-height: 1.55; max-height: 60vh; overflow-y: auto; }
+
+/* Roster: compact, so a whole week fits with little scrolling */
+.page:has(.calendar.compact) .pageHead { margin-bottom: 8px; }
+.calendar.compact th { padding: 6px 8px; font-size: 13px; }
+.calendar.compact th small { font-size: 11px; font-weight: 600; }
+.calendar.compact th:first-child { width: 168px; }
+.calendar.compact td { padding: 3px 4px; }
+.calendar.compact .calCell { height: 38px; }
+.calendar.compact .calCell button { min-height: 34px; padding: 3px 8px; }
+.calendar.compact .shift b { font-size: 12px; }
+.calendar.compact .shift small { font-size: 10.5px; }
+.calendar.compact .calCell.away span, .calendar.compact .calCell.blocked span { padding: 3px 8px; font-size: 11px; }
+.calendar.compact .calCell.blocked small { padding: 0 8px; font-size: 10px; }
+.calendar.compact .staffPerson b { font-size: 14px; line-height: 1.15; }
+.calendar.compact .staffPerson small { font-size: 11px; line-height: 1.2; }
+.calendar.compact .availButton { margin-top: 2px; padding: 0 8px; font-size: 10.5px; }
+/* diploma holders stand out at a glance */
+.dipTag { background: #2E9C8A; color: #fff; border-color: var(--ink); font-size: 10px; padding: 0 6px; vertical-align: 2px; white-space: nowrap; }
+.emptyRoster { padding: 4px 0 8px; font-size: var(--t-sm); }
+
+/* Availability: everyone's days, editable in one list */
+.availList { display: grid; gap: 6px; }
+.availRow { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: 6px 0; border-bottom: 1px solid var(--line); }
+.availName { display: grid; gap: 1px; text-align: left; background: none; border: 0; padding: 0; min-width: 0; }
+.availName b { font-size: 14px; }
+.availName small { color: var(--ink-3); }
+.availName:hover b { text-decoration: underline; }
+.availToggles { display: inline-flex; gap: 4px; flex: none; }
+.availDay.mini span { width: 40px; height: 32px; font-size: 12px; border-width: var(--bw-2); border-radius: 8px; box-shadow: none; }
+@media (max-width: 560px) { .availRow { flex-direction: column; align-items: flex-start; } }
+
+/* ===================================================================================
+   Nov 2026, round 2: bigger text that grows with the screen, less empty space at the bottom
+   =================================================================================== */
+:root {
+  --t-xs: clamp(13px, 1.45vh, 15px);
+  --t-sm: clamp(15px, 1.65vh, 17px);
+  --t-md: clamp(16px, 1.8vh, 18px);
+  --t-lg: clamp(19px, 2.1vh, 22px);
+  --dock-h: 66px;
+}
+body { font-size: var(--t-md); }
+.dock { bottom: 10px; padding: 6px; }
+.dock button { height: 52px; min-width: 74px; font-size: 13px; }
+@media (min-width: 900px) and (min-height: 620px) {
+  .page { padding-bottom: calc(var(--dock-h) + 18px); }
+}
+/* text that was fixed in pixels */
+.status, .certState { font-size: var(--t-xs); }
+.row .rowMain b, .checkRow .rowMain b, .taskMain b { font-size: var(--t-md); }
+.staffTable th { font-size: var(--t-xs); }
+.staffTable td { font-size: var(--t-sm); }
+.staffPerson b { font-size: clamp(17px, 2vh, 20px); }
+.staffPerson small, .certCell small, .certCell .days { font-size: var(--t-xs); }
+.footnote { font-size: var(--t-xs); }
+.callout b { font-size: var(--t-md); }
+.empty, .emptyState, .agentEmpty, .subhead { font-size: var(--t-sm); }
+.hudButton { font-size: 14px; }
+/* the roster stays compact, just a touch bigger */
+.calendar.compact th { font-size: 14px; }
+.calendar.compact th small { font-size: 12px; }
+.calendar.compact .shift b { font-size: 13px; }
+.calendar.compact .shift small { font-size: 11.5px; }
+.calendar.compact .staffPerson b { font-size: 15px; }
+.calendar.compact .staffPerson small { font-size: 12px; }
+/* panels that fill to the bottom and scroll inside: no hover lift, so the scrollbar can't flicker */
+[data-fitted] .button:hover, .splitSide .button:hover, [data-fitted] .hudButton:hover { transform: none; }
+.tableWrap[data-fitted] { background: var(--cream); }
+.hiveStage { transform-origin: center center; transition: transform .2s ease; }
+/* roster: week picker */
+.weekNav { display: inline-flex; align-items: stretch; height: 40px; border: var(--bw-2) solid var(--ink); border-radius: var(--r-pill); background: var(--cream); box-shadow: var(--shadow-sm); overflow: hidden; }
+.weekNav button { border: 0; background: none; color: var(--ink); display: grid; place-items: center; padding: 0 12px; font: 800 13px var(--display); }
+.weekNav .weekArrow { width: 40px; padding: 0; }
+.weekNav .weekToday { border-left: var(--bw-2) solid var(--ink); border-right: var(--bw-2) solid var(--ink); }
+.weekNav button:hover:not(:disabled) { background: var(--honey-2); }
+.weekNav button:disabled { color: var(--ink-3); cursor: default; }
+/* Staff: keep every column in view with the bigger text */
+.splitView { grid-template-columns: minmax(0, 1fr) 310px; }
+.staffTable td { padding-right: 6px; }
+.staffTable th { padding-left: 8px; padding-right: 6px; }
+.staffTable .certState { padding: 3px 8px 3px 6px; letter-spacing: .01em; gap: 5px; }
+.staffTable .certState::before { width: 10px; height: 12px; }
+@media (max-width: 1100px) { .splitView { grid-template-columns: 1fr; } }
+.splitSide .followHead { flex-wrap: wrap; }
+.splitSide .followHead > div { flex: 1 1 200px; min-width: 0; }
+.splitSide .followHead .button { flex: 1 0 100%; justify-content: center; }
+
+/* ===================================================================================
+   Nov 2026, round 3: the new animated logo and a roomier top bar
+   =================================================================================== */
+:root { --bar-h: 44px; --top-h: 76px; }
+.masthead { padding: 12px var(--page-x) 10px; gap: 12px; }
+.wordmark { height: 56px; padding: 0 18px; background: var(--cream); border: var(--bw) solid var(--ink); box-shadow: var(--shadow-sm); }
+.wordmark:hover { background: #fff; }
+.wordmark .logo { display: block; height: 52px; width: auto; }
+.hud { gap: 10px; }
+.hudButton { height: 44px; padding: 0 16px; font-size: 15px; gap: 8px; }
+.hudButton svg { width: 18px; height: 18px; }
+.ownerProfile { height: 48px; padding: 0 6px 0 6px; gap: 10px; }
+.ownerProfile b { font-size: 15px; }
+.ownerProfile small { font-size: 12px; }
+.ownerProfile .avatar { width: 32px; height: 36px; font-size: 12px; }
+.ownerProfile button { width: 32px; height: 32px; font-size: 12px; }
+@media (max-width: 760px) {
+  .wordmark { height: 46px; padding: 0 12px; }
+  .wordmark .logo { height: 42px; }
+}
+/* sign-in and the secure-link pages */
+.authLogo { display: flex; justify-content: center; margin: -8px 0 2px; }
+.authLogo img { width: min(300px, 80%); height: auto; }
+.authLogo.small img { width: min(220px, 70%); }
+.authTagline { text-align: center; font: 400 22px/1.15 var(--tagline-font); color: var(--ink); margin-bottom: var(--s5); }
+.authCard h1 { font-size: clamp(28px, 4vw, 36px); }

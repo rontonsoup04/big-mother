@@ -39,6 +39,19 @@ const BASE_ITEMS = [
     icon: "▤",
   },
   {
+    id: "child_protection",
+    title: "Child protection and child safe practice",
+    area: "Staff Records",
+    status: "yellow",
+    source: "National Law s162A · National Regulations · Reg. 84, 168",
+    evidence: "Training records · 2 staff not yet briefed this year",
+    updated: "Checked 30 Oct 2026",
+    summary:
+      "Staff must know current child protection law and their obligations, including mandatory reporting, and follow the child safe environment policy.",
+    risk: "Two staff members have no child protection briefing recorded this year.",
+    icon: "♙",
+  },
+  {
     id: "enrolment",
     title: "Children’s enrolment and contact records",
     area: "Children’s Records",
@@ -78,11 +91,24 @@ const BASE_ITEMS = [
     icon: "＋",
   },
   {
-    id: "authorisations",
-    title: "Authorisations and child collection records",
+    id: "medication",
+    title: "Medication records and authorisations",
     area: "Children’s Records",
     status: "green",
-    source: "National Regulations · Reg. 99–102",
+    source: "National Regulations · Reg. 92–96",
+    evidence: "Medication record · 3 children with authorisations",
+    updated: "Reviewed 22 Oct 2026",
+    summary:
+      "Give medication only with written parent authorisation and record every dose, who gave it and who checked it.",
+    risk: "Keep the medication record with each child’s current authorisation.",
+    icon: "＋",
+  },
+  {
+    id: "authorisations",
+    title: "Authorised nominees and child collection records",
+    area: "Children’s Records",
+    status: "green",
+    source: "National Regulations · Reg. 99, 160–161",
     evidence: "Authorised nominee records",
     updated: "Reviewed 11 Oct 2026",
     summary:
@@ -92,7 +118,7 @@ const BASE_ITEMS = [
   },
   {
     id: "evacuation",
-    title: "Emergency evacuation drill logged this quarter",
+    title: "Emergency and evacuation rehearsal this quarter",
     area: "Safety & Premises",
     status: "yellow",
     source: "National Regulations · Reg. 97",
@@ -117,17 +143,30 @@ const BASE_ITEMS = [
     icon: "⌂",
   },
   {
-    id: "emergency",
-    title: "Emergency contacts and procedures",
+    id: "excursions",
+    title: "Excursion risk assessments and authorisations",
     area: "Safety & Premises",
     status: "green",
-    source: "National Regulations · Reg. 168, 170",
-    evidence: "Emergency procedure folder",
-    updated: "Reviewed 13 Oct 2026",
+    source: "National Regulations · Reg. 100–102",
+    evidence: "Regular outing risk assessment · reviewed Aug 2026",
+    updated: "Reviewed 12 Aug 2026",
     summary:
-      "Keep required policies and procedures available and ensure staff know where to find them.",
-    risk: "Confirm the displayed emergency information is still current.",
-    icon: "!",
+      "Do a risk assessment before each excursion and get written authorisation for every child who goes.",
+    risk: "Update the risk assessment if the route, location or group size changes.",
+    icon: "⌁",
+  },
+  {
+    id: "food",
+    title: "Food safety, nutrition and weekly menu",
+    area: "Safety & Premises",
+    status: "green",
+    source: "National Regulations · Reg. 77–80",
+    evidence: "Weekly menu on display",
+    updated: "Updated 10 Nov 2026",
+    summary:
+      "Provide nutritious food that suits each child’s dietary needs, follow safe food handling and display the weekly menu.",
+    risk: "Check this week’s menu against children’s allergies.",
+    icon: "☕",
   },
   {
     id: "sun",
@@ -155,6 +194,71 @@ const BASE_ITEMS = [
     risk: "A recent guidance update may mean this policy needs another review.",
     icon: "☾",
   },
+  {
+    id: "policies",
+    title: "Required policies and procedures in place",
+    area: "Policies & Procedures",
+    status: "green",
+    source: "National Regulations · Reg. 168–172",
+    evidence: "Policy folder · 24 policies",
+    updated: "Reviewed 01 Sep 2026",
+    summary:
+      "Have every policy the Regulations require, follow them, keep them available and give families notice of changes.",
+    risk: "Keep each policy’s review date current.",
+    icon: "▤",
+  },
+  {
+    id: "digital",
+    title: "Safe use of digital technology and images",
+    area: "Policies & Procedures",
+    status: "red",
+    source: "National Regulations · Reg. 168",
+    evidence: "No current policy attached",
+    updated: "Not yet recorded",
+    summary:
+      "Have a policy on the safe use of digital technologies and online environments, including taking and storing images of children.",
+    risk: "Upload the centre’s digital technology and images policy.",
+    icon: "▣",
+  },
+  {
+    id: "program",
+    title: "Educational program and documentation",
+    area: "Policies & Procedures",
+    status: "green",
+    source: "National Law s168 · National Regulations · Reg. 73–76",
+    evidence: "Program and learning records",
+    updated: "Reviewed 03 Nov 2026",
+    summary:
+      "Base the program on the approved learning framework, document each child’s learning and share it with families.",
+    risk: "Keep each child’s documentation up to date.",
+    icon: "✎",
+  },
+  {
+    id: "qip",
+    title: "Quality Improvement Plan reviewed",
+    area: "Policies & Procedures",
+    status: "green",
+    source: "National Regulations · Reg. 31, 55, 56",
+    evidence: "QIP · reviewed Mar 2026",
+    updated: "Reviewed 14 Mar 2026",
+    summary:
+      "Keep a Quality Improvement Plan with a self-assessment against the NQS and review it at least once a year.",
+    risk: "Next annual review due March 2027.",
+    icon: "★",
+  },
+  {
+    id: "notifications",
+    title: "Notifications to the regulator",
+    area: "Policies & Procedures",
+    status: "green",
+    source: "National Law s174 · National Regulations · Reg. 175–176",
+    evidence: "No notifications due",
+    updated: "Checked 18 Oct 2026",
+    summary:
+      "Notify serious incidents and complaints alleging a serious incident or a breach within 24 hours.",
+    risk: "Keep a copy of every notification with the incident record.",
+    icon: "!",
+  },
 ];
 const AREAS = [
   "Staff Records",
@@ -162,12 +266,6 @@ const AREAS = [
   "Safety & Premises",
   "Policies & Procedures",
 ];
-const ICONS = {
-  "Staff Records": "♙",
-  "Children’s Records": "♡",
-  "Safety & Premises": "⌂",
-  "Policies & Procedures": "▤",
-};
 const BASE_EDUCATORS = [
   {
     id: "mia",
@@ -341,7 +439,6 @@ let familyFile = "";
 let uploadName = "";
 let extractedExpiryDate = "";
 let staffQuery = "";
-let alertScanDone = false;
 let current = "overview";
 let activeFilter = "All areas";
 let query = "";
@@ -441,7 +538,7 @@ function setNav() {
     navCurrent =
       current === "staff-upload"
         ? "staff"
-        : current === "audit" || current === "updates" || current === "legal" || current === "legal-safety"
+        : current === "audit" || current === "legal"
         ? "legal"
         : current === "compliance"
         ? "centre"
@@ -457,10 +554,6 @@ function setNav() {
   document
     .querySelectorAll(".parentOnly")
     .forEach((e) => (e.style.display = parent ? "" : "none"));
-  // Medical and Messages: the parent's own pages, and in the offline demo the owner's view of the sample family
-  document
-    .querySelectorAll(".familyNav")
-    .forEach((e) => (e.style.display = parent || !LIVE ? "" : "none"));
   document.querySelector(".globalSearch").style.display = parent ? "none" : "";
   document.getElementById("topAvatar").textContent = initials(parent ? PARENT_NAME : OWNER_NAME);
   document.getElementById("workspaceProfile").innerHTML = parent
@@ -468,13 +561,9 @@ function setNav() {
     : '<span class="avatar">' + initials(OWNER_NAME) + '</span><span><b>' + esc(OWNER_NAME) + '</b><small>' + (ME && ME.role === "director" ? "Centre director" : "Centre owner") + '</small></span><button aria-label="Profile menu" onclick="openProfileMenu()">···</button>';
   if (isEducator()) document.querySelector("#workspaceProfile small").textContent = "Educator";
   document.querySelectorAll(".centreName").forEach((e) => (e.textContent = CENTRE_NAME));
-  let dm = document.getElementById("dataModeLabel");
-  if (dm) dm.textContent = LIVE ? "Live data" : "Offline demo";
   let crumb = {
     overview: "Overview",
-    updates: "Legal",
     legal: "Legal",
-    "legal-safety": "Legal",
     compliance: "Centre",
     roster: "Roster",
     staff: "Staff",
@@ -483,7 +572,6 @@ function setNav() {
     family: "Home",
     "family-medical": "Medical profile",
     "family-form": "Update medical details",
-    "family-messages": "Messages",
   };
   document.getElementById("pageCrumb").textContent =
     crumb[current] || "Audit readiness";
@@ -554,19 +642,6 @@ function submitFamilyUpdate() {
   go("family-medical");
   toast("Update received. A receipt is now in " + firstName(familyMedical.childName) + "’s medical profile.");
 }
-function sendFamilyMessage() {
-  if (LIVE) return Live.sendFamilyMessage();
-  let input = document.getElementById("familyMessageInput"),
-    text = input.value.trim();
-  if (!text) {
-    toast("Write a message first.");
-    return;
-  }
-  familyMessages.push({ from: "parent", text: text, time: "Just now" });
-  persist();
-  go("family-messages");
-  toast("Message added to the demo conversation.");
-}
 function sendOwnerReply() {
   if (LIVE) return Live.sendOwnerReply();
   let input = document.getElementById("ownerReplyInput"),
@@ -612,13 +687,10 @@ function openProfileMenu() {
   let rows = LIVE
     ? '<div class="modalMeta"><span>Signed in as</span><b>' + esc(ME.email) + '</b></div><div class="modalMeta"><span>Role</span><b style="text-transform:capitalize">' + esc(ME.role) + "</b></div>" +
       (leader
-        ? '<div class="modalMeta"><span>Staff join code</span><b>' + esc(ME.centre.staff_code) + '</b></div><div class="modalMeta"><span>Family join code</span><b>' + esc(ME.centre.family_code) + '</b></div><div class="modalActions"><button class="button" onclick="Assistant.openSettings()">AI settings</button><button class="button primary" onclick="Live.signOut()">Sign out</button></div>'
+        ? '<div class="modalMeta"><span>Staff join code</span><b>' + esc(ME.centre.staff_code) + '</b></div><div class="modalMeta"><span>Family join code</span><b>' + esc(ME.centre.family_code) + '</b></div><div class="modalActions"><button class="button primary" onclick="Live.signOut()">Sign out</button></div>'
         : '<div class="modalActions"><button class="button primary" onclick="Live.signOut()">Sign out</button></div>')
-    : '<p class="modalSection">You’re using the offline demo. Changes stay in this browser.</p><div class="modalActions"><button class="button" onclick="Live.resetOffline()">Reset demo data</button><button class="button primary" onclick="Live.showLogin()">Sign in to beehive</button></div>';
+    : '<p class="modalSection">Not signed in. Changes stay in this browser.</p><div class="modalActions"><button class="button primary" onclick="Live.showLogin()">Sign in to beehive</button></div>';
   openModal('<div class="modalHead"><div><h2>' + esc(who) + "</h2><p>" + CN() + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' + rows);
-}
-function demoNote(text) {
-  return LIVE ? "" : text;
 }
 function isEducator() {
   return LIVE && ME && ME.role === "educator";
@@ -681,9 +753,6 @@ function setupPage() {
     '<div class="stickyBar"><p><b id="selectedCount">' + items.length + "</b> of " + items.length + ' checks selected. You can change this later.</p><button class="button primary" onclick="approveChecklist()">Approve checklist</button></div>'
   );
 }
-function miniCard(number, label, caption) {
-  return '<div class="summaryTile"><span>' + label + "</span><b>" + number + "</b><small>" + caption + "</small></div>";
-}
 function stat(n, label, cls) {
   return '<span class="stat ' + (cls || "") + '"><b>' + n + "</b><span>" + label + "</span></span>";
 }
@@ -730,7 +799,7 @@ function decisionItems() {
     d.push({ kind: "Expired credential", who: x.e.name, detail: x.c.type + " expired " + x.c.expiry + ". Decide on rostering.", act: "openStaffDetail('" + x.e.id + "')", btn: "Open", urgent: true }));
   let regPending = LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
   if (regPending && !(auditOn() && approved))
-    d.push({ kind: (LIVE ? regUpdate.status === "accepted" : saved.updateAccepted) ? "Finish policy review" : "Review regulation change", who: regUpdate ? regUpdate.title : "Safe sleep guidance review", detail: "May affect your Sleep and rest policy", act: "go('updates')", btn: "Review" });
+    d.push({ kind: (LIVE ? regUpdate.status === "accepted" : saved.updateAccepted) ? "Finish policy review" : "Review regulation change", who: regUpdate ? regUpdate.title : "Safe sleep guidance review", detail: "May affect your Sleep and rest policy", act: "Legal.reviewUpdates()", btn: "Review" });
   if (aiDrafts.length)
     d.push({ kind: "Approve family messages", who: aiDrafts.length + " draft" + (aiDrafts.length === 1 ? "" : "s"), detail: "Written by the AI agent", act: "openDraftsDrawer()", btn: "Review" });
   let agentDrafts = typeof Library !== "undefined" ? Library.agentDraftCount() : 0;
@@ -749,12 +818,6 @@ function familyInboxItem() {
   if (!latest || latest.from !== "parent") return null;
   let child = firstName(ownerThread ? ownerThread.childName : familyMedical.childName);
   return { kind: "Reply to family", who: child + "’s family", detail: latest.text, act: "replyToFamilyThread()", btn: "Reply" };
-}
-function decisionRow(x) {
-  return (
-    '<button class="row" onclick="' + x.act + '"><span class="decisionKind' + (x.urgent ? " urgent" : "") + '"><span class="hx"></span>' + esc(x.kind) + "</span>" +
-    '<span class="rowMain"><b>' + esc(x.who) + "</b><small>" + esc(x.detail) + '</small></span><span class="rowEnd"><span class="button small">' + x.btn + "</span></span></button>"
-  );
 }
 const AUDIT_LABELS = {
   "certificate.approved": "Certificate verified",
@@ -795,7 +858,7 @@ function auditEntry(a) {
   else if (d.staff_id) { who = staffName(d.staff_id) + (d.certificate || d.type ? ", " + String(d.certificate || d.type).replace("_", " ") : ""); act = "openStaffDetail('" + d.staff_id + "')"; }
   else if (d.child_id) who = childIndex[d.child_id] || "";
   else if (d.checklist_item_id) { let it = items.find((x) => x.id === d.checklist_item_id); if (it) { who = it.title; act = "openItem('" + it.id + "')"; } }
-  else if (d.title) { who = d.title; act = "go('updates')"; }
+  else if (d.title) { who = d.title; act = "Legal.reviewUpdates()"; }
   if (a.action === "reminders.expiry_check") who = (d.sent || 0) + " reminders to " + (d.staff || 0) + " staff";
   if (a.action === "checklist.approved" && d.items) who = d.items + " checks in your baseline";
   if (a.action.indexOf("compliance_record") === 0) act = "go('compliance')";
@@ -828,110 +891,6 @@ function hiveActivity() {
   }
   return out;
 }
-let activityExpanded = false;
-function timelineHtml() {
-  let all = hiveActivity();
-  let order = { progress: 0, watch: 1, done: 2 };
-  all.sort((a, b) => order[a.state] - order[b.state]);
-  let shown = activityExpanded ? all : all.slice(0, 8);
-  return (
-    '<ol class="timeline">' +
-    (shown.length
-      ? shown.map((x) =>
-          '<li class="tlItem ' + x.state + (x.act ? " link" : "") + '"' + (x.act ? ' tabindex="0" role="button" onclick="' + x.act + '" onkeydown="if(event.key===\'Enter\')this.click()"' : "") + '><span class="tlMark"></span><span class="tlText"><b>' + esc(x.label) + "</b>" +
-          (x.who ? " <span>" + esc(x.who) + "</span>" : "") + (x.sub ? "<small>" + esc(x.sub) + "</small>" : "") + "</span><time>" + esc(x.time || "") + "</time></li>").join("")
-      : '<li class="empty">No activity yet.</li>') +
-    "</ol>" +
-    (all.length > 8 ? '<button class="textButton" onclick="activityExpanded=!activityExpanded;render()">' + (activityExpanded ? "Show less" : "Show all " + all.length) + "</button>" : "") +
-    '<div class="tlLegend"><span><i class="hx" style="color:var(--green)"></i>Done</span><span><i class="hx" style="color:#d9a54a"></i>In progress</span><span><i class="hx" style="color:var(--line-2)"></i>Monitoring</span></div>'
-  );
-}
-// The four sections at a glance, then the daily sheet, at the top of the Overview.
-function sectionCards() {
-  let creds = certRows();
-  let expired = creds.filter((x) => x.c.days < 0).length, soon = creds.filter((x) => x.c.days >= 0 && x.c.days <= 30).length;
-  let legalOpen = typeof Legal !== "undefined" ? Legal.openCount() : 0, gaps = approved ? countStatus("red") : 0;
-  let tasks = typeof Library !== "undefined" ? Library.taskList() : [];
-  let overdue = tasks.filter((t) => t.state === "overdue").length;
-  let cs = typeof Centre !== "undefined" ? Centre.stats() : { children: 0, incomplete: 0, contractsDue: 0 };
-  let rs = typeof Roster !== "undefined" ? Roster.weekStatus() : { exists: false, ok: 0, issues: 0 };
-  let card = (nav, icon, title, tone, big, line, go_) =>
-    '<button class="sectionCard ' + tone + '" onclick="' + go_ + '"><span class="sectionCardHead"><span data-icon="' + icon + '"></span>' + title + '</span><b class="num">' + big + "</b><small>" + line + "</small></button>";
-  return (
-    '<div class="sectionCards">' +
-    card("staff", "staff", "Staff", expired ? "bad" : soon ? "warn" : "good", expired ? expired : soon, expired ? "expired or missing credential" + (expired === 1 ? "" : "s") + (soon ? ", " + soon + " due within 30 days" : "") : soon ? "credential" + (soon === 1 ? "" : "s") + " due within 30 days" : "every credential current", "go('staff')") +
-    card("legal", "legal", "Legal", legalOpen || gaps ? "bad" : approved ? "good" : "warn", approved ? legalOpen + gaps : "Draft", approved ? (legalOpen ? legalOpen + " change" + (legalOpen === 1 ? "" : "s") + " to review" : "no changes to review") + (gaps ? ", " + gaps + " requirement gap" + (gaps === 1 ? "" : "s") : "") : "approve your requirements checklist", approved ? "go('legal')" : "go('audit')") +
-    card("centre", "centre", "Centre", overdue || cs.incomplete ? "bad" : cs.contractsDue ? "warn" : "good", cs.children, "children enrolled" + (cs.incomplete ? ", " + cs.incomplete + " incomplete record" + (cs.incomplete === 1 ? "" : "s") : "") + (overdue ? ", " + overdue + " task" + (overdue === 1 ? "" : "s") + " overdue" : "") + (cs.contractsDue ? ", " + cs.contractsDue + " contract" + (cs.contractsDue === 1 ? "" : "s") + " to renew" : ""), "go('compliance')") +
-    card("roster", "roster", "Roster", !rs.exists ? "warn" : rs.issues ? "bad" : "good", rs.exists ? rs.ok + "/5" : "None", rs.exists ? "days compliant this week" + (rs.issues ? ", " + rs.issues + " issue" + (rs.issues === 1 ? "" : "s") : "") : "no roster this week yet", "go('roster')") +
-    medicalCard(card) +
-    "</div>"
-  );
-}
-// Medical: children with allergies or medical needs today, and any parent update waiting for approval.
-function medicalCard(card) {
-  let st = typeof Centre !== "undefined" ? Centre.sheetStats() : null;
-  let alerts = st ? st.alerts : 0, pending = medicalSubmission && medicalSubmission.status === "pending";
-  return card("medical", "medical", "Medical", pending ? "bad" : alerts ? "warn" : "good", alerts, "children with allergies or medical needs" + (pending ? ", 1 parent update to approve" : ""), pending ? "reviewFamilyUpdate()" : "go('compliance')");
-}
-function overviewPage() {
-  let decisions = decisionItems();
-  let creds = certRows();
-  let expired = creds.filter((x) => x.c.days < 0), soon = creds.filter((x) => x.c.days >= 0 && x.c.days <= 14), later = creds.filter((x) => x.c.days > 14);
-  let credRow = (x) =>
-    '<button class="row" onclick="openStaffDetail(\'' + x.e.id + '\')"><span class="rowMain"><b>' + esc(x.e.name) + "</b><small>" + esc(x.c.type) + '</small></span><span class="rowMeta num">' + (x.c.days < 0 ? "Expired " + esc(x.c.expiry) : x.c.days + " days") + "</span>" + statusTag(certStatus(x.c), x.c.days < 0 ? "Expired" : x.e.alertState && /prompt sent/i.test(x.e.alertState) ? "Reminder sent" : "No reminder yet") + "</button>";
-  let group = (title, list, max) => (list.length ? '<div class="credGroup"><p class="subhead"><span>' + title + '</span><span class="muted num">' + list.length + "</span></p>" + list.slice(0, max).map(credRow).join("") + (list.length > max ? '<button class="textButton moreLink" onclick="go(\'staff\')">' + (list.length - max) + " more in Staff</button>" : "") + "</div>" : "");
-  let regPending = LIVE ? regUpdate && regUpdate.status !== "reviewed" : !saved.updateReviewed;
-  let tasks = typeof Library !== "undefined" ? Library.taskList() : [];
-  let overdue = tasks.filter((t) => t.state === "overdue").length, dueSoon = tasks.filter((t) => t.state === "due_soon").length;
-  let today = new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
-  if (agentOn()) {
-    let att = attentionItems(), dec = att.filter((x) => !x.todo), todo = att.filter((x) => x.todo);
-    let auditReady = auditOn() && approved;
-    return (
-      header(
-        greeting() + ", " + esc(firstName(OWNER_NAME)),
-        today + ". " + (att.length ? att.length + (att.length === 1 ? " thing needs" : " things need") + " you; beehive is handling the rest." : "Nothing needs you right now; beehive is handling the rest."),
-        '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>',
-      ) +
-      sectionCards() + (typeof Centre !== "undefined" ? Centre.overviewSection() : "") +
-      StaffAgent.overviewSummary() +
-      '<section class="section decisions" id="attention"><div class="sectionHead"><h2>Needs your attention<span class="count">' + att.length + "</span></h2><p>Decisions first, then to-dos beehive proposed</p></div>" +
-      (dec.length ? dec.map(decisionRow).join("") : "") +
-      (todo.length ? '<p class="subhead">Your to-do, proposed by beehive</p>' + todo.map(decisionRow).join("") : "") +
-      (att.length ? "" : '<p class="empty">You’re all caught up. beehive will bring you anything that needs your judgement.</p>') +
-      "</section>" +
-      '<div class="twoCol"><div>' + StaffAgent.detectedHtml(7) + "</div><div>" +
-      '<section class="section"><div class="sectionHead"><h2>Audit readiness</h2><button class="textButton" onclick="go(\'audit\')">Open</button></div>' +
-      (auditReady ? AuditAgent.overviewRow()
-        : '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Approve your checklist</b><small>Once approved, beehive checks every requirement against its evidence.</small></span><span class="rowMeta">Draft</span></button>') +
-      '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
-      (regPending && !auditReady ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
-      "</section>" + StaffAgent.waitingHtml() + "</div></div>" +
-      '<section class="section" id="agentActivity"><div class="sectionHead"><h2>Agent activity</h2><p>Everything beehive did, in order, with what happens next</p></div>' + StaffAgent.feedHtml() + "</section>"
-    );
-  }
-  return (
-    header(
-      greeting() + ", " + esc(firstName(OWNER_NAME)),
-      today + ". " + (decisions.length ? decisions.length + (decisions.length === 1 ? " decision is" : " decisions are") + " waiting for you." : "Nothing needs your decision right now."),
-      '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Export audit report</button>',
-    ) +
-    sectionCards() + (typeof Centre !== "undefined" ? Centre.overviewSection() : "") +
-    '<section class="section decisions"><div class="sectionHead"><h2>Needs your decision<span class="count">' + decisions.length + "</span></h2></div>" +
-    (decisions.length ? decisions.map(decisionRow).join("") : '<p class="empty">You’re all caught up. beehive will flag anything that needs you.</p>') +
-    "</section>" +
-    ('<div class="twoCol"><div>' +
-        '<section class="section"><div class="sectionHead"><h2>Staff credentials<span class="count">' + creds.length + '</span></h2><button class="textButton" onclick="go(\'staff\')">All staff</button></div>' +
-        (creds.length ? group("Expired", expired, 4) + group("Due within 14 days", soon, 4) + group("Due within 60 days", later, 3) : '<p class="empty">Every credential is current for at least 60 days.</p>') +
-        "</section>" +
-        '<section class="section"><div class="sectionHead"><h2>Regulations and compliance</h2><button class="textButton" onclick="go(\'compliance\')">Compliance</button></div>' +
-        (regPending ? '<button class="row" onclick="go(\'updates\')"><span class="rowMain"><b>' + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</b><small>New guidance that may affect your Sleep and rest policy</small></span>" + statusTag("yellow", "Needs review") + "</button>" : "") +
-        '<button class="row" onclick="go(\'compliance\')"><span class="rowMain"><b>Compliance tasks</b><small>Drills, safety checks and policy reviews</small></span>' + (overdue ? statusTag("red", overdue + " overdue") : dueSoon ? statusTag("yellow", dueSoon + " due soon") : statusTag("green", "On track")) + "</button>" +
-        '<button class="row" onclick="go(\'audit\')"><span class="rowMain"><b>Audit readiness</b><small>' + (approved ? countStatus("red") + " missing, " + countStatus("yellow") + " due for review" : "Checklist waiting for your approval") + '</small></span><span class="rowMeta num">' + (approved ? readiness() + "%" : "Draft") + "</span></button>" +
-        "</section></div>" +
-        '<section class="section"><div class="sectionHead"><h2>Hive activity</h2></div>' + timelineHtml() + "</section></div>")
-  );
-}
 function openDraftsDrawer() {
   openModal('<div class="modalHead"><div><h2>Family messages to approve</h2><p>Drafted by the AI agent. Nothing reaches a family until you approve it.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' + aiDraftsCard(), "wide");
 }
@@ -953,29 +912,6 @@ function auditPageClassic() {
     '<p class="footnote">Checked ' + new Date().toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" }) + (LIVE ? ". Saved to your centre’s records." : ". Offline demo: changes stay in this browser.") + "</p>"
   );
 }
-function updatesPage() {
-  if (auditOn() && approved) return AuditAgent.updatesPageHtml();
-  let accepted = !!saved.updateAccepted;
-  if (LIVE && !regUpdate)
-    return header("Regulation updates", "Changes that may affect your approved checklist.") + '<p class="empty">No new updates. When guidance changes, beehive will match it to your checklist and list it here.</p>';
-  let reviewed = LIVE ? regUpdate.status === "reviewed" : !!saved.updateReviewed;
-  if (LIVE) accepted = regUpdate.status === "accepted";
-  let sleepId = (findItemByKey("sleep") || {}).id || "sleep";
-  let state = reviewed ? statusTag("green", "Reviewed") : accepted ? statusTag("yellow", "Review required") : statusTag("neutral", "New");
-  return (
-    header("Regulation updates", "Changes that may affect your approved checklist.") +
-    '<article class="update"><p class="updateMeta">' + state + "<span>Published " + esc(regUpdate ? regUpdate.published : "18 Oct 2026") + "</span></p>" +
-    "<h2>" + esc(regUpdate ? regUpdate.title : "Safe sleep guidance review") + "</h2><p>" + esc(regUpdate ? regUpdate.summary : "New safe sleep guidance may affect the centre’s Sleep and Rest Policy.") + "</p>" +
-    '<dl class="kv"><dt>What to do</dt><dd>Check your sleep and rest procedures against the latest guidance and your approved policy.</dd>' +
-    '<dt>Affected item</dt><dd><button class="textButton" onclick="openItem(\'' + sleepId + '\')">Sleep and rest policy review</button></dd>' +
-    '<dt>Source</dt><dd><a href="https://www.acecqa.gov.au/QA2-information-sheet-sleep-and-rest-legislative-requirements" target="_blank" rel="noopener">ACECQA: Sleep and rest legislative requirements</a></dd></dl>' +
-    '<div class="formActions" style="justify-content:flex-start">' +
-    (reviewed ? statusTag("green", "Review complete. Your checklist reflects this guidance.") : accepted ? '<button class="button primary" onclick="markUpdateReviewed()">Mark review complete</button>' : '<button class="button primary" onclick="acceptUpdate()">Accept update & flag policy</button>') +
-    "</div></article>" +
-    '<p class="footnote">Accepting flags the affected checklist item for review until you confirm the policy. Summaries are guidance, not legal advice.</p>'
-  );
-}
-
 // ---------- family (parent-facing) ----------
 function familyHeading(title, desc, action) {
   return header(title, desc, action);
@@ -987,12 +923,11 @@ function familyStatus() {
 function familyHomePage() {
   let pending = medicalSubmission && medicalSubmission.status === "pending";
   return (
-    familyHeading(greeting() + ", " + esc(firstName(PARENT_NAME)), CF() + "’s care information and messages from " + CN() + ".", '<button class="button primary" onclick="go(\'family-messages\')">Message the centre</button>') +
+    familyHeading(greeting() + ", " + esc(firstName(PARENT_NAME)), CF() + "’s care information from " + CN() + ".", '<button class="button primary" onclick="go(\'family-form\')">Update medical details</button>') +
     (pending ? '<div class="callout quiet"><span class="hx lg"></span><div><b>Your update has been received</b><p>The centre is reviewing it. You’ll get a message when it’s done.</p></div></div>' : "") +
     '<div class="childLine"><span class="avatar">' + initials(familyMedical.childName) + '</span><div><b>' + esc(familyMedical.childName) + '</b></div><span style="margin-left:auto">' + familyStatus() + "</span></div>" +
     '<button class="row" onclick="go(\'family-medical\')"><span class="rowMain"><b>Medical profile</b><small>' + esc(familyMedical.allergies || "No allergies listed") + ", " + esc(familyMedical.conditions || "no conditions listed") + '</small></span><span class="chev">' + ico("chevron") + "</span></button>" +
     '<button class="row" onclick="go(\'family-form\')"><span class="rowMain"><b>Update medical details</b><small>Tell the centre about a new allergy, medication or action plan</small></span><span class="chev">' + ico("chevron") + "</span></button>" +
-    '<button class="row" onclick="go(\'family-messages\')"><span class="rowMain"><b>Messages</b><small>' + familyMessages.length + " in your conversation with the centre</small></span>" + '<span class="chev">' + ico("chevron") + "</span></button>" +
     '<p class="footnote">' + (LIVE ? "Only your child’s centre team can see these details. Pilot: please use sample information only." : "Offline demo: sample records stored in this browser. Don’t enter real medical information.") + "</p>"
   );
 }
@@ -1037,20 +972,6 @@ function familyFormPage() {
     '<aside><h3 style="margin-bottom:12px">What happens next</h3><ol class="steps"><li><b>You submit</b>You get a receipt straight away.</li><li><b>The centre reviews</b>It checks the details against your plan.</li><li><b>Educators are updated</b>Once approved, educators see the new details.</li></ol></aside></div>'
   );
 }
-function familyMessagesPage() {
-  let content = familyMessages
-    .map((m) => '<div class="messageBubble ' + (m.from === "parent" ? "fromParent" : "fromCentre") + '"><small>' + (m.from === "parent" ? "You" : CN()) + (m.time ? ", " + esc(m.time) : "") + "</small><p>" + esc(m.text) + "</p></div>")
-    .join("");
-  return (
-    familyHeading("Messages", "Your conversation with " + CN() + " about " + CF() + ".") +
-    '<div class="thread familyThreadBody" id="familyThreadBody">' + content + "</div>" +
-    '<div class="familyComposer"><textarea id="familyMessageInput" rows="2" placeholder="Write a message" aria-label="Write a message to the centre"></textarea><button class="button primary" onclick="sendFamilyMessage()">Send message</button></div>' +
-    '<p class="footnote">' + (LIVE ? "Saved to your child’s record. For anything urgent, call the centre." : "Offline demo: messages stay in this browser.") + "</p>"
-  );
-}
-function medicalOwnerCard() {
-  return "";
-}
 function aiDraftsCard() {
   if (!aiDrafts.length) return '<p class="empty">No drafts waiting.</p>';
   return (
@@ -1058,9 +979,6 @@ function aiDraftsCard() {
       .map((d) => '<div class="agentItem"><small>To ' + esc(d.childName) + "’s family, " + esc(d.trigger) + '</small><textarea id="draft-' + d.id + '" rows="3" aria-label="Draft message">' + esc(d.body) + '</textarea><div class="draftActions"><button class="button small" onclick="Live.discardDraft(\'' + d.id + '\')">Discard</button><button class="button primary small" onclick="Live.approveDraft(\'' + d.id + '\')">Approve & send</button></div></div>')
       .join("")
   );
-}
-function familyInboxCard() {
-  return "";
 }
 function replyToFamilyThread() {
   pendingDraftId = null;
@@ -1097,7 +1015,7 @@ function reviewFamilyUpdate() {
 function certificateCell(c, label) {
   let s = certStatus(c);
   return (
-    '<td data-label="' + (label || c.type) + '"><div class="certCell"><span class="certState ' + PRIO_CLASS[certPrio(c)] + '">' + certPrioLabel(c) + '</span><small class="num">' + esc(c.expiry) +
+    '<td data-label="' + (label || c.type) + '"><div class="certCell"><span class="certState ' + PRIO_CLASS[certPrio(c)] + '" title="' + certPrioLabel(c) + '">' + (certPrio(c) === "critical" ? (c.missing ? "Missing" : "Expired") : certPrioLabel(c)) + '</span><small class="num">' + esc(c.expiry) +
     (c.days >= 0 && c.days <= 60 ? ' <span class="days">' + c.days + " days</span>" : "") + "</small>" +
     (c.approvedAt ? '<small class="days">Verified ' + esc(c.approvedAt) + "</small>" : "") + "</div></td>"
   );
@@ -1240,26 +1158,32 @@ function openItem(id) {
 }
 function openHelp() {
   let step = (who, title, text) => '<li class="' + who + '"><span class="hx"></span><span><b>' + title + "</b><small>" + text + '</small></span><span class="who ' + who + '">' + (who === "auto" ? "beehive" : "You") + "</span></li>";
+  let flow = (title, lede, steps) => '<section class="guideFlow"><h3>' + title + "</h3><p>" + lede + '</p><ol class="guideSteps2">' + steps.join("") + "</ol></section>";
   openModal(
-    '<div class="modalHead"><div><h2>Your hive guide</h2><p>How beehive keeps your centre compliant, and when it needs you.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<section class="guideFlow"><h3>Staff compliance</h3><p>Every educator’s WWCC, first aid, CPR and anaphylaxis.</p><ol class="guideSteps2">' +
-      step("auto", "Detected and prioritised", "Every credential, every day. Critical: expired or missing. High: 7 days. Medium: 30 days. Monitor: later.") +
-      step("auto", "Educator asked to renew", "A personal request with the deadline and a secure upload link (simulated email or SMS).") +
-      step("auto", "Followed up", "If nothing arrives by the follow-up date, beehive asks again. Critical or ignored requests are escalated to you with a recommended action.") +
-      step("auto", "Upload checked", "beehive reads the name, credential and dates and flags anything that doesn’t match.") +
-      step("you", "Verified", "You approve or reject. Nothing counts until you do.") +
-      step("auto", "Record updated", "The credential, verification date and compliance status update and the task closes.") +
-      "</ol></section>" +
-      '<section class="guideFlow"><h3>Audit readiness</h3><p>Your approved checklist, mapped to the regulations.</p><ol class="guideSteps2">' +
-      step("auto", "Requirement monitored", "Each requirement is checked against its verified evidence, due dates and compliance tasks.") +
-      step("auto", "Gap explained", "Missing, out-of-date or unverified evidence is prioritised, with why it matters and the next action.") +
-      step("auto", "Evidence requested", "beehive asks whoever holds it, with an upload link, and follows up (simulated). Credential gaps go to the staff agent.") +
-      step("auto", "Regulation changes assessed", "Possibly affected requirements are flagged Review required, with a task for you.") +
-      step("you", "Verified or decided", "You verify the evidence and record regulation decisions. Uploading alone never makes anything compliant.") +
-      step("auto", "Readiness updated", "Status, verification date and readiness update, and every step is in the activity feed.") +
-      "</ol></section>" +
+    '<div class="modalHead"><div><h2>Your hive guide</h2><p>What each part of beehive does for you, and when it needs you.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      flow("Staff", "Every educator’s WWCC, first aid, CPR, anaphylaxis and asthma, with their documents on file.", [
+        step("auto", "Credentials watched", "Every credential, every day. Critical: expired or missing. High: 7 days. Medium: 30 days. Monitor: within 60 days."),
+        step("auto", "Renewals chased", "Each educator gets a request with a secure upload link (simulated email or SMS), then follow-ups. Anything ignored or critical comes to you."),
+        step("you", "Uploads verified", "beehive reads the certificate and flags anything that doesn’t match. Nothing counts until you approve it."),
+        step("you", "Educators added or leaving", "Add educator for someone new. When someone leaves, their file moves to Former educators (the button beside the list) and is kept for 3 years (Reg 183)."),
+      ]) +
+      flow("Legal", "Spot checks, your ACECQA requirements and new regulations, on one page.", [
+        step("auto", "Spot checks", "What an officer can ask to see on an unannounced visit, checked against today’s roster and records: ratios, diplomas, an early childhood teacher, first aid cover, WWCCs and medical plans."),
+        step("auto", "ACECQA requirements", "20 requirements across staff records, children’s records, safety and premises, and policies (including medication, excursions, food, child protection, digital technology, the program, the QIP and notifications). Gaps are prioritised with the next step."),
+        step("auto", "New regulation flagged", "A new regulation stays at the top of Legal until you review it. Review opens a side panel: what changed, the requirements it touches and how to comply."),
+        step("you", "Decision recorded", "For each requirement: no change needed, policy needs updating, or doesn’t apply. Then the change joins your requirement list under Regulation changes."),
+      ]) +
+      flow("Centre", "Your children’s records, agreements and documents.", [
+        step("you", "Add a child", "Add a child records the full enrolment: parents, emergency contact, nominees, health, immunisation and consents (Regs 160–162). beehive tells you what’s still missing."),
+        step("auto", "Documents drafted", "In a child’s record, Create a document with AI drafts an agreement, consent, medical plan or welcome letter from instructions you can edit."),
+        step("you", "Checked and saved", "Edit the draft, then save it to the child’s file or download it as a PDF. Nothing is sent to the family."),
+      ]) +
+      flow("Roster", "One week at a time. Each week starts empty.", [
+        step("auto", "Fill gaps with AI", "Fills only the week on screen: first aid cover, the 50% diploma rule and ratios, keeping every shift you set and mixing who works each week. Educators with lapsed credentials are left off."),
+        step("you", "Availability", "Click an educator’s Available button, or Availability for everyone, to change the days they can work. You can also send them a link to update it themselves."),
+      ]) +
       '<div class="guideKey"><span><i class="hx" style="color:var(--honey)"></i>beehive does this</span><span><i class="hx" style="color:var(--ink)"></i>You decide</span></div>' +
-      '<div class="modalActions"><button class="button" onclick="closeModal();go(\'staff\')">Staff certifications</button><button class="button primary" onclick="closeModal();go(\'audit\')">Audit readiness</button></div>',
+      '<div class="modalActions"><button class="button" onclick="closeModal();go(\'staff\')">Staff</button><button class="button" onclick="closeModal();go(\'roster\')">Roster</button><button class="button primary" onclick="closeModal();go(\'legal\')">Legal</button></div>',
   );
 }
 function openSourceInfo() {
@@ -1358,7 +1282,6 @@ function runExpiryCheck() {
       }
     }),
   );
-  alertScanDone = true;
   persist();
   render();
   toast(
@@ -1442,26 +1365,6 @@ function approveCertificate() {
       "’s certificate is approved. Status is green and the audit timestamp is recorded.",
   );
 }
-function handleNotifications() {
-  if (agentOn()) {
-    let first = attentionItems()[0];
-    if (!first) return go("overview");
-    if (current !== "overview") go("overview");
-    new Function(first.act)();
-    return;
-  }
-  if (pendingSubmission) {
-    current = "staff";
-    render();
-    reviewSubmission();
-    return;
-  }
-  go("staff");
-  toast(
-    certDueCount() +
-      " certificate expiries are in the 60 / 30 / 7 day demo alert windows.",
-  );
-}
 
 function render() {
   if (!LIVE) syncLibrarySources();
@@ -1477,10 +1380,8 @@ function render() {
       ? Canvas.page()
       : current === "roster"
       ? rosterPage()
-      : (current === "legal" || current === "legal-safety" || current === "audit") && approved
+      : (current === "legal" || current === "audit") && approved
       ? Legal.page()
-      : current === "updates"
-        ? '<button class="textButton backLink" onclick="go(\'legal\')">‹ Back to Legal</button>' + updatesPage()
         : current === "compliance"
         ? Centre.page()
         : current === "staff"
@@ -1493,9 +1394,7 @@ function render() {
                 ? familyMedicalPage()
                 : current === "family-form"
                   ? familyFormPage()
-                  : current === "family-messages"
-                    ? familyMessagesPage()
-                    : auditPage();
+                  : auditPage();
   if (typeof fillIcons === "function") fillIcons(document);
   if (typeof Assistant !== "undefined") Assistant.refresh();
   if (document.getElementById("selectedCount"))
@@ -1751,7 +1650,7 @@ function toast(message) {
 Live.boot();
 
 // ---------------------------------------------------------------------------------------------
-// Legal: Briefing, ACECQA requirements, Safety and premises and Regulation updates (tabs in legal.js).
+// Legal: spot checks, ACECQA requirements and new regulations on one page (legal.js).
 
 // ---------------------------------------------------------------------------------------------
 // Roster: weekly roster with an AI builder (roster.js).

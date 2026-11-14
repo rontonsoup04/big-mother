@@ -562,7 +562,7 @@ const StaffAgent = (() => {
         out.push({ rank: RANK[r.priority] || 1, source: "Audit requirement", title: x.title, detail: r.reason, tags: AuditAgent.prioTag(r.priority) + AuditAgent.statusTagHtml(r.status), act: "openItem('" + x.id + "')", next: r.nextAction });
       });
       AuditAgent.data().updates.filter((u) => u.status === "assessed").forEach((u) =>
-        out.push({ rank: 2, source: "Regulation change", title: u.title, detail: u.assessment, tags: '<span class="status crit">Owner review</span>', act: "go('updates')", next: "Record whether anything needs to change." }));
+        out.push({ rank: 2, source: "Regulation change", title: u.title, detail: u.assessment, tags: '<span class="status crit">Owner review</span>', act: "Legal.reviewUpdates()", next: "Record whether anything needs to change." }));
     }
     return out.sort((a, b) => b.rank - a.rank);
   }
@@ -979,7 +979,7 @@ const StaffAgent = (() => {
       '<div class="formActions" style="justify-content:flex-start"><button class="button primary" id="submitUpload" onclick="StaffAgent.submitUpload()">Send to the centre</button></div>' +
       '<p class="footnote">Demo prototype: this page stands in for the link in the (simulated) email or SMS. Use invented details only.</p>' + closeLink() + "</div>";
   }
-  function brand() { return '<div class="authBrand"><span class="brandMark">' + (typeof ICON !== "undefined" ? ICON.brand : "") + "</span><strong>beehive</strong></div>"; }
+  function brand() { return '<div class="authLogo small"><img src="./brand/animated/beehive-arrive-trail.svg" alt="beehive"></div>'; }
   function closeLink() { return !linkInApp ? "" : '<button class="textButton" style="margin-top:24px" onclick="StaffAgent.closeUploadPage()">Back to the owner view</button>'; }
   function uploadDone(r) {
     linkRoot.innerHTML = '<div class="linkPage">' + brand() + "<h1>Thanks, it’s with the centre</h1><p class=\"muted\">" +

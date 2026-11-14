@@ -704,6 +704,208 @@ const LIBRARY_DATA = {
      "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
     }
    ]
+  },
+  {
+   "item_key": "child_protection",
+   "area": "staff_records",
+   "title": "Child protection and child safe practice",
+   "source_ref": "National Law s162A · National Regulations · Reg. 84, 168",
+   "summary": "The nominated supervisor and every staff member must know current child protection law and their obligations under it, including mandatory reporting. The service needs a child safe environment policy that staff follow.",
+   "directions": [
+    "Make sure the nominated supervisor and each person in day-to-day charge has completed the child protection training your state requires.",
+    "Brief every staff member on child protection law and mandatory reporting when they start, and refresh it at least once a year. Keep a record of who attended.",
+    "Keep a child safe environment policy and code of conduct that staff have read and signed.",
+    "Make sure staff know who to report concerns to and how, including outside the service."
+   ],
+   "evidence": "Child protection training records for each staff member, the signed code of conduct and the current child safe environment policy.",
+   "retention": "Staff records: 3 years after the staff member leaves (Reg. 183).",
+   "documents": [
+    {
+     "title": "Office of the Children's Guardian",
+     "issuer": "NSW Office of the Children's Guardian",
+     "doc_type": "Regulator",
+     "jurisdiction": "NSW",
+     "published": "",
+     "url": "https://ocg.nsw.gov.au/",
+     "note": "NSW Child Safe Scheme, Child Safe Standards and reportable conduct."
+    },
+    {
+     "title": "Education and Care Services National Regulations · Reg. 84, 168",
+     "issuer": "NSW Legislation (applies nationally)",
+     "doc_type": "Regulation",
+     "jurisdiction": "National",
+     "published": "Current version",
+     "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
+    }
+   ]
+  },
+  {
+   "item_key": "medication",
+   "area": "childrens_records",
+   "title": "Medication records and authorisations",
+   "source_ref": "National Regulations · Reg. 92–96",
+   "summary": "Medication can only be given with a parent's written authorisation, and each dose must be recorded: the child, the medication, dose, time, who gave it and who checked it.",
+   "directions": [
+    "Get written authorisation from the parent before giving any medication, except in an anaphylaxis or asthma emergency.",
+    "Record every dose: date, time, medication, dose, how it was given, the educator who gave it and the person who checked it.",
+    "Give medication from its original container, with the label and the child's name, and before the use-by date.",
+    "Tell the parent and emergency services as soon as possible after emergency medication is given."
+   ],
+   "evidence": "The medication record for each child, with parent authorisations.",
+   "retention": "Child records: 3 years after the child's last day at the service (Reg. 183).",
+   "documents": [
+    {
+     "title": "Education and Care Services National Regulations · Reg. 92–96",
+     "issuer": "NSW Legislation (applies nationally)",
+     "doc_type": "Regulation",
+     "jurisdiction": "National",
+     "published": "Current version",
+     "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
+    }
+   ]
+  },
+  {
+   "item_key": "food",
+   "area": "safety_premises",
+   "title": "Food safety, nutrition and weekly menu",
+   "source_ref": "National Regulations · Reg. 77–80",
+   "summary": "Food and drink must be nutritious, enough for each child and suit their dietary needs. Safe food handling must be followed, and a weekly menu of food the service provides must be on display.",
+   "directions": [
+    "Display this week's menu where families can see it, and keep it accurate.",
+    "Check each child's allergies and dietary needs against the menu, and make sure kitchen staff know them.",
+    "Follow safe food handling and hygiene practices, with fresh drinking water available at all times.",
+    "Keep food safety records, such as fridge temperatures and cleaning, if your food safety program asks for them."
+   ],
+   "evidence": "The current weekly menu on display and dietary needs recorded for each child.",
+   "retention": "",
+   "documents": [
+    {
+     "title": "Education and Care Services National Regulations · Reg. 77–80",
+     "issuer": "NSW Legislation (applies nationally)",
+     "doc_type": "Regulation",
+     "jurisdiction": "National",
+     "published": "Current version",
+     "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
+    }
+   ]
+  },
+  {
+   "item_key": "program",
+   "area": "policies_procedures",
+   "title": "Educational program and documentation",
+   "source_ref": "National Law s168 · National Regulations · Reg. 73–76",
+   "summary": "The educational program must be based on an approved learning framework and each child's needs and interests. Document each child's learning and progress, display information about the program, and share it with families.",
+   "directions": [
+    "Base the program on the Early Years Learning Framework and each child's strengths, needs and interests.",
+    "Document each child's assessments or evaluations of learning, and how the program supports them.",
+    "Display information about the program at the service.",
+    "Share each child's progress with their family when asked, and as part of everyday practice."
+   ],
+   "evidence": "The current program and each child's documentation of learning.",
+   "retention": "Child records: 3 years after the child's last day at the service (Reg. 183).",
+   "documents": [
+    {
+     "title": "National Quality Standard",
+     "issuer": "ACECQA (Australian Government and all states)",
+     "doc_type": "Standard",
+     "jurisdiction": "National",
+     "published": "",
+     "url": "https://www.acecqa.gov.au/nqf/national-quality-standard",
+     "note": "Quality Area 1: Educational program and practice."
+    },
+    {
+     "title": "Education and Care Services National Regulations · Reg. 73–76",
+     "issuer": "NSW Legislation (applies nationally)",
+     "doc_type": "Regulation",
+     "jurisdiction": "National",
+     "published": "Current version",
+     "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
+    }
+   ]
+  },
+  {
+   "item_key": "policies",
+   "area": "policies_procedures",
+   "title": "Required policies and procedures in place",
+   "source_ref": "National Regulations · Reg. 168–172",
+   "summary": "The service must have every policy and procedure the Regulations list (health and safety, emergencies, incidents, medical conditions, child safe environment, staffing, delivery and collection, excursions, fees, enrolment, complaints and more), follow them, keep them available and give families notice of changes.",
+   "directions": [
+    "Check your policies against the full list in Reg. 168 and add any that are missing.",
+    "Review each policy on a regular cycle and record the review date.",
+    "Keep the policies where staff and families can read them.",
+    "Give families at least 14 days' notice of a change that affects fees, the way fees are collected, or their child."
+   ],
+   "evidence": "The policy folder with each policy's review date.",
+   "retention": "",
+   "documents": [
+    {
+     "title": "Education and Care Services National Regulations · Reg. 168–172",
+     "issuer": "NSW Legislation (applies nationally)",
+     "doc_type": "Regulation",
+     "jurisdiction": "National",
+     "published": "Current version",
+     "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
+    }
+   ]
+  },
+  {
+   "item_key": "notifications",
+   "area": "policies_procedures",
+   "title": "Notifications to the regulator",
+   "source_ref": "National Law s174 · National Regulations · Reg. 175–176",
+   "summary": "Serious incidents, and complaints alleging a serious incident or a breach of the law, must be notified to the regulatory authority within 24 hours. Other changes, such as a new nominated supervisor, have their own deadlines.",
+   "directions": [
+    "Notify a serious incident through the NQA IT System within 24 hours.",
+    "Notify a complaint alleging a serious incident or a breach of the law within 24 hours.",
+    "Notify changes such as a new nominated supervisor within the required timeframe.",
+    "Keep a copy of every notification with the incident or complaint record."
+   ],
+   "evidence": "Copies of notifications made, matched to the incident and complaint records.",
+   "retention": "",
+   "documents": [
+    {
+     "title": "Notifications and reporting",
+     "issuer": "NSW Early Learning Commission",
+     "doc_type": "Guidance",
+     "jurisdiction": "NSW",
+     "published": "",
+     "url": "https://education.nsw.gov.au/early-childhood-education/regulation-and-compliance/notifications-and-reporting.html",
+     "note": "How long day care services notify the regulator through the NQA IT System."
+    },
+    {
+     "title": "Education and Care Services National Regulations · Reg. 175–176",
+     "issuer": "NSW Legislation (applies nationally)",
+     "doc_type": "Regulation",
+     "jurisdiction": "National",
+     "published": "Current version",
+     "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
+    }
+   ]
+  },
+  {
+   "item_key": "digital",
+   "area": "policies_procedures",
+   "title": "Safe use of digital technology and images",
+   "source_ref": "National Regulations · Reg. 168",
+   "summary": "The service needs a policy on the safe use of digital technologies and online environments, including when and how photos and videos of children are taken, stored and shared.",
+   "directions": [
+    "Write or update the policy on digital technologies, including personal devices and taking images of children.",
+    "Get parents' consent before photos or videos of their child are taken or shared.",
+    "Store images securely and only on devices and systems the service controls.",
+    "Train staff on the policy and record that they've read it."
+   ],
+   "evidence": "The current policy with its review date, and parents' image consents.",
+   "retention": "",
+   "documents": [
+    {
+     "title": "Education and Care Services National Regulations · Reg. 168",
+     "issuer": "NSW Legislation (applies nationally)",
+     "doc_type": "Regulation",
+     "jurisdiction": "National",
+     "published": "Current version",
+     "url": "https://legislation.nsw.gov.au/view/html/inforce/current/sl-2011-0653"
+    }
+   ]
   }
  ]
 };

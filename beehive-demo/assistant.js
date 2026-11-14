@@ -234,35 +234,5 @@ const Assistant = (() => {
     return answer;
   }
 
-  // ---------- AI settings (owner) ----------
-  function openSettings() {
-    openModal(
-      '<div class="modalHead"><div><h2>AI settings</h2><p>Ask beehive, Draft with AI and the Compliance agent use Claude on the server. Your Claude key never reaches the browser.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<div class="modalSection"><p class="helpLine">Status: <b>' + (aiReady() ? "Claude on (if ANTHROPIC_API_KEY is set in Vercel)" : "offline demo: Ask beehive uses built-in answers; the morning check still tries Claude") + "</b></p></div>" +
-      '<div class="modalSection"><h3>Agent key for Vercel</h3><p>Claude reads this centre’s records with an agent key. Put it in Vercel as <code>BEEHIVE_AGENT_KEY</code>, then redeploy. Creating a new key stops the old one working.</p>' +
-      '<div class="modalActions" style="justify-content:flex-start"><button class="button" onclick="Assistant.createKey()">Create agent key</button></div><div id="agentKeyOut"></div></div>' +
-      '<div class="modalSection"><h3>Vercel settings</h3><p><code>ANTHROPIC_API_KEY</code> (from console.anthropic.com), <code>BEEHIVE_AGENT_KEY</code> and, optionally, <code>AGENT_MODEL</code> (default claude-haiku-5-5).</p></div>' +
-      '<div class="modalActions"><button class="button" onclick="closeModal()">Done</button></div>'
-    );
-  }
-  async function createKey() {
-    const out = document.getElementById("agentKeyOut");
-    out.innerHTML = '<p class="muted">Creating…</p>';
-    try {
-      const key = await Live.q(Live.client().rpc("create_agent_key"));
-      out.innerHTML = '<div class="keyBox"><code id="agentKeyValue">' + esc(key) + '</code><button class="button small" onclick="Assistant.copyKey()">Copy</button></div><p class="helpLine">Copy it now. It won’t be shown again.</p>';
-    } catch (e) {
-      out.innerHTML = '<p class="authError">' + esc(e.message || String(e)) + "</p>";
-    }
-  }
-  function copyKey() {
-    const el = document.getElementById("agentKeyValue");
-    if (!el) return;
-    (navigator.clipboard ? navigator.clipboard.writeText(el.textContent) : Promise.reject()).then(
-      () => toast("Agent key copied."),
-      () => { const r = document.createRange(); r.selectNodeContents(el); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast("Key selected. Press Ctrl+C to copy."); }
-    );
-  }
-
-  return { refresh, toggle, ask, draftReply, openSettings, openConnect: openSettings, createKey, copyKey, aiReady, callAI };
+  return { refresh, toggle, ask, draftReply, aiReady, callAI };
 })();

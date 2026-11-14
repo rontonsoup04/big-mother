@@ -3,7 +3,7 @@
 // - The owner sets it by hand from the Roster (each educator's name, or the Availability button).
 // - Or the owner sends the educator a personal link (#availability/<token>); the educator picks their days
 //   on their phone without signing in, and the roster uses them straight away.
-// The roster checks and "Create with AI" read these days (Roster.profile). Like the roster itself, availability
+// The roster checks and "Fill gaps with AI" read these days (Roster.profile). Like the roster itself, availability
 // is kept in this browser for now; email and SMS sending is simulated, as elsewhere in beehive.
 const Availability = (() => {
   const E = (s) => (typeof esc === "function" ? esc(s == null ? "" : s) : String(s == null ? "" : s));
@@ -42,7 +42,10 @@ const Availability = (() => {
   const urlFor = (id) => location.origin + location.pathname + "#availability/" + tokenFor(id);
   function linkToken() { const m = location.hash.match(/^#availability\/([\w-]+)/); return m ? m[1] : null; }
   function contact(id) {
-    const c = typeof StaffAgent !== "undefined" && StaffAgent.contactFor ? StaffAgent.contactFor(id) : null;
+    // The staff agent's offline store only exists in the offline demo; signed in, its lookup throws, which used to
+    // stop the availability popup opening. The educator record has the same details.
+    let c = null;
+    try { c = typeof StaffAgent !== "undefined" && StaffAgent.contactFor ? StaffAgent.contactFor(id) : null; } catch (e) { c = null; }
     const e = person(id) || {};
     return { email: (c && c.email) || e.email || "", mobile: (c && (c.mobile || c.phone)) || e.mobile || e.phone || "" };
   }
@@ -104,20 +107,39 @@ const Availability = (() => {
   }
 
   // ---------- owner: everyone ----------
+  // Every educator's days in one place: tick or untick days, then save. A name opens their full availability.
   function openAll() {
     const s = load();
     const rows = staff().map((e) => {
       const rec = s.people[e.id], list = rec ? rec.days : (typeof Roster !== "undefined" ? Roster.profile(e).days : DAYS);
       const sent = Object.values(s.links).some((l) => l.id === e.id && l.sentAt);
-      return '<button class="row" onclick="Availability.open(\'' + e.id + '\')"><span class="rowMain"><b>' + E(e.name) + "</b><small>" +
-        (rec ? "Updated by " + (rec.by === "educator" ? first(e.name) : "you") + " " + E(ago(rec.at)) + (rec.note ? " · " + E(rec.note) : "") : sent ? "Link sent, waiting for " + E(first(e.name)) : "Usual days on file") +
-        '</small></span><span class="availMini">' + DAYS.map((d) => '<i class="' + (list.includes(d) ? "on" : "") + '" title="' + DAY_NAME[d] + '">' + d[0] + "</i>").join("") + "</span></button>";
+      return '<div class="availRow" data-id="' + E(e.id) + '"><button type="button" class="availName" onclick="Availability.open(\'' + E(e.id) + '\')"><b>' + E(e.name) + "</b><small>" +
+        (rec ? "Updated by " + (rec.by === "educator" ? E(first(e.name)) : "you") + " " + E(ago(rec.at)) + (rec.note ? " · " + E(rec.note) : "") : sent ? "Link sent, waiting for " + E(first(e.name)) : "Usual days on file") + "</small></button>" +
+        '<span class="availToggles">' + DAYS.map((d) => '<label class="availDay mini" title="' + DAY_NAME[d] + '"><input type="checkbox" value="' + d + '"' + (list.includes(d) ? " checked" : "") + "><span>" + d + "</span></label>").join("") + "</span></div>";
     }).join("");
     openModal(
-      '<div class="modalHead"><div><h2>Availability</h2><p>Which days each educator can work. The roster and Create with AI use these days.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
-      '<div class="buttonRow" style="margin-bottom:12px"><button class="button primary small" onclick="Availability.sendAll()">Ask everyone to update theirs</button></div>' +
-      rows + '<p class="footnote">Email and SMS are simulated. Availability is kept in this browser, like the roster.</p>', "wide"
+      '<div class="modalHead"><div><h2>Availability</h2><p>Which days each educator can work. Tick or untick days and save; the roster and Fill gaps with AI use these days.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="availList">' + rows + "</div>" +
+      '<div class="formActions"><button class="button" onclick="Availability.sendAll()">Ask everyone to update theirs</button><button class="button primary" onclick="Availability.saveAll()">Save availability</button></div>' +
+      '<p class="footnote">Click a name for notes and their personal update link. Email and SMS are simulated. Availability is kept in this browser, like the roster.</p>', "wide"
     );
+  }
+  function saveAll() {
+    const s = load();
+    let changed = 0;
+    document.querySelectorAll(".availRow").forEach((row) => {
+      const id = row.dataset.id, e = person(id);
+      if (!e) return;
+      const days = [...row.querySelectorAll("input:checked")].map((x) => x.value);
+      const before = s.people[id] ? s.people[id].days : (typeof Roster !== "undefined" ? Roster.profile(e).days : DAYS);
+      if (days.join() === DAYS.filter((d) => before.includes(d)).join()) return;
+      s.people[id] = { days, note: s.people[id] ? s.people[id].note : "", by: "owner", at: new Date().toISOString() };
+      changed++;
+    });
+    save(s);
+    closeModal();
+    if (typeof render === "function") render();
+    toast(changed ? "Availability saved for " + changed + " educator" + (changed === 1 ? "" : "s") + ". The roster checks use it now." : "No changes to save.");
   }
 
   // ---------- educator: the link page ----------
@@ -159,5 +181,5 @@ const Availability = (() => {
     if (typeof render === "function") render();
   }
 
-  return { days, record, summary, open, openAll, saveOwner, saveEducator, copy, send, sendAll, preview, linkToken, showPage, closePage };
+  return { days, record, summary, open, openAll, saveAll, saveOwner, saveEducator, copy, send, sendAll, preview, linkToken, showPage, closePage };
 })();

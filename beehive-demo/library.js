@@ -14,7 +14,8 @@ const Library = (() => {
   let filter = "All";
   let tab = "all";
 
-  const guide = (key) => data.guides.find((g) => g.item_key === key);
+  // Falls back to the copy shipped with the app, so a guide added since the database was last set up still shows.
+  const guide = (key) => data.guides.find((g) => g.item_key === key) || (typeof LIBRARY_DATA !== "undefined" ? LIBRARY_DATA.guides.find((g) => g.item_key === key) : undefined);
   const fmtChecked = () => {
     if (!data.checked) return "";
     const d = new Date(data.checked + "T00:00:00");
@@ -243,7 +244,6 @@ const Library = (() => {
       if (!qd.error) agentQueue = qd.data || [];
     } catch (e) { /* leave as is */ }
   }
-  function resetOffline() { tasks = null; try { localStorage.removeItem(STORE); } catch (e) {} }
   function complete(recordId) {
     if (LIVE) return Live.completeTask(recordId);
     const t = (tasks || []).find((x) => x.record_id === recordId);
@@ -373,7 +373,7 @@ const Library = (() => {
         esc(g.title) + "</b><small>Official guidance, " + esc(g.source_ref) + ", " + (g.documents || []).length + " documents</small></button>").join("");
   }
 
-  return { page, itemSection, focus, setFilter, setTab, searchHtml, loadFrom, guide, loadTasks, complete, drillLogged, completeMatching, resetOffline, taskList,
+  return { page, itemSection, focus, setFilter, setTab, searchHtml, loadFrom, guide, loadTasks, complete, drillLogged, completeMatching, taskList,
            runAgent, approveReminder, decide, educatorReminders, agentDraftCount: () => agentQueue.filter((d) => d.status === "draft").length,
            get source() { return source; } };
 })();
