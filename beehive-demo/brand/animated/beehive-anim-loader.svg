@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Loading"><title>Loading</title><style>.wl{transform-box:view-box;transform-origin:24px 25px}.wr{transform-box:view-box;transform-origin:40px 25px}
+.eye,.smile,.stripes,.face{transform-box:fill-box;transform-origin:center}.body,.ant{transform-box:fill-box;transform-origin:50% 100%}
+.l{transform-box:fill-box;transform-origin:50% 100%}
+@keyframes burstL{0%,22%,100%{transform:none}3%,9%,15%{transform:rotate(-24deg)}6%,12%,18%{transform:none}}
+@keyframes burstR{0%,22%,100%{transform:none}3%,9%,15%{transform:rotate(24deg)}6%,12%,18%{transform:none}}
+@keyframes flapL{to{transform:rotate(-26deg)}}@keyframes flapR{to{transform:rotate(26deg)}}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes squash{0%,100%{transform:none}35%{transform:scale(1.1,.86)}70%{transform:scale(.96,1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;opacity:1!important;stroke-dashoffset:0!important}}
+.hover{animation:hov 1.2s ease-in-out infinite}@keyframes hov{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+.shadow{transform-box:fill-box;transform-origin:center;animation:sh 1.2s ease-in-out infinite}@keyframes sh{0%,100%{transform:none;opacity:.16}50%{transform:scaleX(.7);opacity:.08}}
+.wl{animation:flapL .07s linear infinite alternate}.wr{animation:flapR .07s linear infinite alternate}
+.face{animation:look 2.4s ease-in-out infinite}@keyframes look{0%,100%{transform:translateX(0)}30%,45%{transform:translateX(-2px)}70%,85%{transform:translateX(2px)}}
+.eye{animation:blink 4.8s infinite}
+</style><ellipse class="shadow" cx="60" cy="106" rx="22" ry="4" fill="#2B2440"/><g class="hover"><g transform="translate(21.6 14) scale(1.2)"><defs><clipPath id="ld"><polygon points="32,18 50.19,28.5 50.19,49.5 32,60 13.81,49.5 13.81,28.5"/></clipPath></defs>
+<g class="wl"><ellipse cx="18" cy="19" rx="7" ry="10.5" transform="rotate(-42 18 19)" fill="#DDF0FF" stroke="#2B2440" stroke-width="3"/></g>
+<g class="wr"><ellipse cx="46" cy="19" rx="7" ry="10.5" transform="rotate(42 46 19)" fill="#DDF0FF" stroke="#2B2440" stroke-width="3"/></g>
+<g class="body"><g class="ant"><path d="M29.5 20 L27.5 8.5 M34.5 20 L36.5 8.5" stroke="#2B2440" stroke-width="2.8" stroke-linecap="round"/><circle cx="27.5" cy="8.5" r="2.6" fill="#2B2440"/><circle cx="36.5" cy="8.5" r="2.6" fill="#2B2440"/></g>
+<g clip-path="url(#ld)"><rect class="honey" x="10" y="18" width="44" height="42" fill="#F2B127"/><g class="stripes"><rect x="10" y="44.5" width="44" height="4.2" fill="#2B2440"/><rect x="10" y="51.5" width="44" height="4" fill="#2B2440"/></g></g>
+<polygon class="outline" pathLength="100" points="32,18 50.19,28.5 50.19,49.5 32,60 13.81,49.5 13.81,28.5" fill="none" stroke="#2B2440" stroke-width="3.5" stroke-linejoin="round"/>
+<g class="face"><ellipse class="eye eyeL" cx="26.5" cy="35" rx="2.3" ry="2.7" fill="#2B2440"/><ellipse class="eye eyeR" cx="37.5" cy="35" rx="2.3" ry="2.7" fill="#2B2440"/><path class="smile" pathLength="20" d="M27.5 40.5 Q32 45 36.5 40.5" fill="none" stroke="#2B2440" stroke-width="2.8" stroke-linecap="round"/></g></g></g></g></svg>
