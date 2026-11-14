@@ -1,9 +1,10 @@
 // beehive Centre section: policies and procedures, contracts, the child list and the daily sheet.
 //
-// Daily sheet agent: every morning beehive assembles one printable page for each room: the children
+// Daily sheet agent: every morning beehive assembles one printable page for the whole centre: the children
 // booked in today with their medical alerts and emergency contacts, the educators rostered on, and the
-// child-to-educator ratio. It flags anything to sort out before the doors open (a room under ratio, a room
-// with a child who has an allergy action plan but no educator with current anaphylaxis training, and so on).
+// child-to-educator ratios. It flags anything to sort out before the doors open (not enough educators for the
+// children's age-group ratios, a child with an allergy action plan but no educator with current anaphylaxis
+// training on shift, and so on).
 // The owner prints it or saves it as a PDF from the print dialog.
 //
 // The offline demo uses sample children and contracts (invented). Signed in, the child list comes from
@@ -17,7 +18,6 @@ const Centre = (() => {
   const RATIO = [{ maxMonths: 24, per: 4, label: "Birth to 24 months" }, { maxMonths: 36, per: 5, label: "24 to 36 months" }, { maxMonths: 999, per: 10, label: "36 months to preschool age" }];
 
   let tab = "children";
-  let roomFilter = "All rooms";
   let childQuery = "";
   let sheetDay = null; // ISO date the daily sheet is for (defaults to the next weekday)
 
@@ -25,35 +25,35 @@ const Centre = (() => {
   const iso = (d) => d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
   const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
   const daysAhead = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
-  const kid = (first, last, ageDays, room, days, contact, extra) =>
-    Object.assign({ id: (first + "-" + last).toLowerCase(), first, last, dob: daysAgo(ageDays), room, days, contact, allergies: "", conditions: "", medication: "", dietary: "", missing: [] }, extra || {});
+  const kid = (first, last, ageDays, days, contact, extra) =>
+    Object.assign({ id: (first + "-" + last).toLowerCase(), first, last, dob: daysAgo(ageDays), days, contact, allergies: "", conditions: "", medication: "", dietary: "", missing: [] }, extra || {});
   const SAMPLE_CHILDREN = [
-    kid("Oscar", "Nguyen", 900, "Wattle Room", ALL_WEEK, "Linh Nguyen · 04 0000 3141", { allergies: "Egg", conditions: "Anaphylaxis", medication: "EpiPen Jr 0.15 mg (Wattle Room kit)", dietary: "Egg-free meals", plan: true }),
-    kid("Noah", "Kaur", 820, "Wattle Room", ["Mon", "Tue", "Wed"], "Harpreet Kaur · 04 0000 1414"),
-    kid("Mila", "Rossi", 760, "Wattle Room", ["Wed", "Thu", "Fri"], "Marco Rossi · 04 0000 2645", { dietary: "Vegetarian" }),
-    kid("Arjun", "Mehta", 980, "Wattle Room", ALL_WEEK, "Neha Mehta · 04 0000 1958", { allergies: "Cow’s milk", dietary: "Dairy-free (soy milk from home)" }),
-    kid("Hazel", "Okafor", 850, "Wattle Room", ["Mon", "Wed", "Fri"], "Chidi Okafor · 04 0000 4410", { missing: ["Immunisation history statement"] }),
-    kid("Theo", "Lambert", 800, "Wattle Room", ALL_WEEK, "Claire Lambert · 04 0000 4471", { conditions: "Coeliac disease", dietary: "Gluten-free meals" }),
-    kid("Aria", "Kim", 930, "Wattle Room", ["Tue", "Thu"], "Jun Kim · 04 0000 4502", { allergies: "Cow’s milk", dietary: "Dairy-free" }),
-    kid("Finn", "Murphy", 870, "Wattle Room", ALL_WEEK, "Siobhan Murphy · 04 0000 4533"),
-    kid("Lily", "Tran", 790, "Wattle Room", ["Mon", "Tue", "Thu", "Fri"], "Hoa Tran · 04 0000 4564"),
-    kid("Eli", "Cohen", 950, "Wattle Room", ALL_WEEK, "Dana Cohen · 04 0000 4595", { missing: ["Authorised nominee for collection"] }),
-    kid("Maya", "Patel", 1100, "Banksia Room", ALL_WEEK, "Priya Patel · 04 0000 2468", { allergies: "Peanuts", conditions: "Asthma", medication: "Ventolin inhaler (as needed)", dietary: "Peanut-free meals", plan: true }),
-    kid("Ruby", "Chen", 1300, "Banksia Room", ALL_WEEK, "Grace Chen · 04 0000 1618", { dietary: "Vegetarian" }),
-    kid("Ava", "Hassan", 1010, "Banksia Room", ["Mon", "Tue", "Wed", "Thu"], "Omar Hassan · 04 0000 1732", { dietary: "Halal" }),
-    kid("Zoe", "Wilson", 1180, "Banksia Room", ALL_WEEK, "Ben Wilson · 04 0000 1123", { conditions: "Asthma", medication: "Ventolin inhaler (Banksia Room kit)", plan: true }),
-    kid("Harvey", "Ng", 1220, "Banksia Room", ["Mon", "Wed", "Fri"], "Wei Ng · 04 0000 4626", { allergies: "Sesame", dietary: "Sesame-free meals" }),
-    kid("Olive", "Barker", 1150, "Banksia Room", ALL_WEEK, "Sam Barker · 04 0000 4657", { conditions: "Eczema", medication: "Moisturiser after water play" }),
-    kid("Kai", "Fernando", 1260, "Banksia Room", ["Tue", "Wed", "Thu", "Fri"], "Nadia Fernando · 04 0000 4688"),
-    kid("Isla", "Brown", 1500, "Gumtree Room", ALL_WEEK, "Tom Brown · 04 0000 2718", { dietary: "Dairy-free" }),
-    kid("Leo", "Petrovic", 1400, "Gumtree Room", ALL_WEEK, "Ana Petrovic · 04 0000 2236", { dietary: "No pork" }),
-    kid("Jayden", "Smith", 1550, "Gumtree Room", ["Mon", "Tue", "Wed"], "Kate Smith · 04 0000 3316"),
-    kid("Sophie", "Taylor", 1450, "Gumtree Room", ALL_WEEK, "Emma Taylor · 04 0000 2584", { conditions: "Eczema", medication: "Moisturiser after water play" }),
-    kid("Ethan", "Walsh", 1600, "Gumtree Room", ALL_WEEK, "Megan Walsh · 04 0000 4719", { allergies: "Tree nuts", conditions: "Anaphylaxis", medication: "EpiPen 0.3 mg (Gumtree Room kit)", dietary: "Nut-free meals", plan: true }),
-    kid("Matilda", "Green", 1480, "Gumtree Room", ["Wed", "Thu", "Fri"], "Rose Green · 04 0000 4740"),
-    kid("Ollie", "Singh", 1520, "Gumtree Room", ALL_WEEK, "Gurpreet Singh · 04 0000 4771", { missing: ["Signed enrolment agreement"] }),
-    kid("Grace", "Lee", 1420, "Gumtree Room", ["Mon", "Tue", "Thu", "Fri"], "Hannah Lee · 04 0000 4802", { allergies: "Strawberries", dietary: "No strawberries" }),
-    kid("Billy", "Evans", 1580, "Gumtree Room", ALL_WEEK, "Rhys Evans · 04 0000 4833"),
+    kid("Oscar", "Nguyen", 900, ALL_WEEK, "Linh Nguyen · 04 0000 3141", { allergies: "Egg", conditions: "Anaphylaxis", medication: "EpiPen Jr 0.15 mg (medication kit)", dietary: "Egg-free meals", plan: true }),
+    kid("Noah", "Kaur", 820, ["Mon", "Tue", "Wed"], "Harpreet Kaur · 04 0000 1414"),
+    kid("Mila", "Rossi", 760, ["Wed", "Thu", "Fri"], "Marco Rossi · 04 0000 2645", { dietary: "Vegetarian" }),
+    kid("Arjun", "Mehta", 980, ALL_WEEK, "Neha Mehta · 04 0000 1958", { allergies: "Cow’s milk", dietary: "Dairy-free (soy milk from home)" }),
+    kid("Hazel", "Okafor", 850, ["Mon", "Wed", "Fri"], "Chidi Okafor · 04 0000 4410", { missing: ["Immunisation history statement"] }),
+    kid("Theo", "Lambert", 800, ALL_WEEK, "Claire Lambert · 04 0000 4471", { conditions: "Coeliac disease", dietary: "Gluten-free meals" }),
+    kid("Aria", "Kim", 930, ["Tue", "Thu"], "Jun Kim · 04 0000 4502", { allergies: "Cow’s milk", dietary: "Dairy-free" }),
+    kid("Finn", "Murphy", 870, ALL_WEEK, "Siobhan Murphy · 04 0000 4533"),
+    kid("Lily", "Tran", 790, ["Mon", "Tue", "Thu", "Fri"], "Hoa Tran · 04 0000 4564"),
+    kid("Eli", "Cohen", 950, ALL_WEEK, "Dana Cohen · 04 0000 4595", { missing: ["Authorised nominee for collection"] }),
+    kid("Maya", "Patel", 1100, ALL_WEEK, "Priya Patel · 04 0000 2468", { allergies: "Peanuts", conditions: "Asthma", medication: "Ventolin inhaler (as needed)", dietary: "Peanut-free meals", plan: true }),
+    kid("Ruby", "Chen", 1300, ALL_WEEK, "Grace Chen · 04 0000 1618", { dietary: "Vegetarian" }),
+    kid("Ava", "Hassan", 1010, ["Mon", "Tue", "Wed", "Thu"], "Omar Hassan · 04 0000 1732", { dietary: "Halal" }),
+    kid("Zoe", "Wilson", 1180, ALL_WEEK, "Ben Wilson · 04 0000 1123", { conditions: "Asthma", medication: "Ventolin inhaler (medication kit)", plan: true }),
+    kid("Harvey", "Ng", 1220, ["Mon", "Wed", "Fri"], "Wei Ng · 04 0000 4626", { allergies: "Sesame", dietary: "Sesame-free meals" }),
+    kid("Olive", "Barker", 1150, ALL_WEEK, "Sam Barker · 04 0000 4657", { conditions: "Eczema", medication: "Moisturiser after water play" }),
+    kid("Kai", "Fernando", 1260, ["Tue", "Wed", "Thu", "Fri"], "Nadia Fernando · 04 0000 4688"),
+    kid("Isla", "Brown", 1500, ALL_WEEK, "Tom Brown · 04 0000 2718", { dietary: "Dairy-free" }),
+    kid("Leo", "Petrovic", 1400, ALL_WEEK, "Ana Petrovic · 04 0000 2236", { dietary: "No pork" }),
+    kid("Jayden", "Smith", 1550, ["Mon", "Tue", "Wed"], "Kate Smith · 04 0000 3316"),
+    kid("Sophie", "Taylor", 1450, ALL_WEEK, "Emma Taylor · 04 0000 2584", { conditions: "Eczema", medication: "Moisturiser after water play" }),
+    kid("Ethan", "Walsh", 1600, ALL_WEEK, "Megan Walsh · 04 0000 4719", { allergies: "Tree nuts", conditions: "Anaphylaxis", medication: "EpiPen 0.3 mg (medication kit)", dietary: "Nut-free meals", plan: true }),
+    kid("Matilda", "Green", 1480, ["Wed", "Thu", "Fri"], "Rose Green · 04 0000 4740"),
+    kid("Ollie", "Singh", 1520, ALL_WEEK, "Gurpreet Singh · 04 0000 4771", { missing: ["Signed enrolment agreement"] }),
+    kid("Grace", "Lee", 1420, ["Mon", "Tue", "Thu", "Fri"], "Hannah Lee · 04 0000 4802", { allergies: "Strawberries", dietary: "No strawberries" }),
+    kid("Billy", "Evans", 1580, ALL_WEEK, "Rhys Evans · 04 0000 4833"),
   ];
   const SAMPLE_CONTRACTS = [
     { name: "Premises lease", party: "Liverpool Commercial Properties", kind: "Lease", ends: daysAhead(420), notice: 180, owner: "Sara Williams" },
@@ -69,14 +69,19 @@ const Centre = (() => {
   // ---------- data access ----------
   function baseChildren() {
     if (typeof LIVE !== "undefined" && LIVE && typeof Live !== "undefined" && Live.children) {
-      return (Live.children() || []).map((k) => ({ id: k.id, first: k.first_name, last: k.last_name, dob: k.date_of_birth || "", room: k.room || "", days: ALL_WEEK, contact: k.emergency_contact || "",
+      return (Live.children() || []).map((k) => ({ id: k.id, first: k.first_name, last: k.last_name, dob: k.date_of_birth || "", days: ALL_WEEK, contact: k.emergency_contact || "",
         ...liveMedical(k.medical), missing: [], live: true }));
     }
-    return SAMPLE_CHILDREN;
+    // Offline demo: the sample family's medical record (and any update the centre has approved) is that child's record.
+    const fm = typeof familyMedical !== "undefined" ? familyMedical : null;
+    return SAMPLE_CHILDREN.map((k) => !fm || fm.childName !== k.first + " " + k.last ? k : Object.assign({}, k, {
+      allergies: none(fm.allergies), conditions: none(fm.conditions), medication: none(fm.medications), dietary: none(fm.dietary),
+      notes: fm.notes || "", reviewedAt: fm.reviewedAt || "", plan: /anaphyla|asthma/i.test(fm.conditions || ""),
+    }));
   }
-  // Contract amendments change the child's record: room, days, medical and dietary needs, nominees.
+  // Contract amendments change the child's record: days, medical and dietary needs, nominees.
   const AMEND_STORE = "beehive-contract-amendments-v1";
-  const AMEND_FIELDS = ["room", "days", "allergies", "conditions", "medication", "dietary", "nominees"];
+  const AMEND_FIELDS = ["days", "allergies", "conditions", "medication", "dietary", "nominees"];
   function amendments() { try { return JSON.parse(localStorage.getItem(AMEND_STORE) || "{}"); } catch (e) { return {}; } }
   function saveAmendments(a) { try { localStorage.setItem(AMEND_STORE, JSON.stringify(a)); } catch (e) {} }
   function children() {
@@ -101,7 +106,6 @@ const Centre = (() => {
   const ratioFor = (m) => RATIO.find((r) => (m == null ? 999 : m) < r.maxMonths) || RATIO[RATIO.length - 1];
   const alertText = (k) => [k.allergies && "Allergy: " + k.allergies, k.conditions && k.conditions !== "None" && k.conditions, k.dietary && "Diet: " + k.dietary].filter(Boolean).join(" · ");
   const hasPlan = (k) => !!k.plan;
-  const rooms = () => Array.from(new Set(children().map((k) => k.room).filter(Boolean)));
   const nextWeekday = () => { const d = new Date(); if (d.getHours() >= 18) d.setDate(d.getDate() + 1); while ([0, 6].includes(d.getDay())) d.setDate(d.getDate() + 1); return iso(d); };
   const dayName = (isoDate) => DAYS[new Date(isoDate + "T00:00:00").getDay()];
   const fmtDay = (isoDate) => new Date(isoDate + "T00:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -109,34 +113,26 @@ const Centre = (() => {
   const daysTo = (isoDate) => Math.round((Date.parse(isoDate + "T00:00:00") - Date.parse(iso(new Date()) + "T00:00:00")) / 864e5);
 
   // ---------- the daily sheet agent ----------
-  // Builds the sheet for one day: per room, the children booked in, the educators on shift and what to fix.
+  // Builds the sheet for one day across the whole centre: the children booked in, the educators on shift and what to fix.
   function buildSheet(day) {
     const dn = dayName(day);
     const staffToday = typeof Roster !== "undefined" ? Roster.forDay(day) : [];
-    const out = { day, rooms: [], flags: [] };
-    rooms().forEach((room) => {
-      const kids = children().filter((k) => k.room === room && k.days.includes(dn));
-      const eds = staffToday.filter((r) => r.room === room);
-      const working = eds.filter((r) => r.wwcc);
-      const youngest = kids.reduce((m, k) => Math.min(m, months(k.dob) == null ? 999 : months(k.dob)), 999);
-      const rule = ratioFor(youngest === 999 ? null : youngest);
-      const needed = Math.ceil(kids.length / rule.per);
-      const anaKids = kids.filter((k) => /anaphyla/i.test(k.conditions));
-      const asthmaKids = kids.filter((k) => /asthma/i.test(k.conditions));
-      const hasCert = (r, t) => { const c = r.e.certs.find((x) => x.type === t); return !!c && c.days >= 0; };
-      const r = { room, kids, eds, needed, rule, flags: [] };
-      if (working.length < needed) r.flags.push(room + ": " + kids.length + " children need " + needed + " educator" + (needed === 1 ? "" : "s") + " at 1:" + rule.per + ", only " + working.length + " rostered.");
-      if (!eds.some((x) => x.firstAid && x.wwcc)) r.flags.push(room + ": no educator on shift with current first aid, CPR, anaphylaxis and asthma training (Reg 136).");
-      if (anaKids.length && !eds.some((x) => x.wwcc && hasCert(x, "Anaphylaxis"))) r.flags.push(room + ": " + anaKids.map((k) => k.first).join(", ") + " has an anaphylaxis plan but no rostered educator has current anaphylaxis training.");
-      if (asthmaKids.length && !eds.some((x) => x.wwcc && hasCert(x, "Asthma"))) r.flags.push(room + ": " + asthmaKids.map((k) => k.first).join(", ") + " has asthma but no rostered educator has current asthma training.");
-      eds.filter((x) => !x.wwcc).forEach((x) => r.flags.push(room + ": " + x.e.name + " has no current WWCC and can’t work with children today."));
-      kids.filter((k) => k.missing.length).forEach((k) => r.flags.push(room + ": " + k.first + " " + k.last + "’s enrolment record is missing " + k.missing.join(", ").toLowerCase() + "."));
-      if (!staffToday.length) r.flags = [];
-      out.rooms.push(r);
-      out.flags = out.flags.concat(r.flags);
-    });
-    if (!staffToday.length) out.flags = ["No roster for " + fmtDay(day) + " yet. Create one on the Roster page so beehive can check ratios and first aid cover."];
-    return out;
+    const kids = children().filter((k) => k.days.includes(dn));
+    const eds = staffToday;
+    const working = eds.filter((r) => r.wwcc);
+    // each child counts towards their own age group's ratio (1:4, 1:5, 1:10)
+    const needed = Math.ceil(kids.reduce((n, k) => n + 1 / ratioFor(months(k.dob)).per, 0) - 1e-9);
+    const anaKids = kids.filter((k) => /anaphyla/i.test(k.conditions));
+    const asthmaKids = kids.filter((k) => /asthma/i.test(k.conditions));
+    const hasCert = (r, t) => { const c = r.e.certs.find((x) => x.type === t); return !!c && c.days >= 0; };
+    const flags = [];
+    if (working.length < needed) flags.push(kids.length + " children need " + needed + " educator" + (needed === 1 ? "" : "s") + " by their age-group ratios, only " + working.length + " rostered.");
+    if (kids.length && !eds.some((x) => x.firstAid && x.wwcc)) flags.push("No educator on shift has current first aid, CPR, anaphylaxis and asthma training (Reg 136).");
+    if (anaKids.length && !eds.some((x) => x.wwcc && hasCert(x, "Anaphylaxis"))) flags.push(anaKids.map((k) => k.first).join(", ") + " has an anaphylaxis plan but no rostered educator has current anaphylaxis training.");
+    if (asthmaKids.length && !eds.some((x) => x.wwcc && hasCert(x, "Asthma"))) flags.push(asthmaKids.map((k) => k.first).join(", ") + " has asthma but no rostered educator has current asthma training.");
+    eds.filter((x) => !x.wwcc).forEach((x) => flags.push(x.e.name + " has no current WWCC and can’t work with children today."));
+    kids.filter((k) => k.missing.length).forEach((k) => flags.push(k.first + " " + k.last + "’s enrolment record is missing " + k.missing.join(", ").toLowerCase() + "."));
+    return { day, kids, eds, needed, flags: staffToday.length ? flags : ["No roster for " + fmtDay(day) + " yet. Create one on the Roster page so beehive can check ratios and first aid cover."] };
   }
 
   // ---------- tabs ----------
@@ -153,16 +149,15 @@ const Centre = (() => {
   function childrenPage() {
     const all = children();
     const q = childQuery.toLowerCase();
-    const list = all.filter((k) => (roomFilter === "All rooms" || k.room === roomFilter) && (!q || (k.first + " " + k.last + " " + k.room + " " + alertText(k)).toLowerCase().includes(q)));
+    const list = all.filter((k) => (!q || (k.first + " " + k.last + " " + alertText(k)).toLowerCase().includes(q)));
     const alerts = all.filter((k) => alertText(k)).length, missing = all.filter((k) => k.missing.length).length;
-    const roomBtns = ["All rooms"].concat(rooms()).map((r) => '<button class="chip ' + (roomFilter === r ? "active" : "") + '" onclick="Centre.room(\'' + r + '\')">' + E(r) + (r === "All rooms" ? "" : " " + all.filter((k) => k.room === r).length) + "</button>").join("");
     return (
-      header("Children", all.length + " children enrolled across " + rooms().length + " rooms. " + alerts + " with medical or dietary alerts" + (missing ? ", " + missing + " with incomplete enrolment records." : ".") + " Use Contracts on the right to view each family’s signed agreements.",
+      header("Children", all.length + " children enrolled. " + alerts + " with medical or dietary alerts" + (missing ? ", " + missing + " with incomplete enrolment records." : ".") + " Use Contracts on the right to view each family’s signed agreements.",
         "") +
-      '<div class="childToolbar"><div class="chips">' + roomBtns + '</div><input class="formControl childSearch" type="search" placeholder="Search children, rooms or allergies" value="' + E(childQuery) + '" oninput="Centre.search(this.value)" aria-label="Search children"></div>' +
+      '<div class="childToolbar"><input class="formControl childSearch" type="search" placeholder="Search children or allergies" value="' + E(childQuery) + '" oninput="Centre.search(this.value)" aria-label="Search children"></div>' +
       '<div class="tableWrap"><table class="staffTable childTable"><thead><tr><th>Child</th><th>Age</th><th>Days</th><th>Medical and dietary</th><th>Emergency contact</th><th class=\"contractCell\"></th></tr></thead><tbody>' +
       (list.map((k) =>
-        '<tr onclick="Centre.openChild(\'' + E(k.id) + '\')"><td><div class="staffPerson"><b>' + E(k.first + " " + k.last) + "</b><small>" + E(k.room) + "</small></div></td>" +
+        '<tr onclick="Centre.openChild(\'' + E(k.id) + '\')"><td><div class="staffPerson"><b>' + E(k.first + " " + k.last) + "</b></div></td>" +
         '<td data-label="Age" class="num">' + E(ageLabel(k.dob)) + "</td>" +
         '<td data-label="Days">' + (k.days.length === 5 ? "Mon–Fri" : E(k.days.join(", "))) + "</td>" +
         '<td data-label="Medical">' + (alertText(k) ? '<span class="status ' + (hasPlan(k) ? "crit" : "medium") + '">' + E(alertText(k)) + "</span>" + (hasPlan(k) ? "<small class=\"days\">Action plan on file</small>" : "") : '<span class="alertState">None recorded</span>') + "</td>" +
@@ -217,10 +212,9 @@ const Centre = (() => {
       '<div class="modalHead"><div><h2>Change ' + E(k.first) + "’s agreement</h2><p>Changes update " + E(k.first) + "’s record straight away (child list, daily sheet and roster ratios) and the agreement goes to " + E(parentOf(k)) + ' to sign.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<div class="formGrid">' +
         fieldHtml("Agreement", '<select class="formControl" id="amContract">' + CONTRACTS.map((c) => '<option value="' + c.id + '">' + E(c.title) + "</option>").join("") + "</select>") +
-        fieldHtml("Room", '<select class="formControl" id="amRoom">' + rooms().map((r) => "<option" + (r === k.room ? " selected" : "") + ">" + E(r) + "</option>").join("") + "</select>") +
         fieldHtml("Days of care", '<div class="dayPicks" id="amDays">' + ALL_WEEK.map((d) => '<label><input type="checkbox" value="' + d + '"' + (k.days.includes(d) ? " checked" : "") + ">" + d + "</label>").join("") + "</div>") +
         fieldHtml("Allergies", txt("amAllergies", k.allergies, "e.g. Peanuts")) +
-        fieldHtml("Medical conditions", txt("amConditions", k.conditions, "e.g. Asthma"), "Anaphylaxis or asthma needs an action plan and a trained educator in the room.") +
+        fieldHtml("Medical conditions", txt("amConditions", k.conditions, "e.g. Asthma"), "Anaphylaxis or asthma needs an action plan and a trained educator on every shift.") +
         fieldHtml("Medication", txt("amMedication", k.medication, "e.g. Ventolin inhaler (as needed)")) +
         fieldHtml("Dietary needs", txt("amDietary", k.dietary, "e.g. Dairy-free")) +
         fieldHtml("Authorised nominees for collection", txt("amNominees", (k.nominees || []).join(", "), "Names, separated by commas")) +
@@ -234,7 +228,7 @@ const Centre = (() => {
     const v = (x) => ((document.getElementById(x) || {}).value || "").trim();
     const days = Array.from(document.querySelectorAll("#amDays input:checked")).map((x) => x.value);
     if (!days.length) return toast("Pick at least one day of care.");
-    const next = { room: v("amRoom"), days, allergies: v("amAllergies"), conditions: v("amConditions"), medication: v("amMedication"), dietary: v("amDietary"),
+    const next = { days, allergies: v("amAllergies"), conditions: v("amConditions"), medication: v("amMedication"), dietary: v("amDietary"),
       nominees: v("amNominees") ? v("amNominees").split(",").map((x) => x.trim()).filter(Boolean) : [] };
     const changes = {};
     Object.keys(next).forEach((f) => { const before = f === "nominees" ? (k.nominees || []).join(",") : f === "days" ? k.days.join(",") : k[f] || ""; const after = Array.isArray(next[f]) ? next[f].join(",") : next[f]; if (before !== after) changes[f] = next[f]; });
@@ -246,7 +240,7 @@ const Centre = (() => {
     const anaph = /anaphyla|asthma/i.test(next.conditions) && !/anaphyla|asthma/i.test(k.conditions || "");
     render();
     openContracts(id);
-    toast(k.first + "’s record is updated and the amended agreement was sent to " + parentOf(k) + " to sign (simulated)." + (anaph ? " Check the room has a trained educator on every shift." : ""));
+    toast(k.first + "’s record is updated and the amended agreement was sent to " + parentOf(k) + " to sign (simulated)." + (anaph ? " Check there is a trained educator on every shift." : ""));
   }
   function markSigned(id, index) {
     const all = amendments();
@@ -257,14 +251,37 @@ const Centre = (() => {
     openContracts(id);
     toast("Recorded as signed by the parent.");
   }
+  // ---------- a child's medical record (part of each child's record; there is no separate Medical page) ----------
+  const fullName = (k) => k.first + " " + k.last;
+  // A parent's medical update for this child that is waiting for the centre to review it.
+  function pendingUpdate(k) {
+    const m = typeof medicalSubmission !== "undefined" ? medicalSubmission : null;
+    return m && m.status === "pending" && m.childName === fullName(k) ? m : null;
+  }
+  function medicalHtml(k) {
+    const data = typeof familyData === "function" ? familyData : (label, v) => '<div class="familyData"><small>' + label + "</small><b>" + E(v || "Not provided") + "</b></div>";
+    const p = pendingUpdate(k);
+    return (
+      '<div class="modalSection childMedical"><div class="sectionHead"><h3>Medical record</h3><button class="button small" onclick="Centre.openAmend(\'' + E(k.id) + '\')">Update medical details</button></div>' +
+      (p ? '<div class="callout"><span class="hx lg"></span><div><b>' + E(p.signer || "A parent") + " sent a medical update</b><p>Submitted " + E(p.submittedAt) + ". Educators see it once you approve it.</p></div>" +
+        '<span class="rowEnd"><button class="button primary small" onclick="reviewFamilyUpdate()">Review update</button></span></div>' : "") +
+      '<div class="familyDataGrid">' +
+      data("Allergies", k.allergies) + data("Medical conditions", k.conditions) +
+      data("Medication or action plan", k.medication ? k.medication + (hasPlan(k) ? " · action plan on file" : "") : "") +
+      data("Dietary needs", k.dietary) + data("Care notes", k.notes) + data("Emergency contact", k.contact) +
+      "</div>" +
+      (k.reviewedAt ? '<p class="footnote">Last reviewed by the centre ' + E(k.reviewedAt) + ".</p>" : "") + "</div>"
+    );
+  }
   function openChild(id) {
     const k = children().find((x) => x.id === id);
     if (!k) return;
     const row = (label, value) => '<div class="modalMeta"><span>' + label + "</span><b>" + E(value || "None recorded") + "</b></div>";
     openModal(
-      '<div class="modalHead"><div><h2>' + E(k.first + " " + k.last) + "</h2><p>" + E(k.room) + ", " + E(ageLabel(k.dob)) + ", " + (k.days.length === 5 ? "Mon–Fri" : E(k.days.join(", "))) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalHead"><div><h2>' + E(fullName(k)) + "</h2><p>" + E(ageLabel(k.dob)) + ", " + (k.days.length === 5 ? "Mon–Fri" : E(k.days.join(", "))) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      medicalHtml(k) +
       '<div class="modalSection"><div class="sectionHead"><h3>Contracts</h3><button class="button small" onclick="Centre.openAmend(\'' + E(k.id) + '\')">Change the agreement</button></div>' + contractListHtml(k) + "</div>" +
-      '<div class="modalSection"><h3>Record</h3>' + row("Allergies", k.allergies) + row("Medical conditions", k.conditions) + row("Medication", k.medication) + row("Dietary needs", k.dietary) + row("Emergency contact", k.contact) + row("Authorised nominees", (k.nominees || []).join(", ")) +
+      '<div class="modalSection"><h3>Record</h3>' + row("Authorised nominees", (k.nominees || []).join(", ")) +
       row("Enrolment record", k.missing.length ? "Missing: " + k.missing.join(", ") : "Complete") + "</div>", "wide"
     );
   }
@@ -284,7 +301,7 @@ const Centre = (() => {
     line(centre, 9, true, 0); line("Long day care, Liverpool NSW · ABN 00 000 000 000 (sample)", 8, false, 6);
     line(c.title, 18, true, 4);
     line("This agreement is between " + centre + " (the Service), represented by " + owner + ", Approved Provider, and " + parent + " (the Parent), for the care of:", 10, false, 3);
-    line("Child: " + k.first + " " + k.last + "    Date of birth: " + (k.dob ? new Date(k.dob + "T00:00:00").toLocaleDateString("en-AU") : "—") + "    Room: " + k.room, 10, true, 1);
+    line("Child: " + k.first + " " + k.last + "    Date of birth: " + (k.dob ? new Date(k.dob + "T00:00:00").toLocaleDateString("en-AU") : "—"), 10, true, 1);
     line("Days of care: " + k.days.join(", ") + "    Hours: 6:30 am to 6:30 pm", 10, true, 5);
     const clauses = cid === "enrolment" ? [
       ["1. Care", "The Service will provide education and care in line with the Education and Care Services National Law and Regulations, the National Quality Framework and the Service’s policies, which the Parent has been given access to."],
@@ -338,7 +355,6 @@ const Centre = (() => {
       '<div class="formActions"><button class="button" onclick="Centre.openContracts(\'' + E(k.id) + '\')">Back to contracts</button><a class="button primary" href="' + url + '" download="' + file + '"><span data-icon="download"></span>Download PDF</a></div>', "wide"
     );
   }
-  function room(r) { roomFilter = r; render(); }
   function search(v) { childQuery = v; render(); const el = document.querySelector(".childSearch"); if (el) { el.focus(); el.setSelectionRange(v.length, v.length); } }
 
   // Daily sheet
@@ -348,28 +364,26 @@ const Centre = (() => {
       (forPrint ? "<h1>" + E(centre) + ": daily sheet</h1><p>" + E(fmtDay(s.day)) + ". Prepared by beehive " + E(new Date().toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" })) + ".</p>" : "") +
       (s.flags.length
         ? '<div class="' + (forPrint ? "printFlags" : "callout") + '"><div><b>Sort out before the doors open (' + s.flags.length + ")</b><ul class=\"rosterGapList\">" + s.flags.map((f) => "<li>" + E(f) + "</li>").join("") + "</ul></div></div>"
-        : '<p class="' + (forPrint ? "" : "muted") + '">Nothing to fix: every room is in ratio with trained educators on shift.</p>') +
-      s.rooms.map((r) =>
-        '<section class="' + (forPrint ? "printRoom" : "section") + '"><div class="sectionHead"><h2>' + E(r.room) + '<span class="count">' + r.kids.length + " children · " + r.eds.length + " educators</span></h2><p>Ratio 1:" + r.rule.per + " (" + E(r.rule.label) + "), needs " + r.needed + "</p></div>" +
+        : '<p class="' + (forPrint ? "" : "muted") + '">Nothing to fix: the centre is in ratio with trained educators on shift.</p>') +
+      '<section class="' + (forPrint ? "printRoom" : "section") + '"><div class="sectionHead"><h2>Today<span class="count">' + s.kids.length + " children · " + s.eds.length + " educators</span></h2><p>Ratios by age group need " + s.needed + " educators</p></div>" +
         '<div class="sheetCols"><div><h3>Children</h3><table class="staffTable sheetTable"><tbody>' +
-          (r.kids.map((k) => "<tr><td><b>" + E(k.first + " " + k.last) + "</b>" + (alertText(k) ? '<br><small class="sheetAlert">' + E(alertText(k)) + (k.medication ? " · " + E(k.medication) : "") + "</small>" : "") + "</td><td class=\"sheetSign\">In ____ Out ____</td></tr>").join("") || '<tr><td colspan="2">No children booked.</td></tr>') +
+          (s.kids.map((k) => "<tr><td><b>" + E(k.first + " " + k.last) + "</b>" + (alertText(k) ? '<br><small class="sheetAlert">' + E(alertText(k)) + (k.medication ? " · " + E(k.medication) : "") + "</small>" : "") + "</td><td class=\"sheetSign\">In ____ Out ____</td></tr>").join("") || '<tr><td colspan="2">No children booked.</td></tr>') +
         '</tbody></table></div><div><h3>Educators</h3><table class="staffTable sheetTable"><tbody>' +
-          (r.eds.map((x) => "<tr><td><b>" + E(x.e.name) + "</b><br><small>" + E(x.start + " – " + x.end) + (x.firstAid && x.wwcc ? " · first aid cover" : "") + (!x.wwcc ? " · WWCC not current" : "") + "</small></td></tr>").join("") || "<tr><td>No educators rostered.</td></tr>") +
-        "</tbody></table></div></div></section>").join("") +
+          (s.eds.map((x) => "<tr><td><b>" + E(x.e.name) + "</b><br><small>" + E(x.start + " – " + x.end) + (x.firstAid && x.wwcc ? " · first aid cover" : "") + (!x.wwcc ? " · WWCC not current" : "") + "</small></td></tr>").join("") || "<tr><td>No educators rostered.</td></tr>") +
+        "</tbody></table></div></div></section>" +
       (forPrint ? '<p class="printDisclaimer">Generated from beehive records. Keep the signed sheet with your attendance records (Reg 158).</p>' : "")
     );
   }
   function dailyPage() {
     const day = sheetDay || nextWeekday();
     const s = buildSheet(day);
-    const total = s.rooms.reduce((n, r) => n + r.kids.length, 0);
     return (
       header("Daily sheet", "beehive prepares this every morning: who’s booked in, who’s on shift, medical alerts and ratios for " + fmtDay(day) + ".",
         '<input class="formControl sheetDate" type="date" value="' + day + '" onchange="Centre.setDay(this.value)" aria-label="Day"><button class="button primary" onclick="Centre.print()"><span data-icon="download"></span>Print or save as PDF</button>') +
-      '<div class="rosterSummary"><div><b class="num">' + total + "</b><small>Children booked</small></div><div><b class=\"num\">" + s.rooms.reduce((n, r) => n + r.eds.length, 0) + "</b><small>Educators on shift</small></div>" +
-      '<div><b class="num">' + s.rooms.reduce((n, r) => n + r.kids.filter((k) => alertText(k)).length, 0) + "</b><small>Medical or dietary alerts</small></div><div><b class=\"num " + (s.flags.length ? "bad" : "") + '">' + s.flags.length + "</b><small>To sort out</small></div></div>" +
+      '<div class="rosterSummary"><div><b class="num">' + s.kids.length + "</b><small>Children booked</small></div><div><b class=\"num\">" + s.eds.length + "</b><small>Educators on shift</small></div>" +
+      '<div><b class="num">' + s.kids.filter((k) => alertText(k)).length + "</b><small>Medical or dietary alerts</small></div><div><b class=\"num " + (s.flags.length ? "bad" : "") + '">' + s.flags.length + "</b><small>To sort out</small></div></div>" +
       sheetHtml(s, false) +
-      '<p class="footnote">' + (typeof LIVE !== "undefined" && LIVE ? "" : "Offline demo: sample children and shifts. ") + "Ratios follow the NSW educator-to-child ratios (Regs 123 and 271): 1:4 under 2, 1:5 from 2 to 3, 1:10 from 3 to preschool age. The youngest child in the room sets the ratio.</p>"
+      '<p class="footnote">' + (typeof LIVE !== "undefined" && LIVE ? "" : "Offline demo: sample children and shifts. ") + "Ratios follow the NSW educator-to-child ratios (Regs 123 and 271): 1:4 under 2, 1:5 from 2 to 3, 1:10 from 3 to preschool age. Each child counts towards their own age group.</p>"
     );
   }
   function setDay(v) { sheetDay = v || null; render(); }
@@ -414,17 +428,17 @@ const Centre = (() => {
       contractsDue: typeof LIVE !== "undefined" && LIVE ? 0 : SAMPLE_CONTRACTS.filter((c) => daysTo(c.ends) <= c.notice).length };
   }
   function sheetSummary(s) {
-    return '<div class="sheetRooms">' + s.rooms.map((r) =>
-      '<div class="sheetRoom"><b>' + E(r.room) + "</b><small>" + r.kids.length + " children · " + r.eds.length + " educators · 1:" + r.rule.per + "</small>" +
-      (r.kids.filter((k) => alertText(k)).length ? '<small class="sheetAlert">' + r.kids.filter((k) => alertText(k)).map((k) => k.first + " (" + (k.allergies || k.conditions || k.dietary) + ")").join(", ") + "</small>" : "") + "</div>").join("") + "</div>" +
-      (s.flags.length ? '<ul class="rosterGapList sheetFlags">' + s.flags.slice(0, 2).map((f) => "<li>" + E(f) + "</li>").join("") + (s.flags.length > 2 ? "<li>" + (s.flags.length - 2) + " more on the full sheet</li>" : "") + "</ul>" : '<p class="muted small">Nothing to sort out: every room is in ratio with trained educators on shift.</p>');
+    const alerts = s.kids.filter((k) => alertText(k));
+    return '<div class="sheetRooms"><div class="sheetRoom"><b>Today</b><small>' + s.kids.length + " children · " + s.eds.length + " educators · " + s.needed + " needed by ratio</small>" +
+      (alerts.length ? '<small class="sheetAlert">' + alerts.map((k) => k.first + " (" + (k.allergies || k.conditions || k.dietary) + ")").join(", ") + "</small>" : "") + "</div></div>" +
+      (s.flags.length ? '<ul class="rosterGapList sheetFlags">' + s.flags.slice(0, 2).map((f) => "<li>" + E(f) + "</li>").join("") + (s.flags.length > 2 ? "<li>" + (s.flags.length - 2) + " more on the full sheet</li>" : "") + "</ul>" : '<p class="muted small">Nothing to sort out: the centre is in ratio with trained educators on shift.</p>');
   }
   // Numbers for the daily sheet cell on the Overview.
   function sheetStats() {
     const day = nextWeekday(), s = buildSheet(day);
     return { day, dayLabel: new Date(day + "T00:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }),
-      rooms: s.rooms.map((r) => ({ room: r.room, children: r.kids.length, educators: r.eds.length })),
-      alerts: s.rooms.reduce((n, r) => n + r.kids.filter((k) => alertText(k)).length, 0), flags: s.flags.length };
+      children: s.kids.length, educators: s.eds.length, needed: s.needed,
+      alerts: s.kids.filter((k) => alertText(k)).length, flags: s.flags.length };
   }
   function overviewSection() {
     const day = nextWeekday(), s = buildSheet(day);
@@ -435,7 +449,7 @@ const Centre = (() => {
   // Shown on sign-in: today's sheet, ready to print.
   function popup() {
     const day = nextWeekday(), s = buildSheet(day);
-    const total = s.rooms.reduce((n, r) => n + r.kids.length, 0);
+    const total = s.kids.length;
     openModal(
       '<div class="modalHead"><div><h2>Your daily sheet</h2><p>' + E(fmtDay(day)) + ". " + total + " children booked, " + s.flags.length + " thing" + (s.flags.length === 1 ? "" : "s") + ' to sort out.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<div class="modalSection">' + sheetSummary(s) + "</div>" +
@@ -451,5 +465,5 @@ const Centre = (() => {
   }
   function printDay(day) { if (typeof Sheet !== "undefined") return Sheet.open(day); sheetDay = day; print(); }
 
-  return { sheetStats, page, openContract, openContracts, openAmend, saveAmend, markSigned, setTab, room, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
+  return { sheetStats, page, openContract, openContracts, openAmend, saveAmend, markSigned, setTab, search, openChild, setDay, print, buildSheet, children, stats, overviewSection, popup, openFull, printDay };
 })();

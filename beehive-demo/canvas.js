@@ -3,7 +3,7 @@
 // Card positions and ticked-off items are remembered in this browser (ticked items for today only).
 const Canvas = (() => {
   const E = (s) => (typeof esc === "function" ? esc(s == null ? "" : s) : String(s == null ? "" : s));
-  const STORE = "beehive-canvas-v2";
+  const STORE = "beehive-canvas-v3"; // v3: smaller cells, so positions saved for the old size are dropped
   const MAX = 4; // things to handle at once
   const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
   function load() { try { const s = JSON.parse(localStorage.getItem(STORE) || "{}"); if (s.day !== today()) s.done = []; return Object.assign({ pos: {}, done: [], day: today() }, s); } catch (e) { return { pos: {}, done: [], day: today() }; } }
@@ -40,8 +40,10 @@ const Canvas = (() => {
   }
 
   // Honeycomb layout (px from the canvas's top-left): the daily sheet as a big cell, things to handle around it.
-  const W = 210, H = 242; // a pointy-top hexagon: height = width × 1.155
-  const SLOTS = [[452, 14], [452 + W + 10, 14], [452 + (W + 10) / 2, 14 + H * 0.75 + 8], [452 + (W + 10) * 1.5, 14 + H * 0.75 + 8], [452, 14 + (H * 0.75 + 8) * 2], [452 + W + 10, 14 + (H * 0.75 + 8) * 2]];
+  // Sized so the whole hive fits on one screen next to the area tiles (see .hexCard in beehive.css).
+  const W = 166, H = 192; // a pointy-top hexagon: height = width × 1.155
+  const X0 = 300; // just right of the daily sheet cell (276 px wide)
+  const SLOTS = [[X0, 10], [X0 + W + 8, 10], [X0 + (W + 8) / 2, 10 + H * 0.75 + 6], [X0 + (W + 8) * 1.5, 10 + H * 0.75 + 6], [X0, 10 + (H * 0.75 + 6) * 2], [X0 + W + 8, 10 + (H * 0.75 + 6) * 2]];
   const hex = (id, cls, pos, inner, i) =>
     '<article class="hexCard ' + cls + '" id="cc-' + id + '" style="left:' + pos.x + "px;top:" + pos.y + "px;--i:" + (i || 0) + '" onpointerdown="Canvas.drag(event,\'' + id + '\')"><div class="hexBorder"><div class="hexInner">' + inner + "</div></div></article>";
   // Cells the owner moved keep their spot; every other cell takes the next free slot, so none overlap.
@@ -61,11 +63,11 @@ const Canvas = (() => {
       i + 1);
   }
   function sheetCard(pos) {
-    const p = pos.sheet || { x: 14, y: 14 };
+    const p = pos.sheet || { x: 10, y: 92 };
     const st = typeof Centre !== "undefined" ? Centre.sheetStats() : null;
     const inner = !st ? "" :
       '<span class="cardLabel">Daily sheet</span><h2>' + E(st.dayLabel) + "</h2>" +
-      '<div class="hexRooms">' + st.rooms.map((r) => '<div><b>' + E(r.room.replace(/ Room$/, "")) + "</b><span>" + r.children + " kids · " + r.educators + " educator" + (r.educators === 1 ? "" : "s") + "</span></div>").join("") + "</div>" +
+      '<div class="hexRooms"><div><b>Children</b><span>' + st.children + " booked</span></div><div><b>Educators</b><span>" + st.educators + " on shift · " + st.needed + " needed</span></div></div>" +
       '<p class="hexNote">' + (st.alerts ? st.alerts + " children with allergies or medical needs" : "No medical alerts") + (st.flags ? " · " + st.flags + " to sort out" : " · all set") + "</p>" +
       '<div class="hexActions"><button class="button small primary" onclick="Sheet.open(\'' + st.day + '\')"><span data-icon="spark"></span>Open the sheet</button></div>';
     return hex("sheet", "sheet", p, inner);
@@ -75,15 +77,20 @@ const Canvas = (() => {
     if (typeof Hive !== "undefined" && !Hive.isRunning()) setTimeout(() => Hive.run(false), 0);
     const s = load(), list = items();
     const n = list.length;
+    // Full width: the morning check, then the hive filling the page. The cells sit on a fixed-size stage
+    // (#canvas) centred in the full-width honeycomb, so dragging and saved positions work at any width.
+    // Section links live in the bottom dock only.
     return (
-      header(greeting() + ", " + E(firstName(OWNER_NAME)),
-        new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }) + ". " + (n ? n + (n === 1 ? " thing" : " things") + " to handle in the hive. beehive is taking care of the rest." : "The hive is calm. Nothing needs you today."),
-        (Object.keys(s.pos).length || s.done.length ? '<button class="button" onclick="Canvas.reset()">Tidy the hive</button>' : "")) +
+      // beehive's main tagline is the Overview's heading; the greeting and the day sit under it.
+      header('<span class="mainTagline">we are the buzz in the background</span>',
+        "<b>" + greeting() + ", " + E(firstName(OWNER_NAME)) + ".</b> " + new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }) + ". " + (n ? n + (n === 1 ? " thing" : " things") + " to handle in the hive. beehive is taking care of the rest." : "The hive is calm. Nothing needs you today."),
+        (Object.keys(s.pos).length || s.done.length ? '<button class="button" onclick="Canvas.reset()">Tidy the hive</button>' : "") +
+        '<button class="button" onclick="exportReport()"><span data-icon="download"></span>Audit report</button>') +
+      '<div class="overviewHive">' +
       (typeof Hive !== "undefined" ? Hive.statusBar() : "") +
-      '<div class="canvas hive" id="canvas"><div class="beePath">' + BEE + "</div>" + sheetCard(s.pos) + (() => { const placed = placeAll(list, s.pos); return list.map((c, i) => card(c, i, placed)).join(""); })() +
+      '<div class="canvas hive" title="Drag a cell to rearrange your hive. Tick it when it’s handled and it flies off for the day."><div class="beePath">' + BEE + '</div><div class="hiveStage" id="canvas">' + sheetCard(s.pos) + (() => { const placed = placeAll(list, s.pos); return list.map((c, i) => card(c, i, placed)).join(""); })() +
       (n ? "" : hex("calm", "calm", { x: SLOTS[0][0], y: SLOTS[0][1] }, '<span class="cardLabel">All clear</span><h3>Nothing to handle</h3><p>Every credential, requirement and roster is in order.</p>')) +
-      "</div>" +
-      '<p class="footnote">Drag any cell to rearrange your hive. Tick a cell when it’s handled and it flies off for the day.</p>'
+      "</div></div></div>"
     );
   }
 
@@ -112,6 +119,7 @@ const Canvas = (() => {
     const el = document.getElementById("cc-" + id);
     if (el) { el.classList.add("flyAway"); setTimeout(render, 450); } else render();
     toast("Nice work. Ticked off for today.");
+    if (typeof honeyBee === "function") honeyBee();
   }
   function reset() { try { localStorage.removeItem(STORE); } catch (e) {} render(); }
 

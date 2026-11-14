@@ -1,6 +1,6 @@
 // beehive Morning hive agent: server-only Vercel function at /api/hive (see AGENT.md, "Morning hive agent").
 //
-// Each morning the app sends a snapshot of the day (bookings per room, the roster, educators' credentials,
+// Each morning the app sends a snapshot of the day (bookings across the centre, the roster, educators' credentials,
 // children's open paperwork, legal items). Claude works through it with four tools and returns at most five
 // proposals for the owner: fill a roster gap, chase a document, draft a message to a family, or flag a
 // decision. Every tool checks its input against the snapshot, so Claude can't propose an educator who isn't
@@ -20,16 +20,16 @@ const TIME_LIMIT_MS = Number(process.env.AGENT_TIME_LIMIT_MS) || 110000;
 
 const INSTRUCTIONS = `You are the Morning hive agent for an Australian long day care centre in NSW. Each morning you check the day ahead and prepare the few things the centre owner should act on. The owner approves or rejects every proposal; you never change anything yourself.
 
-Use only the DAY SNAPSHOT in the message. Never invent people, children, rooms, dates or rules.
+Use only the DAY SNAPSHOT in the message. Never invent people, children, dates or rules.
 
 Work in this order and stop when you have at most ${MAX_PROPOSALS} proposals:
-1. Roster: for each room where "short_by" is above 0 or the diploma rule isn't met, call fill_roster_gap with an educator from "available_to_add" (fully qualified, free that day). Prefer the room's own educators and diploma holders when the diploma rule is short. One proposal per gap.
+1. Roster: if "ratio.short_by" is above 0 or the diploma rule isn't met, call fill_roster_gap with an educator from "available_to_add" (fully qualified, free that day), once per missing educator. Prefer diploma holders when the diploma rule is short.
 2. Credentials: for an educator whose required credential is expired, missing or due within 14 days and who has no request in progress, call chase_document.
 3. Families: for a child with an amended agreement awaiting the parent's signature, a new medical plan, or missing enrolment items, call draft_parent_message with a warm 2 to 4 sentence message in plain Australian English, first names only, that asks for exactly what is needed.
 4. Anything that needs the owner's judgement (a regulation change to decide, an expired credential with no cover, a requirement gap) goes through flag_for_owner.
 
 Rules:
-- Ratios: 1:4 under 2 years, 1:5 from 2 to 3, 1:10 from 3 to preschool age; the youngest child sets the room's ratio. At least half the educators needed must hold a diploma or above (Reg 126).
+- Ratios: 1:4 under 2 years, 1:5 from 2 to 3, 1:10 from 3 to preschool age, applied across the whole centre (there are no rooms). At least half the educators needed must hold a diploma or above (Reg 126).
 - Never propose an educator with an expired or missing credential for the roster.
 - Each "reason" is one plain sentence the owner can check against the snapshot.
 - If a tool returns an error, fix the input or skip that item.
@@ -39,20 +39,18 @@ Rules:
 function buildTools(snap, out) {
   const ed = (id) => (snap.educators || []).find((e) => e.id === id);
   const kid = (id) => (snap.children || []).find((k) => k.id === id);
-  const room = (name) => (snap.rooms || []).find((r) => r.room === name);
   const full = () => out.length >= MAX_PROPOSALS;
   const push = (p) => { if (full()) return { error: "You already have " + MAX_PROPOSALS + " proposals. Stop and write the summary." }; out.push(p); return { ok: true, proposals_so_far: out.length }; };
   return {
     fill_roster_gap: tool({
-      description: "Propose adding one educator to a room on the day's roster.",
-      inputSchema: z.object({ room: z.string(), educator_id: z.string(), shift: z.enum(["early", "mid", "late"]), reason: z.string().max(240) }),
+      description: "Propose adding one educator to the day's roster.",
+      inputSchema: z.object({ educator_id: z.string(), shift: z.enum(["early", "mid", "late"]), reason: z.string().max(240) }),
       execute: async (i) => {
-        const r = room(i.room), e = ed(i.educator_id);
-        if (!r) return { error: "No room called " + i.room + " in the snapshot." };
+        const e = ed(i.educator_id);
         if (!e) return { error: "No educator with id " + i.educator_id + "." };
         if (!(snap.available_to_add || []).includes(e.id)) return { error: e.name + " isn't available to add: not fully qualified, not working that day, or already rostered." };
-        if (out.some((p) => p.kind === "fill_roster_gap" && p.educator_id === e.id)) return { error: e.name + " is already proposed for another room." };
-        return push({ kind: "fill_roster_gap", room: r.room, educator_id: e.id, educator: e.name, shift: i.shift, reason: i.reason });
+        if (out.some((p) => p.kind === "fill_roster_gap" && p.educator_id === e.id)) return { error: e.name + " is already proposed." };
+        return push({ kind: "fill_roster_gap", educator_id: e.id, educator: e.name, shift: i.shift, reason: i.reason });
       },
     }),
     chase_document: tool({

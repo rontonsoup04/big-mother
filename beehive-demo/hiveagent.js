@@ -29,12 +29,12 @@ const Hive = (() => {
     const chasing = (id, code) => tasks.some((t) => t.staffId === id && (t.code === code || t.typeName === code) && t.state !== "resolved" && (t.state === "waiting" || t.state === "owner_review" || !!t.lastMessageAt));
     const CODE = { WWCC: "WWCC", "First Aid": "FIRST_AID", CPR: "CPR", Anaphylaxis: "ANAPHYLAXIS", Asthma: "ASTHMA" };
     const eds = educators.map((e) => ({
-      id: e.id, name: e.name, home_room: e.room, qualification: Roster.profile(e).qual, diploma: Roster.isDiploma(e), works: Roster.profile(e).days,
-      rostered_today: entries[e.id] ? entries[e.id].room : null,
+      id: e.id, name: e.name, qualification: Roster.profile(e).qual, diploma: Roster.isDiploma(e), works: Roster.profile(e).days,
+      rostered_today: entries[e.id] ? entries[e.id].shift || "mid" : null,
       credentials: (e.certs || []).map((c) => ({ type: c.type, status: credStatus(c), days: c.missing ? null : c.days, request_in_progress: chasing(e.id, CODE[c.type] || c.type) })),
     }));
     const kids = Centre.children().filter((k) => k.days.includes(dn) || (k.amendments || []).some((a) => !a.signedOn) || k.missing.length).map((k) => ({
-      id: k.id, name: k.first + " " + k.last, room: k.room, parent: String(k.contact || "").split("·")[0].trim(), booked_today: k.days.includes(dn),
+      id: k.id, name: k.first + " " + k.last, parent: String(k.contact || "").split("·")[0].trim(), booked_today: k.days.includes(dn),
       needs: [k.allergies && "allergy: " + k.allergies, k.conditions, k.dietary].filter(Boolean).join("; "),
       open_items: k.missing.concat((k.amendments || []).filter((a) => !a.signedOn).map((a) => "Amended agreement awaiting the parent’s signature"))
         .concat(k.plan && (k.amendments || []).some((a) => a.changes && a.changes.conditions && !a.signedOn) ? ["New medical plan: action plan and medication to bring in"] : []),
@@ -42,7 +42,7 @@ const Hive = (() => {
     const gaps = (typeof items !== "undefined" ? items : []).filter((x) => (x.req ? x.req.status : x.status === "green" ? "compliant" : "missing") !== "compliant").map((x) => x.title);
     return {
       day, weekday: dn, centre: typeof CENTRE_NAME !== "undefined" ? CENTRE_NAME : "",
-      rooms: check.rooms.map((r) => ({ room: r.room, children: r.children, ratio: "1:" + r.per, needed: r.needed, rostered: r.rostered, short_by: Math.max(0, r.needed - r.rostered) })),
+      ratio: { children: check.children, needed: check.needed, rostered: check.rostered, short_by: Math.max(0, check.needed - check.rostered) },
       diploma_rule: { diplomas_on: check.diplomas, needed: check.diplomaNeeded, met: check.diplomaOk },
       available_to_add: educators.filter((e) => Roster.rosterable(e) && Roster.profile(e).days.includes(dn) && !entries[e.id]).map((e) => e.id),
       educators: eds, children: kids,
@@ -56,14 +56,13 @@ const Hive = (() => {
     const add = (p) => { if (out.length < MAX) out.push(p); };
     const avail = s.available_to_add.slice();
     const edById = (id) => s.educators.find((e) => e.id === id);
-    s.rooms.filter((r) => r.short_by > 0 || !s.diploma_rule.met).forEach((r) => {
-      for (let i = 0; i < Math.max(r.short_by, s.diploma_rule.met ? 0 : 1); i++) {
-        const pick = avail.map(edById).sort((a, b) => (b.home_room === r.room) - (a.home_room === r.room) || b.diploma - a.diploma)[0];
-        if (!pick) break;
-        avail.splice(avail.indexOf(pick.id), 1);
-        add({ kind: "fill_roster_gap", room: r.room, educator_id: pick.id, educator: pick.name, shift: "mid", reason: r.room + " has " + r.children + " children at " + r.ratio + " and needs " + r.needed + " educators; " + r.rostered + (r.rostered === 1 ? " is" : " are") + " rostered." });
-      }
-    });
+    const r = s.ratio;
+    for (let i = 0; i < Math.max(r.short_by, s.diploma_rule.met ? 0 : 1); i++) {
+      const pick = avail.map(edById).sort((a, b) => b.diploma - a.diploma)[0];
+      if (!pick) break;
+      avail.splice(avail.indexOf(pick.id), 1);
+      add({ kind: "fill_roster_gap", educator_id: pick.id, educator: pick.name, shift: "mid", reason: r.children + " children need " + r.needed + " educators by their age-group ratios; " + r.rostered + (r.rostered === 1 ? " is" : " are") + " rostered." });
+    }
     s.educators.forEach((e) => e.credentials.filter((c) => c.status !== "current" && !c.request_in_progress && (c.status !== "due" || c.days <= 14)).forEach((c) =>
       add({ kind: "chase_document", educator_id: e.id, educator: e.name, credential: c.type, reason: e.name + "’s " + c.type + " is " + (c.status === "due" ? "due in " + c.days + " days" : c.status) + " and no request is in progress." })));
     s.children.filter((k) => k.open_items.length).forEach((k) => {
@@ -75,7 +74,7 @@ const Hive = (() => {
     return { proposals: out, summary: summaryLine(s, out), source: "builtin" };
   }
   function summaryLine(s, out) {
-    const kids = s.rooms.reduce((n, r) => n + r.children, 0);
+    const kids = s.ratio.children;
     return kids + " children booked for " + s.weekday + ". " + (out.length ? out.length + " thing" + (out.length === 1 ? "" : "s") + " for you to approve." : "Everything is in order.");
   }
 
@@ -106,7 +105,7 @@ const Hive = (() => {
   // ---------- approving ----------
   function find(id) { const s = load(); return s ? [s, s.proposals.find((p) => p.id === id)] : [null, null]; }
   function title(p) {
-    return p.kind === "fill_roster_gap" ? "Add " + first(p.educator) + " to " + p.room.replace(/ Room$/, "")
+    return p.kind === "fill_roster_gap" ? "Add " + first(p.educator) + " to the roster"
       : p.kind === "chase_document" ? "Ask " + first(p.educator) + " for their " + p.credential
       : p.kind === "draft_parent_message" ? "Message " + first(p.parent) + " about " + first(p.child)
       : p.title;
@@ -116,7 +115,7 @@ const Hive = (() => {
     const [s, p] = find(id);
     if (!p) return;
     const body = p.kind === "draft_parent_message" ? '<label class="formLabel" for="hvMsg">Message to ' + E(p.parent) + '</label><textarea class="formControl" id="hvMsg" rows="5">' + E(p.message) + "</textarea>"
-      : p.kind === "fill_roster_gap" ? "<p>" + E(p.educator) + " joins the " + E(p.room) + " on " + E(new Date(s.day + "T00:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })) + ", " + E(SHIFT_LABEL[p.shift] || SHIFT_LABEL.mid) + ".</p>"
+      : p.kind === "fill_roster_gap" ? "<p>" + E(p.educator) + " joins the roster on " + E(new Date(s.day + "T00:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })) + ", " + E(SHIFT_LABEL[p.shift] || SHIFT_LABEL.mid) + ".</p>"
       : p.kind === "chase_document" ? "<p>beehive emails " + E(p.educator) + " a secure link to upload their " + E(p.credential) + " and follows up until it’s renewed.</p>"
       : "<p>" + E(p.detail) + "</p><p><b>Recommended:</b> " + E(p.recommended_action) + "</p>";
     openModal(
@@ -129,7 +128,7 @@ const Hive = (() => {
     const [s, p] = find(id);
     if (!p) return;
     try {
-      if (p.kind === "fill_roster_gap") { Roster.addShift(s.day, p.educator_id, p.room, p.shift || "mid"); toast(first(p.educator) + " added to " + p.room + "."); }
+      if (p.kind === "fill_roster_gap") { Roster.addShift(s.day, p.educator_id, p.shift || "mid"); toast(first(p.educator) + " added to the roster."); }
       else if (p.kind === "chase_document") {
         const t = (StaffAgent.data().tasks || []).find((x) => x.staffId === p.educator_id && (StaffAgent.SHORT[x.code] === p.credential || x.typeName === p.credential) && x.state !== "resolved");
         if (t) await StaffAgent.sendNow(t.id); else toast("Request sent to " + first(p.educator) + " (simulated).");
@@ -152,7 +151,7 @@ const Hive = (() => {
     const s = load();
     if (!s) return [];
     return s.proposals.filter((p) => p.status === "open").map((p) => ({
-      id: p.id, tone: p.kind === "flag_for_owner" && p.priority === "high" ? "bad" : "agent", label: "beehive · " + label(p), title: title(p), detail: p.reason,
+      id: p.id, tone: p.kind === "flag_for_owner" && p.priority === "high" ? "bad" : "agent", label: label(p), title: title(p), detail: p.reason,
       act: "Hive.approve('" + p.id + "')", btn: p.kind === "draft_parent_message" ? "Review" : "Approve", openAct: "Hive.open('" + p.id + "')", altAct: "Hive.dismiss('" + p.id + "')",
       review: p.kind === "draft_parent_message",
     }));

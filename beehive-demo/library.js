@@ -191,7 +191,7 @@ const Library = (() => {
   const FREQ_DAYS = { daily: 1, weekly: 7, monthly: 30, quarterly: 91, "six-monthly": 182, annual: 365 };
   // Offline demo copy of the seeded tasks: [title, regulation, frequency, days since done (latest first), due in days, note]
   const OFFLINE_TASKS = [
-    ["Emergency and evacuation rehearsal", "Reg 97", "quarterly", [100, 190], -10, "Fire evacuation, all rooms, 4 min 10 s"],
+    ["Emergency and evacuation rehearsal", "Reg 97", "quarterly", [100, 190], -10, "Fire evacuation, whole centre, 4 min 10 s"],
     ["Playground and premises safety check", "Reg 103", "weekly", [5, 12, 19], 2, "No hazards found"],
     ["Fire equipment service", "Reg 97, 103", "six-monthly", [140], 40, "Extinguishers and blankets serviced by contractor"],
     ["Medical conditions policy review", "Reg 90, 91", "annual", [300], 65, "Reviewed with families of children with action plans"],

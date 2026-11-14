@@ -465,7 +465,7 @@ const AuditAgent = (() => {
       const d = today();
       S = { v: 1, seq: 0, items: {}, evidence: [], tasks: [], reviews: [], updates: [], events: [], messages: [], runs: [] };
       const add = (key, title, days) => { const x = (typeof items !== "undefined" ? items : []).find((y) => keyOf(y) === key); if (x) S.evidence.push({ id: uid(), itemId: x.id, title, recordedOn: addDays(d, -days), status: "verified", verifiedAt: new Date(Date.now() - (days - 1) * 864e5).toISOString(), createdAt: new Date(Date.now() - days * 864e5).toISOString(), source: "seed", note: "Demo record", checks: [], flag: "clear", demo: true }); };
-      add("evacuation", "Evacuation drill: all rooms, 4 min 10 s", 40);
+      add("evacuation", "Evacuation drill: whole centre, 4 min 10 s", 40);
       add("authorisations", "Authorisations register: medication, excursions and collection nominees", 20);
       add("premises", "Weekly premises and playground safety checklist", 5);
       add("emergency", "Emergency procedures, contacts and floor plan (displayed)", 150);
@@ -811,7 +811,7 @@ const AuditAgent = (() => {
     g.font = "700 56px Georgia"; g.fillText(titles[keyOf(x)] || x.title, 90, 240);
     g.font = "34px Arial"; g.fillText(typeof CENTRE_NAME !== "undefined" ? CENTRE_NAME : "Beehive Early Learning", 90, 310);
     if (variant !== "undated") g.fillText((keyOf(x) === "evacuation" ? "Date of drill: " : "Date reviewed: ") + d + "/" + mo + "/" + y, 90, 400);
-    const lines = keyOf(x) === "evacuation" ? ["Rooms: Wattle, Banksia, Gumtree", "Children evacuated: 46   Staff: 9", "Time to assembly point: 3 min 55 s", "Issues: none. Next drill in 3 months."]
+    const lines = keyOf(x) === "evacuation" ? ["Area: whole centre", "Children evacuated: 46   Staff: 9", "Time to assembly point: 3 min 55 s", "Issues: none. Next drill in 3 months."]
       : ["1. Purpose", "2. Procedures staff follow", "3. Responsibilities", "4. Review: at least every 12 months"];
     lines.forEach((l, i) => g.fillText(l, 90, 500 + i * 60));
     g.font = "28px Arial"; g.fillText("Approved by: Sara Williams, Approved Provider", 90, 900);
@@ -940,7 +940,7 @@ const AuditAgent = (() => {
     openModal(
       '<div class="modalHead"><div><h2>Log a drill you ran</h2><p>Your own record, attested by you. Uploads from staff are verified separately.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<label class="formLabel" for="drDate">Date of the drill</label><input class="formControl" type="date" id="drDate" value="' + today() + '">' +
-      '<label class="formLabel" for="drRooms">Rooms and people</label><input class="formControl" id="drRooms" placeholder="All rooms, 46 children, 9 staff">' +
+      '<label class="formLabel" for="drRooms">Who took part</label><input class="formControl" id="drRooms" placeholder="46 children, 9 staff">' +
       '<label class="formLabel" for="drTime">Time to the assembly point</label><input class="formControl" id="drTime" placeholder="3 min 55 s">' +
       '<label class="formLabel" for="drIssues">Issues and improvements</label><input class="formControl" id="drIssues" placeholder="None">' +
       '<div class="modalActions"><button class="button" onclick="closeModal()">Cancel</button><button class="button primary" onclick="AuditAgent.saveDrill(\'' + itemId + '\')">Record drill</button></div>',
@@ -949,7 +949,7 @@ const AuditAgent = (() => {
   async function saveDrill(itemId) {
     const v = (id) => ((document.getElementById(id) || {}).value || "").trim();
     const details = { rooms: v("drRooms"), time: v("drTime"), issues: v("drIssues") };
-    if (!details.rooms || !details.time) return toast("Add the rooms and the time taken, so the record is complete.");
+    if (!details.rooms || !details.time) return toast("Add who took part and the time taken, so the record is complete.");
     const title = "Evacuation drill: " + details.rooms + ", " + details.time;
     try {
       if (isLive()) await rpc("record_evidence", { p_item: itemId, p_title: title, p_date: v("drDate"), p_details: details });

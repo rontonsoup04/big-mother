@@ -195,7 +195,7 @@ const Legal = (() => {
   function spotChecks() {
     const day = today();
     const on = typeof Roster !== "undefined" ? Roster.forDay(day) : [];
-    const c = typeof Roster !== "undefined" ? Roster.check(day, Object.fromEntries(on.map((r) => [r.e.id, { room: r.room, shift: "mid" }]))) : null;
+    const c = typeof Roster !== "undefined" ? Roster.check(day, Object.fromEntries(on.map((r) => [r.e.id, { shift: "mid" }]))) : null;
     const ed = typeof educators !== "undefined" ? educators : [];
     const noWwcc = ed.filter((e) => !(e.certs || []).some((k) => k.type === "WWCC" && k.days >= 0));
     const kids = typeof Centre !== "undefined" ? Centre.children() : [];
@@ -205,7 +205,7 @@ const Legal = (() => {
       { label: "Quality rating, nominated supervisor and responsible person on display", why: "Regs 173, 150", tone: "green", status: "On display" },
       { label: "Every educator working today has a current WWCC", why: "Reg 145–147",
         tone: noWwcc.length ? "yellow" : "green", status: noWwcc.length ? noWwcc.length + " not current, kept off the roster" : "All current", act: "go('staff')" },
-      { label: "Educator-to-child ratios met in every room today", why: "Regs 123, 271",
+      { label: "Educator-to-child ratios met today", why: "Regs 123, 271",
         tone: !on.length ? "red" : c && c.issues.length ? "red" : "green", status: !on.length ? "No roster today" : c && c.issues.length ? "Under ratio" : "Met", act: "go('roster')" },
       { label: "At least 50% of educators hold a diploma today", why: "Reg 126",
         tone: !on.length ? "red" : c && c.diplomaOk ? "green" : "red", status: !on.length ? "No roster today" : c ? c.diplomas + " with a diploma, " + c.diplomaNeeded + " needed" : "", act: "go('roster')" },

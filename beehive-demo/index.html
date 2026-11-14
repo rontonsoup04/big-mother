@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#FFF1BF">
 <title>beehive</title>
 <meta name="description" content="Staff certifications, audit readiness and family medical updates for long day care centres.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 32'%3E%3Cpath d='M14 1.5 26 8.5v15L14 30.5 2 23.5v-15z' fill='none' stroke='%23c08a22' stroke-width='2.4'/%3E%3Cpath d='M14 10.5 19.5 13.7v6.6L14 23.5 8.5 20.3v-6.6z' fill='%23c08a22'/%3E%3C/svg%3E">
@@ -22,64 +22,68 @@
 <script src="./legal.js" defer></script>
 <script src="./vendor/jspdf.umd.min.js" defer></script>
 <script src="./centre.js" defer></script>
+<script src="./availability.js" defer></script>
 <script src="./roster.js" defer></script>
 <script src="./canvas.js" defer></script>
 <script src="./hiveagent.js" defer></script>
 <script src="./sheet.js" defer></script>
 <script src="./app.js" defer></script>
+<script src="./honey.js" defer></script>
 </head>
 <body>
 <div class="appShell">
-  <aside class="sidebar">
-    <a class="brand" href="#" onclick="go(isFamily() ? 'family' : (isEducator() ? 'staff-upload' : 'overview'));return false" aria-label="beehive home">
-      <span class="brandMark" data-icon="brand"></span><span class="brandName">beehive</span>
+  <header class="masthead">
+    <a class="wordmark" href="#" onclick="go(isFamily() ? 'family' : (isEducator() ? 'staff-upload' : 'overview'));return false" aria-label="beehive home">
+      <span class="brandMark" data-icon="brand"></span>
+      <span class="brandName">beehive</span>
     </a>
-    <div class="centreLine"><small>Centre</small><b class="centreName">Beehive Early Learning</b></div>
-    <nav class="navigation" aria-label="Main navigation">
-      <button class="navButton ownerOnly" data-nav="overview" onclick="go('overview')"><span data-icon="overview"></span>Overview</button>
-      <button class="navButton ownerOnly" data-nav="staff" onclick="go('staff')"><span data-icon="staff"></span>Staff<b id="certAlertBadge"></b></button>
-      <button class="navButton ownerOnly" data-nav="legal" onclick="go('legal')"><span data-icon="legal"></span>Legal<b id="gapBadge"></b></button>
-      <button class="navButton ownerOnly" data-nav="centre" onclick="go('compliance')"><span data-icon="centre"></span>Centre<b id="complianceBadge"></b></button>
-      <button class="navButton ownerOnly" data-nav="roster" onclick="go('roster')"><span data-icon="roster"></span>Roster<b id="rosterBadge"></b></button>
-      <button class="navButton parentOnly" data-nav="family" onclick="go('family')"><span data-icon="home"></span>Home</button>
-      <button class="navButton parentOnly" data-nav="family-medical" onclick="go('family-medical')"><span data-icon="medical"></span>Medical profile<b id="familyMedicalBadge"></b></button>
-      <button class="navButton parentOnly" data-nav="family-messages" onclick="go('family-messages')"><span data-icon="messages"></span>Messages</button>
-      <button class="navButton educatorOnly" data-nav="staff-upload" onclick="go('staff-upload')"><span data-icon="certificate"></span>My certificates</button>
-    </nav>
-    <div class="sidebarBottom">
-      <p class="modeLine"><span class="hx"></span><span id="dataModeLabel">Offline demo</span><span id="baselineLabel" class="sr-only"></span></p>
+    <p class="modeSticker" title="Data source"><span class="hx"></span><span id="dataModeLabel">Offline demo</span><span id="baselineLabel" class="sr-only"></span></p>
+    <span class="sr-only">Current page: <b id="pageCrumb">Overview</b></span>
+    <div class="hud" aria-label="Tools">
+  <button class="hudButton searchFab ownerOnly" onclick="openCommand()" aria-label="Search records (Ctrl+K)"><span data-icon="search"></span><span class="label">Search</span><kbd>⌘K</kbd></button>
+  <button class="hudButton guideButton ownerOnly" onclick="openHelp()" aria-label="Your hive guide"><span class="hx"></span><span class="label">Hive guide</span></button>
       <div class="ownerProfile" id="workspaceProfile"><span class="avatar">SW</span><span><b>Sara Williams</b><small>Centre owner</small></span><button aria-label="Account" onclick="openProfileMenu()">···</button></div>
     </div>
-  </aside>
+    <span id="topAvatar" class="avatar topAvatar sr-only">SW</span>
+  </header>
   <main class="main">
-    <header class="topbar">
-      <div class="crumb"><span class="centreName">Beehive Early Learning</span><i>/</i><b id="pageCrumb">Overview</b></div>
-      <div class="topActions">
-        <div class="globalSearch"><span data-icon="search"></span><input id="globalSearch" type="search" placeholder="Search records" aria-label="Search records and evidence" autocomplete="off" oninput="searchEvidence(this.value)" onkeydown="if(event.key==='Enter')submitSearch(this.value)"><kbd>⌘K</kbd><div id="searchResults" class="searchResults hidden"></div></div>
-        <button class="iconButton notificationButton ownerOnly" aria-label="Notifications" onclick="handleNotifications()"><span data-icon="bell"></span><b id="notificationBadge" class="notificationBadge"></b></button>
-        <button id="assistantFab" class="askButton hidden" onclick="Assistant.toggle()" aria-label="Ask beehive"><span data-icon="spark"></span><span class="label">Ask beehive</span></button>
-        <button class="guideButton ownerOnly" onclick="openHelp()" aria-label="Your hive guide"><span class="hx"></span><span class="label">Your hive guide</span></button>
-        <button id="perspectiveButton" class="perspectiveButton" onclick="togglePerspective()">Family view</button>
-        <span id="topAvatar" class="avatar topAvatar">SW</span>
-      </div>
-    </header>
     <section id="page" class="page" aria-live="polite"></section>
   </main>
 </div>
-<nav class="mobileNav" aria-label="Mobile navigation">
-  <button class="ownerOnly" data-nav="overview" onclick="go('overview')"><span data-icon="overview"></span>Overview</button>
-  <button class="ownerOnly" data-nav="staff" onclick="go('staff')"><span data-icon="staff"></span>Staff</button>
-  <button class="ownerOnly" data-nav="legal" onclick="go('legal')"><span data-icon="legal"></span>Legal</button>
-  <button class="ownerOnly" data-nav="centre" onclick="go('compliance')"><span data-icon="centre"></span>Centre</button>
-  <button class="ownerOnly" data-nav="roster" onclick="go('roster')"><span data-icon="roster"></span>Roster</button>
-  <button class="parentOnly" data-nav="family" onclick="go('family')"><span data-icon="home"></span>Home</button>
-  <button class="parentOnly" data-nav="family-medical" onclick="go('family-medical')"><span data-icon="medical"></span>Medical</button>
-  <button class="parentOnly" data-nav="family-messages" onclick="go('family-messages')"><span data-icon="messages"></span>Messages</button>
-  <button class="educatorOnly" data-nav="staff-upload" onclick="go('staff-upload')"><span data-icon="certificate"></span>Certificates</button>
+<div class="commandShade" id="commandShade" onclick="if(event.target===this)closeCommand()">
+  <div class="commandBox" role="dialog" aria-label="Search records">
+    <p class="commandKicker">Search the hive</p>
+    <div class="globalSearch"><span data-icon="search"></span><input id="globalSearch" type="search" placeholder="WWCC, incident records, policy…" aria-label="Search records and evidence" autocomplete="off" oninput="searchEvidence(this.value)" onkeydown="if(event.key==='Enter')submitSearch(this.value)"><kbd>Esc</kbd><div id="searchResults" class="searchResults hidden"></div></div>
+  </div>
+</div>
+<button id="assistantFab" class="beeFab hidden" onclick="Assistant.toggle()" aria-label="Ask beehive">
+  <svg class="beeSvg" viewBox="0 0 64 56" aria-hidden="true"><ellipse class="wing w1" cx="24" cy="14" rx="12" ry="9"/><ellipse class="wing w2" cx="40" cy="13" rx="10" ry="8"/><ellipse cx="32" cy="34" rx="20" ry="15" fill="#FFC800" stroke="#1A1200" stroke-width="3"/><path d="M24 20.5v27M32 19v30M40 20.5v27" stroke="#1A1200" stroke-width="5"/><circle cx="49" cy="31" r="2.6" fill="#1A1200"/><path d="M12 34l-7 2" stroke="#1A1200" stroke-width="3" stroke-linecap="round"/></svg>
+  <span class="label">Ask beehive</span>
+</button>
+<nav class="dock" aria-label="Main navigation">
+  <button class="ownerOnly" data-nav="overview" onclick="go('overview')"><span data-icon="overview"></span><span class="dl">Overview</span></button>
+  <button class="ownerOnly" data-nav="staff" onclick="go('staff')"><span data-icon="staff"></span><span class="dl">Staff</span><b id="certAlertBadge" class="dockBadge"></b></button>
+  <button class="ownerOnly" data-nav="legal" onclick="go('legal')"><span data-icon="legal"></span><span class="dl">Legal</span><b id="gapBadge" class="dockBadge"></b></button>
+  <button class="ownerOnly" data-nav="centre" onclick="go('compliance')"><span data-icon="centre"></span><span class="dl">Centre</span><b id="complianceBadge" class="dockBadge"></b></button>
+  <button class="ownerOnly" data-nav="roster" onclick="go('roster')"><span data-icon="roster"></span><span class="dl">Roster</span><b id="rosterBadge" class="dockBadge"></b></button>
+  <button class="parentOnly" data-nav="family" onclick="go('family')"><span data-icon="home"></span><span class="dl">Home</span></button>
+  <button class="parentOnly" data-nav="family-medical" onclick="go('family-medical')"><span data-icon="medical"></span><span class="dl">Medical</span><b id="familyMedicalBadge" class="dockBadge"></b></button>
+  <button class="familyNav" data-nav="family-messages" onclick="go('family-messages')"><span data-icon="messages"></span><span class="dl">Messages</span></button>
+  <button class="educatorOnly" data-nav="staff-upload" onclick="go('staff-upload')"><span data-icon="certificate"></span><span class="dl">Certificates</span></button>
+  <button class="dockMore" onclick="toggleMoreSheet()" aria-label="More tools" aria-expanded="false"><span class="moreDots">•••</span><span class="dl">More</span></button>
 </nav>
+<div class="moreSheet" id="moreSheet" aria-hidden="true">
+  <div class="moreSheetInner" role="dialog" aria-label="More tools">
+    <span class="grabber"></span>
+    <button class="moreItem ownerOnly" onclick="toggleMoreSheet(false);openCommand()"><span data-icon="search"></span>Search records</button>
+    <button class="moreItem ownerOnly" onclick="toggleMoreSheet(false);openHelp()"><span class="hx"></span>Your hive guide</button>
+    <button class="moreItem" onclick="toggleMoreSheet(false);openProfileMenu()"><span data-icon="staff"></span>Account</button>
+  </div>
+</div>
+<div class="flyingBee" id="flyingBee" aria-hidden="true"><svg viewBox="0 0 64 56"><ellipse class="wing w1" cx="24" cy="14" rx="12" ry="9"/><ellipse class="wing w2" cx="40" cy="13" rx="10" ry="8"/><ellipse cx="32" cy="34" rx="20" ry="15" fill="#FFC800" stroke="#1A1200" stroke-width="3"/><path d="M24 20.5v27M32 19v30M40 20.5v27" stroke="#1A1200" stroke-width="5"/><circle cx="49" cy="31" r="2.6" fill="#1A1200"/></svg></div>
 <aside id="assistantPanel" class="assistantPanel hidden" aria-label="Ask beehive"></aside>
 <div id="authRoot" class="hidden"></div>
 <div id="modalRoot"></div><div id="toast" class="toast" role="status"></div>
-<section id="printReport" class="printReport"><h1>beehive audit-readiness report</h1><p id="printDate"></p><div id="printRows"></div><p class="printDisclaimer">Generated from beehive records. Verify the current official sources and centre records before relying on this report.</p></section>
+<section id="printReport" class="printReport"><p class="printKicker">beehive · <span class="centreName">Beehive Early Learning</span></p><h1>Audit-readiness report</h1><p id="printDate"></p><div id="printRows"></div><p class="printDisclaimer">Generated from beehive records. Verify the current official sources and centre records before relying on this report.</p></section>
 </body>
 </html>

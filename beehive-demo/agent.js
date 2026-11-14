@@ -245,7 +245,7 @@ const StaffAgent = (() => {
       educators.forEach((e, i) => {
         const certs = {};
         e.certs.forEach((c) => { const code = CODE_OF[c.type] || c.code; if (code && c.days != null && !c.missing) certs[code] = { expiry: addDays(base, c.days), issue: null, number: "", verifiedAt: null }; });
-        S.staff.push({ id: e.id, name: e.name, room: e.room, role: e.role, email: first(e.name).toLowerCase() + "@example.com", phone: "04 0000 " + String(1001 + i), certs });
+        S.staff.push({ id: e.id, name: e.name, role: e.role, email: first(e.name).toLowerCase() + "@example.com", phone: "04 0000 " + String(1001 + i), certs });
       });
       const by = (n) => S.staff.find((s) => s.name === n);
       const mia = by("Mia Chen"); if (mia) mia.email = "mia@beehive.demo";
@@ -285,7 +285,7 @@ const StaffAgent = (() => {
         const s = staff(t.staffId) || {};
         const last = S.messages.filter((m) => m.taskId === t.id).pop();
         const ps = subsPending.filter((x) => x.taskId === t.id).pop();
-        return Object.assign({}, t, { staffName: s.name, room: s.room || "—", email: s.email, phone: s.phone, typeName: TYPE[t.code], daysLeft: t.expiry ? daysFrom(t.expiry, d) : null,
+        return Object.assign({}, t, { staffName: s.name, email: s.email, phone: s.phone, typeName: TYPE[t.code], daysLeft: t.expiry ? daysFrom(t.expiry, d) : null,
           lastChannel: last && last.channel, lastKind: last && last.kind, lastRecipient: last && last.recipient, lastMessageAt: last && last.at, pendingSubId: ps && ps.id, pendingFlag: ps && ps.flag });
       });
       const feed = S.events.slice(-150).reverse().map((e) => {
@@ -299,7 +299,7 @@ const StaffAgent = (() => {
     // Staff records: a new educator, a credential recorded by the owner, an educator who has left.
     function addStaff(e) {
       if (staff(e.id)) return;
-      S.staff.push({ id: e.id, name: e.name, room: e.room, role: e.role, email: e.email || "", phone: e.phone || "", certs: {} });
+      S.staff.push({ id: e.id, name: e.name, role: e.role, email: e.email || "", phone: e.phone || "", certs: {} });
       save();
     }
     function setCert(id, code, c) {
@@ -370,7 +370,7 @@ const StaffAgent = (() => {
       data = {
         available: true, mode: "live", error: "",
         tasks: tasks.map((t) => ({
-          id: t.id, staffId: t.staff_id, staffName: t.staff_name, room: t.room, email: t.email, phone: t.phone, code: t.type_code, typeName: TYPE[t.type_code] || t.type_name,
+          id: t.id, staffId: t.staff_id, staffName: t.staff_name, email: t.email, phone: t.phone, code: t.type_code, typeName: TYPE[t.type_code] || t.type_name,
           priority: t.priority, state: t.state, reason: t.reason, expiry: t.expiry_date, daysLeft: t.days_left, requestsSent: t.requests_sent, lastRequestAt: t.last_request_at,
           nextFollowUp: t.next_follow_up, escalatedAt: t.escalated_at, escalationReason: t.escalation_reason, recommendedAction: t.recommended_action, escalationAckAt: t.escalation_ack_at,
           token: t.upload_token, openedAt: t.opened_at, resolvedAt: t.resolved_at, resolution: t.resolution, pendingSubId: t.pending_submission_id, pendingFlag: t.pending_flag,
@@ -774,7 +774,7 @@ const StaffAgent = (() => {
     const events = data.feed.filter((e) => e.taskId === id).slice().reverse();
     const esc8 = t.escalatedAt && !t.escalationAckAt;
     openModal(
-      '<div class="modalHead"><div><h2>' + E(t.staffName) + "</h2><p>" + E(t.typeName) + ", " + E(t.room || "") + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalHead"><div><h2>' + E(t.staffName) + "</h2><p>" + E(t.typeName) + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<p class="modalSection tagLine">' + prioTag(t.priority) + stateTag(t.state) + '<span class="muted">' + E(t.reason) + "</span></p>" +
       (esc8 ? '<div class="escalationBox"><b>Escalated to you</b><p>' + E(t.escalationReason) + '</p><p><b>Recommended:</b> ' + E(t.recommendedAction) + '</p><div class="buttonRow"><button class="button primary small" onclick="StaffAgent.acknowledge(\'' + t.id + '\')">Acknowledge, keep chasing</button></div></div>' : "") +
       (t.pendingSubId ? '<div class="callout"><span class="hx lg"></span><div><b>Upload waiting for you</b><p>' + (t.pendingFlag === "clear" ? "Details match the record." : "Some details need checking.") + '</p></div><span class="rowEnd"><button class="button primary small" onclick="StaffAgent.openReview(\'' + t.pendingSubId + '\')">Review</button></span></div>' : "") +

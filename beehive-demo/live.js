@@ -14,9 +14,9 @@ const Live = (() => {
   const CERT_ORDER = ["WWCC", "FIRST_AID", "CPR", "ANAPHYLAXIS", "ASTHMA"];
   const TRIGGER_LABEL = { manual: "Message", incident: "Incident", daily_summary: "Daily summary", medical: "Medical", document_request: "Document request" };
   const DEMO_LOGINS = [
+    // Only the owner's demo login is offered on the sign-in page. Parent and educator accounts still work
+    // with their own email and password.
     { email: "sara@beehive.demo", label: "Sara, owner" },
-    { email: "priya@beehive.demo", label: "Priya, parent" },
-    { email: "mia@beehive.demo", label: "Mia, educator" },
   ];
   let sb = null;
   let children = [];
@@ -83,7 +83,8 @@ const Live = (() => {
 
   // ---------- boot, login, logout ----------
   async function boot() {
-    // An educator's secure upload link works without signing in.
+    // An educator's secure upload or availability link works without signing in.
+    if (typeof Availability !== "undefined" && Availability.linkToken()) { Availability.showPage(Availability.linkToken()); return; }
     if (typeof StaffAgent !== "undefined" && StaffAgent.linkToken()) { client(); StaffAgent.showUploadPage(StaffAgent.linkToken()); return; }
     if (typeof AuditAgent !== "undefined" && AuditAgent.linkToken()) { client(); AuditAgent.showLinkPage(AuditAgent.linkToken()); return; }
     if (!client()) { offline(); return; }
@@ -211,12 +212,12 @@ const Live = (() => {
       : Promise.resolve([]);
     const [rows, kids, staffRows, certRows, subs, meds, thread, regs, drafts] = await Promise.all([
       q(sb.from("v_checklist_status").select("*")),
-      q(sb.from("children").select("id, first_name, last_name, date_of_birth, room, emergency_contact").eq("is_active", true).order("first_name")),
+      q(sb.from("children").select("id, first_name, last_name, date_of_birth, emergency_contact").eq("is_active", true).order("first_name")),
       q(sb.from("staff").select("*").order("full_name")),
       q(sb.from("v_certificate_reminders").select("*")),
       leader ? q(sb.from("certificate_submissions").select("*, staff(full_name), certificate_types(code)").eq("status", "pending").order("submitted_at"))
              : q(sb.from("certificate_submissions").select("*, staff(full_name), certificate_types(code)").eq("status", "pending").order("submitted_at")),
-      q(sb.from("medical_updates").select("*, children(first_name, last_name, room)").eq("status", "pending").order("submitted_at")),
+      q(sb.from("medical_updates").select("*, children(first_name, last_name)").eq("status", "pending").order("submitted_at")),
       q(sb.from("v_family_thread").select("*").order("sent_at", { ascending: false }).limit(200)),
       leader ? q(sb.from("regulation_updates").select("*").order("published_on", { ascending: false })) : Promise.resolve([]),
       q(sb.from("parent_messages").select("*, children(first_name, last_name)").eq("status", "draft").order("created_at")),
@@ -263,7 +264,7 @@ const Live = (() => {
       title: d.title || "", number: d.certificate_number || "", issued: d.issue_date || "", expires: d.expiry_date || "", fileName: d.document_url ? String(d.document_url).split("/").pop().replace(/^\d+-/, "") : "", filePath: d.document_url || "" }));
     const extra = (s) => ({ email: s.email || "", phone: s.phone || "", qualification: s.qualification || "", days: s.work_days || undefined, startedOn: s.started_on || "", leftOn: s.left_on || "", docs: docsFor(s.id) });
     formerEducators = staffRows.filter((s) => !s.is_active && !/owner/i.test(s.position || ""))
-      .map((s) => Object.assign({ id: s.id, name: s.full_name, role: s.position, room: s.room || "—", certs: [] }, extra(s)));
+      .map((s) => Object.assign({ id: s.id, name: s.full_name, role: s.position, certs: [] }, extra(s)));
     educators = staffRows
       .filter((s) => s.is_active && !/owner/i.test(s.position || "") && s.user_id !== ME.id)
       .map((s) => {
@@ -276,7 +277,7 @@ const Live = (() => {
         const states = mine.map((c) => c.alert_state).filter(Boolean);
         const pick = states.find((x) => x.startsWith("Renewal submitted")) || states.find((x) => x.startsWith("Follow up")) ||
           states.find((x) => x.startsWith("Renewal prompt")) || states.find((x) => x.startsWith("Approved")) || "";
-        return Object.assign({ id: s.id, userId: s.user_id, name: s.full_name, initials: initials(s.full_name), role: s.position, room: s.room || "—", alertState: pick, certs }, extra(s));
+        return Object.assign({ id: s.id, userId: s.user_id, name: s.full_name, initials: initials(s.full_name), role: s.position, alertState: pick, certs }, extra(s));
       });
 
     // Certificate waiting for approval
@@ -301,7 +302,6 @@ const Live = (() => {
       ? {
           id: med.id,
           childName: med.children ? `${med.children.first_name} ${med.children.last_name}` : "Child",
-          room: med.children ? med.children.room : "",
           allergies: med.allergies || med.condition || "",
           conditions: med.conditions || "",
           dietary: med.dietary || "",
@@ -323,12 +323,12 @@ const Live = (() => {
       const k = kids.find((x) => x.id === threadChild) || {};
       const answered = latestParent && thread.some((x) => x.child_id === threadChild && x.sender === "centre" && !["receipt", "reminder"].includes(x.kind) && x.sent_at > latestParent.sent_at);
       ownerThread = {
-        childId: threadChild, childName: kidName(threadChild), room: k.room || "",
+        childId: threadChild, childName: kidName(threadChild),
         parentName: latestParent ? latestParent.sender_name : "",
         unanswered: !!latestParent && !answered, lastParentText: latestParent ? latestParent.body : "",
       };
       familyMessages = thread.filter((t) => t.child_id === threadChild).reverse().map((t) => ({ from: t.sender, text: t.body, time: fmtDT(t.sent_at) }));
-      familyMedical = Object.assign({}, familyMedical, { childName: ownerThread.childName, room: ownerThread.room });
+      familyMedical = Object.assign({}, familyMedical, { childName: ownerThread.childName });
     } else {
       ownerThread = null;
       familyMessages = [];
@@ -352,10 +352,10 @@ const Live = (() => {
   }
 
   async function loadParent() {
-    const kids = await q(sb.from("children").select("id, first_name, last_name, room").order("first_name"));
+    const kids = await q(sb.from("children").select("id, first_name, last_name").order("first_name"));
     children = kids;
     if (!kids.length) {
-      familyMedical = { childName: "your child", room: "Not linked yet", allergies: "", conditions: "", dietary: "", medications: "", notes: "", emergency: "", reviewedAt: "Not yet linked" };
+      familyMedical = { childName: "your child", allergies: "", conditions: "", dietary: "", medications: "", notes: "", emergency: "", reviewedAt: "Not yet linked" };
       familyMessages = [{ from: "centre", text: "Welcome to beehive. The centre will link your account to your child shortly.", time: "" }];
       medicalSubmission = null;
       return;
@@ -370,7 +370,6 @@ const Live = (() => {
     const p = profile || {};
     familyMedical = {
       childName: `${kid.first_name} ${kid.last_name}`.trim(),
-      room: kid.room || "",
       allergies: p.allergies || "",
       conditions: p.conditions || "",
       dietary: p.dietary || "",
@@ -383,7 +382,7 @@ const Live = (() => {
     const recent = m && new Date(m.submitted_at) > new Date(Date.now() - 14 * 86400000);
     medicalSubmission = m && (m.status === "pending" || recent)
       ? {
-          id: m.id, childName: familyMedical.childName, room: familyMedical.room,
+          id: m.id, childName: familyMedical.childName,
           allergies: m.allergies, conditions: m.conditions, dietary: m.dietary, medications: m.medications, notes: m.care_notes,
           emergency: m.emergency_contact, signer: m.signer_name, submittedAt: fmtDT(m.submitted_at),
           status: m.status === "pending" ? "pending" : "reviewed", reviewedAt: m.approved_at ? fmtDT(m.approved_at) : "",
@@ -451,7 +450,7 @@ const Live = (() => {
     try { return await q(run(rowWith)); } catch (e) { if (/column|schema cache/i.test(e.message || "")) return q(run(rowWithout)); throw e; }
   }
   async function addEducator(e) {
-    const base = { centre_id: ME.centre.id, full_name: e.name, email: e.email || "", phone: e.phone || "", position: e.role, room: e.room };
+    const base = { centre_id: ME.centre.id, full_name: e.name, email: e.email || "", phone: e.phone || "", position: e.role };
     const row = await busy(() => tolerant((r) => sb.from("staff").insert(r).select("id").single(),
       Object.assign({}, base, { qualification: e.qualification || "", work_days: e.days, started_on: e.startedOn || null }), base), e.name + " added. beehive will ask them for their credentials.");
     await reload();
@@ -585,7 +584,7 @@ const Live = (() => {
   async function acknowledgeFamilyUpdate() {
     if (!medicalSubmission) return;
     await busy(() => q(sb.rpc("review_medical_update", { p_update: medicalSubmission.id, p_approve: true, p_note: "" })),
-      "Update acknowledged. The record is locked, room educators have the new details and the family has been told.");
+      "Update acknowledged. The record is locked, educators have the new details and the family has been told.");
     closeModal();
     await reload();
   }

@@ -1,6 +1,6 @@
 // beehive staff records: add educators, keep every document on their file, and keep former educators.
 //
-// - Add educator: name, role, room, contact, qualification and usual days. beehive's staff agent then asks
+// - Add educator: name, role, contact, qualification and usual days. beehive's staff agent then asks
 //   them for any required credential that isn't on file.
 // - Documents: required credentials (WWCC, first aid, CPR, anaphylaxis, asthma) replace the one on file and
 //   update the register; qualifications, child protection training and any other document are added alongside.
@@ -15,7 +15,7 @@ const StaffRecords = (() => {
   const REQUIRED_CODE = { WWCC: "WWCC", "First aid": "FIRST_AID", CPR: "CPR", Anaphylaxis: "ANAPHYLAXIS", Asthma: "ASTHMA" };
   const QUALS = ["Early childhood teacher", "Diploma", "Working towards diploma", "Certificate III", "Working towards Certificate III"];
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-  const ROLES = ["Educator", "Lead educator", "Assistant educator", "Early childhood teacher", "Room leader", "Cook"];
+  const ROLES = ["Educator", "Lead educator", "Assistant educator", "Early childhood teacher", "Cook"];
   const isLive = () => typeof LIVE !== "undefined" && LIVE;
   const iso = (d) => d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
   const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
@@ -25,7 +25,7 @@ const StaffRecords = (() => {
   // ---------- offline store: documents on each educator, and former educators ----------
   // A sample former educator, so the demo shows how records are kept after someone leaves.
   const SAMPLE_FORMER = [{
-    id: "hannah", name: "Hannah Kim", role: "Educator", room: "Banksia Room", qualification: "Diploma", email: "hannah@example.com", phone: "",
+    id: "hannah", name: "Hannah Kim", role: "Educator", qualification: "Diploma", email: "hannah@example.com", phone: "",
     startedOn: daysAgo(1180), leftOn: daysAgo(236), leftReason: "Resigned (moved interstate)", certs: [],
     docs: [
       { id: "h1", kind: "WWCC", title: "Working with Children Check", number: "WWC0661204E", issued: daysAgo(1200), expires: daysAgo(-625), fileName: "hannah-wwcc.pdf" },
@@ -63,13 +63,11 @@ const StaffRecords = (() => {
 
   // ---------- add an educator ----------
   function openAdd() {
-    const rooms = Array.from(new Set(educators.map((e) => e.room).filter((r) => r && r !== "—")));
     openModal(
       '<div class="modalHead"><div><h2>Add an educator</h2><p>beehive will ask them for any required credential that isn’t on file yet.</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<div class="formGrid">' +
         field("Full name", '<input class="formControl" id="neName" autocomplete="off">') +
         field("Role", '<select class="formControl" id="neRole">' + ROLES.map((r) => "<option>" + r + "</option>").join("") + "</select>") +
-        field("Room", '<select class="formControl" id="neRoom">' + rooms.map((r) => "<option>" + E(r) + "</option>").join("") + "</select>") +
         field("Qualification", '<select class="formControl" id="neQual">' + QUALS.map((q) => "<option>" + q + "</option>").join("") + "</select>") +
         field("Email", '<input class="formControl" id="neEmail" type="email" autocomplete="off">') +
         field("Mobile", '<input class="formControl" id="nePhone" autocomplete="off">') +
@@ -82,7 +80,7 @@ const StaffRecords = (() => {
   function field(label, control) { return '<label class="formField"><span class="formLabel">' + label + "</span>" + control + "</label>"; }
   async function saveNew() {
     const v = (id) => ((document.getElementById(id) || {}).value || "").trim();
-    const e = { name: v("neName"), role: v("neRole"), room: v("neRoom"), qualification: v("neQual"), email: v("neEmail"), phone: v("nePhone"), startedOn: v("neStart"),
+    const e = { name: v("neName"), role: v("neRole"), qualification: v("neQual"), email: v("neEmail"), phone: v("nePhone"), startedOn: v("neStart"),
       days: Array.from(document.querySelectorAll(".dayPicks input:checked")).map((x) => x.value) };
     if (e.name.split(/\s+/).length < 2) return toast("Enter the educator’s full name.");
     if (!e.days.length) return toast("Pick at least one day they usually work.");
@@ -190,7 +188,7 @@ const StaffRecords = (() => {
     if (!list.length) return "";
     return '<section class="section formerSection"><div class="sectionHead"><h2>Former educators<span class="count">' + list.length + "</span></h2><p>Records kept for 3 years after their last day (Reg 183)</p></div>" +
       '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>Started</th><th>Last day</th><th>Keep records until</th><th>Documents</th></tr></thead><tbody>' +
-      list.map((f) => '<tr onclick="StaffRecords.openFormer(\'' + E(f.id) + '\')"><td><div class="staffPerson"><b>' + E(f.name) + "</b><small>" + E(f.role) + ", " + E(f.room) + "</small></div></td>" +
+      list.map((f) => '<tr onclick="StaffRecords.openFormer(\'' + E(f.id) + '\')"><td><div class="staffPerson"><b>' + E(f.name) + "</b><small>" + E(f.role) + "</small></div></td>" +
         '<td data-label="Worked">' + (f.startedOn ? E(fmt(f.startedOn)) : "—") + '</td><td data-label="Last day">' + (f.leftOn ? E(fmt(f.leftOn)) : "Not recorded") + (f.leftReason ? "<small class=\"days\">" + E(f.leftReason) + "</small>" : "") + "</td>" +
         '<td data-label="Keep until"><span class="status monitor">' + (f.leftOn ? E(fmt(keepUntil(f.leftOn))) : "3 years after last day") + "</span></td>" +
         '<td data-label="Documents">' + (f.docs || []).length + " on file</td></tr>").join("") +
@@ -200,7 +198,7 @@ const StaffRecords = (() => {
     const f = (formerEducators || []).find((x) => x.id === id);
     if (!f) return;
     openModal(
-      '<div class="modalHead"><div><h2>' + E(f.name) + "</h2><p>Former " + E(String(f.role || "educator").toLowerCase()) + ", " + E(f.room) + (f.qualification ? " · " + E(f.qualification) : "") + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
+      '<div class="modalHead"><div><h2>' + E(f.name) + "</h2><p>Former " + E(String(f.role || "educator").toLowerCase()) + (f.qualification ? " · " + E(f.qualification) : "") + '</p></div><button class="closeButton" aria-label="Close" onclick="closeModal()">×</button></div>' +
       '<div class="modalSection">' + meta("Started", fmt(f.startedOn)) + meta("Last day", fmt(f.leftOn) + (f.leftReason ? " · " + f.leftReason : "")) + meta("Keep records until", f.leftOn ? fmt(keepUntil(f.leftOn)) : "3 years after their last day") + meta("Contact", [f.email, f.phone].filter(Boolean).join(" · ")) + "</div>" +
       docsHtml(f, true) + '<p class="footnote">Read only. An authorised officer can ask to see a former educator’s staff record for 3 years after they leave.</p>'
     );

@@ -66,7 +66,7 @@ async function brief({ title, text, requirements, model, timeLimitMs }) {
 
 const ROSTER_INSTRUCTIONS = `You explain a weekly roster that beehive's rules engine built for an Australian long day care centre (NSW) to the centre owner.
 - Use only the roster data in the message. Never invent educators, numbers or rules.
-- Cover: how each day meets ratios and the 50% diploma rule (Reg 126: at least half the educators needed for ratio hold a diploma or above, or are working towards one), first aid cover in each room, anyone moved out of their home room and why, and any issue the data lists that still needs the owner.
+- Cover: how each day meets ratios and the 50% diploma rule (Reg 126: at least half the educators needed for ratio hold a diploma or above, or are working towards one), first aid cover on every shift, and any issue the data lists that still needs the owner.
 - 3 to 6 short bullet points ("- " at the start of each line), plain Australian English, no headings, no emoji.`;
 
 async function explainRoster({ week, days, model, timeLimitMs }) {
