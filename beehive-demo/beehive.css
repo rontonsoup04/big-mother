@@ -1826,8 +1826,11 @@ details.more > summary { color: var(--ink); font-weight: 800; }
   --dock-h: 66px;
 }
 body { font-size: var(--t-md); }
-.dock { bottom: 10px; padding: 6px; }
-.dock button { height: 52px; min-width: 74px; font-size: 13px; }
+/* wider screens only: on phones the dock spans the screen and its six buttons share the width (see max-width: 760px) */
+@media (min-width: 761px) {
+  .dock { bottom: 10px; padding: 6px; }
+  .dock button { height: 52px; min-width: 74px; font-size: 13px; }
+}
 @media (min-width: 900px) and (min-height: 620px) {
   .page { padding-bottom: calc(var(--dock-h) + 18px); }
 }
