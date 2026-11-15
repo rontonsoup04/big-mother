@@ -1,7 +1,8 @@
 -- Fuller ACECQA requirement list (Nov 2026).
 -- Adds the requirements spot checks and assessment and rating look at that weren't on the checklist,
 -- and folds "Emergency contacts and procedures" into the evacuation requirement (both Reg. 97).
--- Re-runnable. Run after 20261026090000_compliance_library.sql (which now also has guides for the new items).
+-- Re-runnable. Run after 20261026090000_compliance_library.sql (which now also has guides for the new items)
+-- and after 20261114080000_evidence_kind_children.sql, which adds the 'children' evidence kind used below.
 
 -- 1. The requirement list every centre starts from.
 create or replace function public._requirement_defaults()
