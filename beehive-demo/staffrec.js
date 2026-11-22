@@ -120,8 +120,10 @@ const StaffRecords = (() => {
         field("Number", '<input class="formControl" id="ndNumber" placeholder="Certificate or check number">') +
         field("Issued", '<input class="formControl" id="ndIssued" type="date">') +
         field("Expires", '<input class="formControl" id="ndExpires" type="date">') +
-        field("File (optional)", '<input class="formControl" id="ndFile" type="file" accept=".pdf,image/*">') +
+        field("Certificate (optional)", '<input class="formControl" id="ndFile" type="file" accept=".pdf,image/*" onchange="StaffRecords.readFile(\'' + E(e.id) + '\')">') +
       "</div>" +
+      '<p class="footnote" id="ndRead">Add a photo or PDF of the certificate and beehive reads the type, number and dates for you.' +
+        (isLive() ? "" : ' <button class="chip" type="button" id="ndSample" onclick="StaffRecords.useSample(\'' + E(e.id) + '\')">Use a sample certificate (demo)</button>') + "</p>" +
       '<p class="footnote" id="ndHint">Required credentials replace the one on file and update the staff register straight away.</p>' +
       '<div class="formActions"><button class="button" onclick="openStaffDetail(\'' + E(e.id) + '\')">Back</button><button class="button primary" onclick="StaffRecords.saveDoc(\'' + E(e.id) + '\')">Save to record</button></div>'
     );
@@ -152,6 +154,36 @@ const StaffRecords = (() => {
     render();
     toast("Saved to " + (educators.find((x) => x.id === id) || {}).name + "’s record.");
     setTimeout(() => openStaffDetail(id), 200);
+  }
+  // Read an uploaded certificate in the browser (same reader as the educator upload page) and fill in the form.
+  const KIND_OF = { WWCC: "WWCC", FIRST_AID: "First aid", CPR: "CPR", ANAPHYLAXIS: "Anaphylaxis", ASTHMA: "Asthma" };
+  async function readFile(id) {
+    const e = educators.find((x) => x.id === id), input = document.getElementById("ndFile"), out = document.getElementById("ndRead");
+    const file = input && input.files && input.files[0];
+    if (!file || !out || typeof Extract === "undefined") return;
+    out.textContent = "Reading the certificate…";
+    let f, text = "";
+    try { const r = await Extract.analyse(file, { name: e && e.name }); f = r.fields; text = r.text || ""; } catch (err) { out.textContent = "Couldn’t read that file. Enter the details by hand."; return; }
+    if (!f.readable) { out.textContent = "beehive couldn’t read that file clearly. Enter the details by hand."; return; }
+    const set = (fid, v) => { const el = document.getElementById(fid); if (el && v) el.value = v; };
+    if (f.type_code && KIND_OF[f.type_code]) { set("ndKind", KIND_OF[f.type_code]); kindChanged(KIND_OF[f.type_code]); }
+    // course line, e.g. "HLTAID012 Provide First Aid in an education and care setting" (OCR can read 0 as O)
+    const cm = text.match(/\b(HLTAID[0-9O]{3}|22578VIC|22556VIC)\s*([A-Za-z][^\n]{4,90})/i);
+    const course = cm ? (cm[1].toUpperCase().replace(/(?<=HLTAID\d*)O/g, "0") + " " + cm[2]).replace(/\s+/g, " ").trim() : ((Extract.TYPE_NAMES || {})[f.type_code]) || "";
+    set("ndTitle", course); set("ndNumber", f.number); set("ndIssued", f.issue_date); set("ndExpires", f.expiry_date);
+    const nameOk = !f.name || !e || f.name.toLowerCase().replace(/\s+/g, " ") === e.name.toLowerCase();
+    out.innerHTML = "<b>beehive read the certificate.</b> " +
+      [course && E(course), f.issue_date && "issued " + E(fmt(f.issue_date)), f.expiry_date && "expires " + E(fmt(f.expiry_date))].filter(Boolean).join(", ") + ". " +
+      (nameOk ? "The name matches " + E(e ? e.name : "the record") + "." : "<b>Check the name:</b> the certificate says " + E(f.name) + ".") +
+      (f.uncertain && f.uncertain.length ? " " + E(f.uncertain[0]) : " Check the details, then save.");
+  }
+  async function useSample(id) {
+    const e = educators.find((x) => x.id === id), input = document.getElementById("ndFile");
+    if (!e || !input || typeof Extract === "undefined") return;
+    const code = REQUIRED_CODE[(document.getElementById("ndKind") || {}).value] || "FIRST_AID";
+    const file = await Extract.sample(e.name, code, "correct");
+    const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files;
+    await readFile(id);
   }
   async function view(path) { const url = await Live.docUrl(path); if (url) window.open(url, "_blank", "noopener"); else toast("Couldn’t open that file."); }
 
@@ -222,5 +254,5 @@ const StaffRecords = (() => {
       '<div class="modalSection"><button class="textButton dangerText" onclick="StaffRecords.openLeave(\'' + E(e.id) + '\')">This educator is leaving</button></div>';
   }
 
-  return { applyOffline, openAdd, saveNew, docsHtml, openDoc, kindChanged, saveDoc, view, openLeave, saveLeave, formerSection, openFormerList, openFormer, detailExtras };
+  return { applyOffline, openAdd, saveNew, docsHtml, openDoc, kindChanged, saveDoc, readFile, useSample, view, openLeave, saveLeave, formerSection, openFormerList, openFormer, detailExtras };
 })();

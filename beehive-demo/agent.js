@@ -453,9 +453,39 @@ const StaffAgent = (() => {
       announce(r, ra);
     } finally { running = false; }
   }
+  // "Send reminder now": record the reminder (as the agent always does), then email it for real through
+  // /api/email. If email isn't set up, the reminder stays recorded-only and the owner is told why.
   async function sendNow(taskId) {
-    await guard(() => (isLive() ? rpc("agent_send_now", { p_task: taskId }) : Engine.sendNow(taskId)), "Reminder recorded as sent (simulated, nothing left beehive).");
-    closeModal(); await refresh(); openTask(taskId);
+    await guard(() => (isLive() ? rpc("agent_send_now", { p_task: taskId }) : Engine.sendNow(taskId)));
+    closeModal(); await refresh();
+    const m = data.messages.filter((x) => x.taskId === taskId).sort((a, b) => String(b.at).localeCompare(String(a.at)))[0];
+    if (!m || m.channel !== "email") toast(m && m.channel === "sms" ? "Reminder recorded. This educator has only a mobile on file, and SMS is simulated." : "Reminder recorded, but there’s no email or mobile on file.");
+    else {
+      toast("Sending the reminder email…");
+      const r = await emailMessage(m);
+      toast(r.ok ? "Reminder emailed to " + first(staffNameOf(m.staffId) || "the educator") + (r.demoInbox ? " (delivered to the demo inbox)." : " at " + m.recipient + ".")
+        : r.code === "not_configured" ? "Reminder recorded, but not emailed: " + r.error : "Reminder recorded, but the email didn’t send. " + r.error);
+    }
+    openTask(taskId);
+  }
+  const EMAILED_KEY = "beehive-emailed";
+  function emailed() { try { return JSON.parse(localStorage.getItem(EMAILED_KEY) || "{}"); } catch (e) { return {}; } }
+  async function emailMessage(m) {
+    try {
+      const headers = { "Content-Type": "application/json" };
+      let payload;
+      if (isLive()) {
+        const session = (await Live.client().auth.getSession()).data.session;
+        if (!session) return { ok: false, error: "Sign in again to send emails." };
+        headers.Authorization = "Bearer " + session.access_token;
+        payload = { messageId: m.id };
+      } else payload = { demo: true, subject: m.subject, body: m.body, token: m.link, staffName: staffNameOf(m.staffId) };
+      const res = await fetch("/api/email", { method: "POST", headers, body: JSON.stringify(payload) });
+      const out = await res.json().catch(() => ({ error: "The email service didn’t answer (status " + res.status + ")." }));
+      if (!res.ok || !out.ok) return { ok: false, error: out.error || "Status " + res.status + ".", code: out.code };
+      try { const e = emailed(); e[m.id] = { at: new Date().toISOString(), demoInbox: !!out.demoInbox }; localStorage.setItem(EMAILED_KEY, JSON.stringify(e)); } catch (e) {}
+      return out;
+    } catch (e) { return { ok: false, error: "Couldn’t reach the email service. Check your connection." }; }
   }
   async function acknowledge(taskId) {
     await guard(() => (isLive() ? rpc("acknowledge_escalation", { p_task: taskId, p_note: "" }) : Engine.ack(taskId)), "Escalation acknowledged. beehive keeps chasing the renewal.");
@@ -507,7 +537,9 @@ const StaffAgent = (() => {
     if (t.pendingSubId) return "Upload received, waiting for your verification";
     if (!t.lastMessageAt) return t.state === "monitoring" ? "Watching. A request goes out at 30 days" : "";
     const what = t.lastKind === "follow_up" ? "Follow-up" : t.lastKind === "correction" ? "Correction request" : "Request";
-    return what + " sent " + relTime(t.lastMessageAt).toLowerCase() + " by " + channelLabel(t.lastChannel) + " (simulated)";
+    const lastMsg = data.messages.filter((m) => m.taskId === t.id).sort((a, b) => String(b.at).localeCompare(String(a.at)))[0];
+    const real = lastMsg && emailed()[lastMsg.id];
+    return what + " sent " + relTime(t.lastMessageAt).toLowerCase() + " by " + channelLabel(t.lastChannel) + (real ? "" : " (simulated)");
   }
   function nextStep(t) {
     if (t.state === "owner_review") return t.pendingSubId ? "Verify the upload" : "Your decision";
@@ -754,7 +786,9 @@ const StaffAgent = (() => {
   function messageHtml(m) {
     return (
       '<div class="msgItem"><div class="msgHead"><b>' + E(m.subject) + '</b><time>' + E(new Date(m.at).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })) + "</time></div>" +
-      '<small class="msgTo">' + (m.outcome === "no_contact" ? "Not sent: no email or mobile on file" : "Simulated " + channelLabel(m.channel) + " to " + E(m.recipient) + " · not actually delivered") + "</small>" +
+      '<small class="msgTo">' + (m.outcome === "no_contact" ? "Not sent: no email or mobile on file"
+        : emailed()[m.id] ? "Emailed to " + E(m.recipient) + (emailed()[m.id].demoInbox ? " · delivered to the demo inbox" : "")
+        : "Simulated " + channelLabel(m.channel) + " to " + E(m.recipient) + " · not actually delivered") + "</small>" +
       "<p>" + E(m.body) + "</p>" +
       (m.link ? '<a class="msgLink" href="' + E(uploadUrl(m.link)) + '" target="_blank" rel="noopener" onclick="return StaffAgent.openLink(\'' + E(m.link) + '\')">Open ' + first(staffNameOf(m.staffId)) + "’s upload link (demo)</a>" : "") +
       (m.nextFollowUp ? '<small class="muted">Next follow-up ' + E(fmtDate(m.nextFollowUp)) + "</small>" : "") + "</div>"
@@ -977,7 +1011,7 @@ const StaffAgent = (() => {
       (info.pending ? '<p class="notice">You’ve already uploaded one that’s waiting to be checked. A new upload replaces it.</p>' : "") +
       uploadWidget() +
       '<div class="formActions" style="justify-content:flex-start"><button class="button primary" id="submitUpload" onclick="StaffAgent.submitUpload()">Send to the centre</button></div>' +
-      '<p class="footnote">Demo prototype: this page stands in for the link in the (simulated) email or SMS. Use invented details only.</p>' + closeLink() + "</div>";
+      '<p class="footnote">This is the page the renewal email links to. Use invented details only.</p>' + closeLink() + "</div>";
   }
   function brand() { return '<div class="authLogo small"><img src="./brand/animated/beehive-arrive-trail.svg" alt="beehive"></div>'; }
   function closeLink() { return !linkInApp ? "" : '<button class="textButton" style="margin-top:24px" onclick="StaffAgent.closeUploadPage()">Back to the owner view</button>'; }
