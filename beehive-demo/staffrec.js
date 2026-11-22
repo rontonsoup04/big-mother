@@ -122,8 +122,8 @@ const StaffRecords = (() => {
         field("Expires", '<input class="formControl" id="ndExpires" type="date">') +
         field("Certificate (optional)", '<input class="formControl" id="ndFile" type="file" accept=".pdf,image/*" onchange="StaffRecords.readFile(\'' + E(e.id) + '\')">') +
       "</div>" +
-      '<p class="footnote" id="ndRead">Add a photo or PDF of the certificate and beehive reads the type, number and dates for you.' +
-        (isLive() ? "" : ' <button class="chip" type="button" id="ndSample" onclick="StaffRecords.useSample(\'' + E(e.id) + '\')">Use a sample certificate (demo)</button>') + "</p>" +
+      '<div id="ndRead"><p class="footnote">Add a photo or PDF of the certificate and beehive reads the type, number and dates for you, then checks them against ' + E(e.name.split(" ")[0]) + "’s record." +
+        (isLive() ? "" : ' <button class="chip" type="button" id="ndSample" onclick="StaffRecords.useSample(\'' + E(e.id) + '\')">Use a sample certificate (demo)</button>') + "</p></div>" +
       '<p class="footnote" id="ndHint">Required credentials replace the one on file and update the staff register straight away.</p>' +
       '<div class="formActions"><button class="button" onclick="openStaffDetail(\'' + E(e.id) + '\')">Back</button><button class="button primary" onclick="StaffRecords.saveDoc(\'' + E(e.id) + '\')">Save to record</button></div>'
     );
@@ -161,21 +161,44 @@ const StaffRecords = (() => {
     const e = educators.find((x) => x.id === id), input = document.getElementById("ndFile"), out = document.getElementById("ndRead");
     const file = input && input.files && input.files[0];
     if (!file || !out || typeof Extract === "undefined") return;
-    out.textContent = "Reading the certificate…";
-    let f, text = "";
-    try { const r = await Extract.analyse(file, { name: e && e.name }); f = r.fields; text = r.text || ""; } catch (err) { out.textContent = "Couldn’t read that file. Enter the details by hand."; return; }
-    if (!f.readable) { out.textContent = "beehive couldn’t read that file clearly. Enter the details by hand."; return; }
+    const quick = /^image\//.test(file.type) ? '<div class="certPreview"><img src="' + URL.createObjectURL(file) + '" alt="Uploaded certificate"></div>' : "";
+    out.innerHTML = quick + '<p class="okLine"><span class="status neutral">Reading</span> beehive is reading the certificate and checking it against ' + E(e ? e.name.split(" ")[0] : "the") + "’s record…</p>";
+    let r;
+    try { r = await Extract.analyse(file, { name: e && e.name }); } catch (err) { out.innerHTML = '<p class="footnote">Couldn’t read that file. Enter the details by hand.</p>'; return; }
+    const f = r.fields, text = r.text || "";
+    const preview = /^data:image\//.test(r.dataUrl || "") ? '<div class="certPreview"><img src="' + r.dataUrl + '" alt="Uploaded certificate"></div>' : '<p class="muted small">' + E(file.name) + "</p>";
+    if (!f.readable) { out.innerHTML = preview + '<div class="flagBox"><b>beehive couldn’t read this file clearly</b><ul><li>Enter the details by hand from the certificate.</li></ul></div>'; return; }
     const set = (fid, v) => { const el = document.getElementById(fid); if (el && v) el.value = v; };
     if (f.type_code && KIND_OF[f.type_code]) { set("ndKind", KIND_OF[f.type_code]); kindChanged(KIND_OF[f.type_code]); }
     // course line, e.g. "HLTAID012 Provide First Aid in an education and care setting" (OCR can read 0 as O)
-    const cm = text.match(/\b(HLTAID[0-9O]{3}|22578VIC|22556VIC)\s*([A-Za-z][^\n]{4,90})/i);
-    const course = cm ? (cm[1].toUpperCase().replace(/(?<=HLTAID\d*)O/g, "0") + " " + cm[2]).replace(/\s+/g, " ").trim() : ((Extract.TYPE_NAMES || {})[f.type_code]) || "";
+    const cm = text.match(/\b(H\s?[LI1]\s?T\s?A\s?[I1l|]\s?D\s?([0-9Oo]{3,4})|22578VIC|22556VIC)\s*([A-Za-z][^\n]{4,90})/i);
+    const code = cm ? (cm[2] ? "HLTAID" + cm[2].replace(/[Oo]/g, "0").slice(-3) : cm[1].toUpperCase()) : "";
+    const course = cm ? (code + " " + cm[3]).replace(/\s+/g, " ").trim() : ((Extract.TYPE_NAMES || {})[f.type_code]) || "";
     set("ndTitle", course); set("ndNumber", f.number); set("ndIssued", f.issue_date); set("ndExpires", f.expiry_date);
-    const nameOk = !f.name || !e || f.name.toLowerCase().replace(/\s+/g, " ") === e.name.toLowerCase();
-    out.innerHTML = "<b>beehive read the certificate.</b> " +
-      [course && E(course), f.issue_date && "issued " + E(fmt(f.issue_date)), f.expiry_date && "expires " + E(fmt(f.expiry_date))].filter(Boolean).join(", ") + ". " +
-      (nameOk ? "The name matches " + E(e ? e.name : "the record") + "." : "<b>Check the name:</b> the certificate says " + E(f.name) + ".") +
-      (f.uncertain && f.uncertain.length ? " " + E(f.uncertain[0]) : " Check the details, then save.");
+    // compare with the record
+    const kind = (document.getElementById("ndKind") || {}).value || "";
+    const onFile = e && (e.certs || []).find((c) => String(c.type).toLowerCase() === kind.toLowerCase());
+    const fileExpiry = onFile && typeof onFile.days === "number" ? iso(new Date(Date.now() + onFile.days * 864e5)) : "";
+    const today = iso(new Date());
+    const nameOk = !!f.name && !!e && f.name.toLowerCase().replace(/\s+/g, " ").trim() === e.name.toLowerCase();
+    const typeOk = !!f.type_code && KIND_OF[f.type_code] === kind;
+    const expOk = !!f.expiry_date && f.expiry_date > today && (!fileExpiry || f.expiry_date > fileExpiry);
+    const ok = (v) => (v ? '<span class="status green">Matches</span>' : '<span class="status crit">Check</span>');
+    const problems = [];
+    if (!nameOk) problems.push(f.name ? "The name on the certificate (" + f.name + ") doesn’t match " + (e ? e.name : "the record") + "." : "beehive couldn’t find a name on the certificate.");
+    if (!typeOk) problems.push("The certificate doesn’t look like a " + kind + " certificate.");
+    if (!expOk) problems.push(!f.expiry_date ? "No expiry date was found." : f.expiry_date <= today ? "This certificate has already expired." : "The expiry date isn’t later than the one on file, so this may be the old certificate.");
+    (f.uncertain || []).forEach((u) => problems.push(u));
+    out.innerHTML = preview +
+      (problems.length ? '<div class="flagBox"><b>Check these before saving</b><ul>' + problems.map((x) => "<li>" + E(x) + "</li>").join("") + "</ul></div>"
+        : '<p class="okLine"><span class="status green">Looks correct</span> beehive read the certificate: the name, credential and a newer expiry date all check out.</p>') +
+      '<table class="compareTable"><thead><tr><th></th><th>On the certificate</th><th>On record</th><th></th></tr></thead><tbody>' +
+      "<tr><th>Name</th><td>" + E(f.name || "Not found") + "</td><td>" + E(e ? e.name : "") + "</td><td>" + ok(nameOk) + "</td></tr>" +
+      "<tr><th>Credential</th><td>" + E(course || (KIND_OF[f.type_code] || "Not found")) + "</td><td>" + E(kind) + "</td><td>" + ok(typeOk) + "</td></tr>" +
+      "<tr><th>Issued</th><td>" + E(f.issue_date ? fmt(f.issue_date) : "Not found") + '</td><td class="muted">—</td><td>' + (f.issue_date ? '<span class="status neutral">Read</span>' : "") + "</td></tr>" +
+      "<tr><th>Expiry</th><td>" + E(f.expiry_date ? fmt(f.expiry_date) : "Not found") + "</td><td>" + E(onFile ? onFile.expiry + (onFile.days < 0 ? " (expired)" : "") : "None on file") + "</td><td>" + (expOk ? '<span class="status green">Newer</span>' : '<span class="status crit">Check</span>') + "</td></tr>" +
+      (f.number ? "<tr><th>Number</th><td>" + E(f.number) + '</td><td class="muted">—</td><td><span class="status neutral">Read</span></td></tr>' : "") +
+      "</tbody></table>" + (file.__demo || f.demo || /^sample-/.test(file.name) ? '<p class="demoNote">Demo: sample certificate generated for this prototype.</p>' : "");
   }
   async function useSample(id) {
     const e = educators.find((x) => x.id === id), input = document.getElementById("ndFile");
