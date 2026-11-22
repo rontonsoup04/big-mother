@@ -1045,7 +1045,7 @@ function staffPortalPage() {
       staffRows() + "</tbody></table></div></section>" +
       '</div><aside class="splitSide">' + followUpsCard() +
       (typeof StaffRecords !== "undefined" ? StaffRecords.formerSection() : "") + "</aside></div>" +
-      '<p class="footnote">' + (LIVE ? "" : "Offline demo: sample educators. ") + "Email and SMS are simulated: messages are recorded with recipient and time but not delivered.</p>"
+      '<p class="footnote">' + (LIVE ? "" : "Offline demo: sample educators. ") + "beehive records its automatic reminders; Send reminder now emails one for real. SMS is simulated.</p>"
     );
   return (
     header("Staff records", "", '<button class="button" onclick="runExpiryCheck()"><span data-icon="refresh"></span>Run expiry check</button><button class="button primary" onclick="go(\'staff-upload\')"><span data-icon="upload"></span>Upload a certificate</button>') +
@@ -1059,7 +1059,7 @@ function staffPortalPage() {
     '<div class="tableWrap"><table class="staffTable"><thead><tr><th>Educator</th><th>WWCC</th><th>First Aid</th><th>CPR</th><th>Anaphylaxis</th><th>Asthma</th><th>Renewal</th></tr></thead><tbody id="staffRows">' +
     staffRows() +
     "</tbody></table></div>" +
-    '<p class="footnote">' + (LIVE ? "Reminders go out 60, 30 and 7 days before expiry. Email and SMS are simulated in this pilot; certificates are stored in your centre’s private storage." : "Offline demo: expiry checks and reminders are simulated. Files stay in this browser.") + "</p>"
+    '<p class="footnote">' + (LIVE ? "Reminders are prepared 60, 30 and 7 days before expiry; Send reminder now emails them to the educator. SMS is simulated in this pilot; certificates are stored in your centre’s private storage." : "Offline demo: expiry checks and reminders are simulated. Files stay in this browser.") + "</p>"
   );
 }
 // The AI follow-ups on the Staff page: what beehive sends on its own, the latest messages, and what needs the owner.
