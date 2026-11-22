@@ -120,10 +120,9 @@ const StaffRecords = (() => {
         field("Number", '<input class="formControl" id="ndNumber" placeholder="Certificate or check number">') +
         field("Issued", '<input class="formControl" id="ndIssued" type="date">') +
         field("Expires", '<input class="formControl" id="ndExpires" type="date">') +
-        field("Certificate (optional)", '<input class="formControl" id="ndFile" type="file" accept=".pdf,image/*" onchange="StaffRecords.readFile(\'' + E(e.id) + '\')">') +
+        field("Certificate", '<input class="formControl" id="ndFile" type="file" accept=".pdf,image/*" onchange="StaffRecords.readFile(\'' + E(e.id) + '\')">') +
       "</div>" +
-      '<div id="ndRead"><p class="footnote">Add a photo or PDF of the certificate and beehive reads the type, number and dates for you, then checks them against ' + E(e.name.split(" ")[0]) + "’s record." +
-        (isLive() ? "" : ' <button class="chip" type="button" id="ndSample" onclick="StaffRecords.useSample(\'' + E(e.id) + '\')">Use a sample certificate (demo)</button>') + "</p></div>" +
+      '<div id="ndRead"><p class="footnote">Add a photo or PDF of the certificate and beehive reads the type, number and dates for you, then checks them against ' + E(e.name.split(" ")[0]) + "’s record." + "</p></div>" +
       '<p class="footnote" id="ndHint">Required credentials replace the one on file and update the staff register straight away.</p>' +
       '<div class="formActions"><button class="button" onclick="openStaffDetail(\'' + E(e.id) + '\')">Back</button><button class="button primary" onclick="StaffRecords.saveDoc(\'' + E(e.id) + '\')">Save to record</button></div>'
     );
@@ -200,14 +199,6 @@ const StaffRecords = (() => {
       (f.number ? "<tr><th>Number</th><td>" + E(f.number) + '</td><td class="muted">—</td><td><span class="status neutral">Read</span></td></tr>' : "") +
       "</tbody></table>" + (file.__demo || f.demo || /^sample-/.test(file.name) ? '<p class="demoNote">Demo: sample certificate generated for this prototype.</p>' : "");
   }
-  async function useSample(id) {
-    const e = educators.find((x) => x.id === id), input = document.getElementById("ndFile");
-    if (!e || !input || typeof Extract === "undefined") return;
-    const code = REQUIRED_CODE[(document.getElementById("ndKind") || {}).value] || "FIRST_AID";
-    const file = await Extract.sample(e.name, code, "correct");
-    const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files;
-    await readFile(id);
-  }
   async function view(path) { const url = await Live.docUrl(path); if (url) window.open(url, "_blank", "noopener"); else toast("Couldn’t open that file."); }
 
   // ---------- an educator leaves ----------
@@ -277,5 +268,5 @@ const StaffRecords = (() => {
       '<div class="modalSection"><button class="textButton dangerText" onclick="StaffRecords.openLeave(\'' + E(e.id) + '\')">This educator is leaving</button></div>';
   }
 
-  return { applyOffline, openAdd, saveNew, docsHtml, openDoc, kindChanged, saveDoc, readFile, useSample, view, openLeave, saveLeave, formerSection, openFormerList, openFormer, detailExtras };
+  return { applyOffline, openAdd, saveNew, docsHtml, openDoc, kindChanged, saveDoc, readFile, view, openLeave, saveLeave, formerSection, openFormerList, openFormer, detailExtras };
 })();
